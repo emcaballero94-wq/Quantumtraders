@@ -55,6 +55,15 @@ const REVERSE_MARKET_SYMBOL_MAP: Record<string, string> = Object.fromEntries(
   Object.entries(MARKET_SYMBOL_MAP).map(([symbol, providerSymbol]) => [providerSymbol, symbol]),
 )
 
+const BINANCE_SYMBOL_MAP: Record<string, string> = {
+  BTCUSD: 'BTCUSDT',
+  ETHUSD: 'ETHUSDT',
+}
+
+const REVERSE_BINANCE_SYMBOL_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(BINANCE_SYMBOL_MAP).map(([symbol, providerSymbol]) => [providerSymbol, symbol]),
+)
+
 const PRICE_HISTORY_PAIRS = [
   'EURUSD',
   'GBPUSD',
@@ -102,21 +111,30 @@ export function symbolToProviderSymbol(symbol: string): string | null {
   return MARKET_SYMBOL_MAP[symbol.toUpperCase()] ?? null
 }
 
-export async function fetchMarketQuotes(symbols: string[]): Promise<MarketQuote[]> {
-  const normalizedSymbols = Array.from(
-    new Set(
-      symbols
-        .map((symbol) => symbol.toUpperCase().trim())
-        .filter((symbol) => Boolean(MARKET_SYMBOL_MAP[symbol])),
-    ),
-  )
+function symbolToBinanceSymbol(symbol: string): string | null {
+  return BINANCE_SYMBOL_MAP[symbol.toUpperCase()] ?? null
+}
 
-  if (normalizedSymbols.length === 0) return []
+function getBinanceApiBaseUrl(): string {
+  return process.env.BINANCE_API_URL ?? 'https://api.binance.com'
+}
 
-  const providerSymbols = normalizedSymbols
+function parseBinanceNumeric(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string') return null
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+async function fetchYahooQuotes(symbols: string[]): Promise<MarketQuote[]> {
+  if (symbols.length === 0) return []
+
+  const providerSymbols = symbols
     .map((symbol) => MARKET_SYMBOL_MAP[symbol])
     .filter((value): value is string => Boolean(value))
     .join(',')
+
+  if (!providerSymbols) return []
 
   const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(providerSymbols)}`
   const response = await fetch(url, {
@@ -155,10 +173,194 @@ export async function fetchMarketQuotes(symbols: string[]): Promise<MarketQuote[
   })
 }
 
+async function fetchBinanceQuotes(symbols: string[]): Promise<MarketQuote[]> {
+  if (symbols.length === 0) return []
+
+  const providerSymbols = symbols
+    .map((symbol) => symbolToBinanceSymbol(symbol))
+    .filter((value): value is string => Boolean(value))
+
+  if (providerSymbols.length === 0) return []
+
+  const url = `${getBinanceApiBaseUrl()}/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(providerSymbols))}`
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'QuantumTraders/1.0',
+    },
+    next: { revalidate: 0 },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Binance quote provider responded with status ${response.status}`)
+  }
+
+  const payload = await response.json()
+  const rows = Array.isArray(payload) ? payload : []
+
+  const quotes: MarketQuote[] = []
+  for (const row of rows) {
+    const providerSymbol = String(row?.symbol ?? '')
+    const internalSymbol = REVERSE_BINANCE_SYMBOL_MAP[providerSymbol] ?? providerSymbol
+    if (!internalSymbol || !MARKET_SYMBOL_MAP[internalSymbol]) continue
+
+    quotes.push({
+      symbol: internalSymbol,
+      providerSymbol,
+      price: parseBinanceNumeric(row?.lastPrice),
+      change: parseBinanceNumeric(row?.priceChange),
+      changePct: parseBinanceNumeric(row?.priceChangePercent),
+      open: parseBinanceNumeric(row?.openPrice),
+      high: parseBinanceNumeric(row?.highPrice),
+      low: parseBinanceNumeric(row?.lowPrice),
+      prevClose: parseBinanceNumeric(row?.prevClosePrice),
+      volume: parseBinanceNumeric(row?.volume),
+      currency: 'USDT',
+      description: internalSymbol,
+      timestamp: Number.parseInt(String(row?.closeTime ?? Date.now()), 10) || Date.now(),
+    })
+  }
+
+  return quotes
+}
+
+export async function fetchMarketQuotes(symbols: string[]): Promise<MarketQuote[]> {
+  const normalizedSymbols = Array.from(
+    new Set(
+      symbols
+        .map((symbol) => symbol.toUpperCase().trim())
+        .filter((symbol) => Boolean(MARKET_SYMBOL_MAP[symbol])),
+    ),
+  )
+
+  if (normalizedSymbols.length === 0) return []
+
+  const cryptoSymbols = normalizedSymbols.filter((symbol) => Boolean(symbolToBinanceSymbol(symbol)))
+  const nonCryptoSymbols = normalizedSymbols.filter((symbol) => !symbolToBinanceSymbol(symbol))
+
+  let binanceQuotes: MarketQuote[] = []
+  try {
+    binanceQuotes = await fetchBinanceQuotes(cryptoSymbols)
+  } catch {
+    binanceQuotes = []
+  }
+
+  const resolvedSymbols = new Set(binanceQuotes.map((quote) => quote.symbol))
+  const yahooSymbols = [...nonCryptoSymbols, ...cryptoSymbols.filter((symbol) => !resolvedSymbols.has(symbol))]
+  const yahooQuotes = await fetchYahooQuotes(yahooSymbols)
+
+  return [...binanceQuotes, ...yahooQuotes]
+}
+
+function mapHistoryIntervalToBinance(interval: string): string {
+  switch (interval) {
+    case '15m':
+      return '15m'
+    case '1h':
+      return '1h'
+    case '4h':
+      return '4h'
+    case '1d':
+      return '1d'
+    default:
+      return '1h'
+  }
+}
+
+function mapRangeToApproxHours(range: string): number {
+  switch (range) {
+    case '1d':
+      return 24
+    case '5d':
+      return 24 * 5
+    case '1mo':
+      return 24 * 30
+    case '3mo':
+      return 24 * 90
+    case '6mo':
+      return 24 * 180
+    case '1y':
+      return 24 * 365
+    default:
+      return 24 * 30
+  }
+}
+
+function estimateBinanceLimit(interval: string, range: string): number {
+  const intervalHours = interval === '15m' ? 0.25 : interval === '4h' ? 4 : interval === '1d' ? 24 : 1
+  const approxHours = mapRangeToApproxHours(range)
+  const estimated = Math.ceil(approxHours / intervalHours)
+  return clamp(estimated, 50, 1000)
+}
+
+async function fetchBinanceHistory(symbol: string, options?: { interval?: string; range?: string }): Promise<Candle[]> {
+  const providerSymbol = symbolToBinanceSymbol(symbol)
+  if (!providerSymbol) return []
+
+  const interval = mapHistoryIntervalToBinance(options?.interval ?? '1h')
+  const range = options?.range ?? '1mo'
+  const limit = estimateBinanceLimit(interval, range)
+  const url = `${getBinanceApiBaseUrl()}/api/v3/klines?symbol=${encodeURIComponent(providerSymbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'QuantumTraders/1.0',
+    },
+    next: { revalidate: 0 },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Binance history provider responded with status ${response.status}`)
+  }
+
+  const payload = await response.json()
+  if (!Array.isArray(payload)) return []
+
+  const candles: Candle[] = []
+  for (const row of payload) {
+    if (!Array.isArray(row)) continue
+
+    const openTime = Number(row[0])
+    const open = parseBinanceNumeric(row[1])
+    const high = parseBinanceNumeric(row[2])
+    const low = parseBinanceNumeric(row[3])
+    const close = parseBinanceNumeric(row[4])
+    const volume = parseBinanceNumeric(row[5])
+
+    if (!Number.isFinite(openTime) || open === null || high === null || low === null || close === null) {
+      continue
+    }
+
+    candles.push({
+      timestamp: openTime,
+      open,
+      high,
+      low,
+      close,
+      volume: volume ?? undefined,
+    })
+  }
+
+  candles.sort((a, b) => a.timestamp - b.timestamp)
+  return candles
+}
+
 export async function fetchMarketHistory(
   symbol: string,
   options?: { interval?: string; range?: string },
 ): Promise<Candle[]> {
+  const normalizedSymbol = symbol.toUpperCase().trim()
+
+  if (symbolToBinanceSymbol(normalizedSymbol)) {
+    try {
+      const binanceCandles = await fetchBinanceHistory(normalizedSymbol, options)
+      if (binanceCandles.length > 0) return binanceCandles
+    } catch {
+      // Fallback to Yahoo below
+    }
+  }
+
   const providerSymbol = symbolToProviderSymbol(symbol)
   if (!providerSymbol) return []
 

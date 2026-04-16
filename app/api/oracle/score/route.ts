@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { computeOracleScore } from '@/lib/oracle/score-engine'
 import type { ScoreRequest, ScoreResponse } from '@/lib/oracle/types'
+import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
 
 export async function POST(req: NextRequest): Promise<NextResponse<ScoreResponse>> {
+  const blocked = rejectIfRateLimited(req, {
+    routeKey: 'oracle-score-post',
+    limit: 120,
+    windowMs: 60_000,
+  })
+  if (blocked) return blocked as NextResponse<ScoreResponse>
+
   try {
     const body = await req.json() as ScoreRequest
 

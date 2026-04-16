@@ -3,10 +3,57 @@
 import { LotCalculator } from '@/components/tools/LotCalculator'
 import { TradeJournal, Trade } from '@/components/tools/TradeJournal'
 import { VoiceConsole } from '@/components/tools/VoiceConsole'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+
+type ApiTrade = {
+  id: string
+  symbol: string
+  side: 'BUY' | 'SELL'
+  result: string
+  profit: number
+  createdAt: string
+}
 
 export default function ToolsPage() {
   const [trades, setTrades] = useState<Trade[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let mounted = true
+    const loadTrades = async () => {
+      try {
+        const response = await fetch('/api/journal/trades')
+        const payload = await response.json()
+        if (!mounted) return
+        const items = (payload?.data ?? []) as ApiTrade[]
+        setTrades(
+          items.map((item) => ({
+            id: item.id,
+            symbol: item.symbol,
+            type: item.side,
+            result: item.result,
+            profit: item.profit,
+            date: new Date(item.createdAt).toLocaleString('es-ES', {
+              day: '2-digit',
+              month: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          })),
+        )
+      } catch {
+        if (!mounted) return
+        setTrades([])
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    loadTrades()
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   const handleTradeParsed = (trade: Trade) => {
       setTrades(prev => [trade, ...prev])
@@ -36,7 +83,7 @@ export default function ToolsPage() {
 
         {/* Right: Journal */}
         <div className="col-span-12 lg:col-span-8">
-          <TradeJournal trades={trades} />
+          <TradeJournal trades={trades} loading={loading} />
         </div>
 
       </div>

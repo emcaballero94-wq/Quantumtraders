@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server'
 import { fetchMarketQuotes } from '@/lib/market-data'
+import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
 
 export async function GET(request: Request) {
+  const blocked = rejectIfRateLimited(request, {
+    routeKey: 'market-quote',
+    limit: 180,
+    windowMs: 60_000,
+  })
+  if (blocked) return blocked
+
   const { searchParams } = new URL(request.url)
   const symbolsParam = searchParams.get('symbols') ?? 'XAUUSD'
   const symbols = symbolsParam

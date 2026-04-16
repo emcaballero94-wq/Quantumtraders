@@ -1,4 +1,6 @@
 import { analyzeMacro } from '@/lib/oracle/macro-engine'
+import { fetchCentralBankRatesFromCalendar, fetchMacroCalendar } from '@/lib/oracle/macro-feed'
+import { listOracleAlerts, upsertOracleAlerts } from '@/lib/oracle/persistence'
 import { getTopOpportunity, rankAssets, computeOracleScore } from '@/lib/oracle/score-engine'
 import { analyzeTechnical } from '@/lib/oracle/technical-engine'
 import { analyzeTiming, getActiveKillZones, getActiveSessions } from '@/lib/oracle/timing-engine'
@@ -163,6 +165,17 @@ function buildCalendarFromAlerts(alerts: OracleAlert[]): EconomicEvent[] {
   }))
 }
 
+function mergeAlertsWithReadState(
+  generatedAlerts: OracleAlert[],
+  persistedAlerts: OracleAlert[],
+): OracleAlert[] {
+  const readMap = new Map(persistedAlerts.map((alert) => [alert.id, alert.read]))
+  return generatedAlerts.map((alert) => ({
+    ...alert,
+    read: readMap.get(alert.id) ?? alert.read,
+  }))
+}
+
 function buildDailyBrief(state: Omit<OracleState, 'brief'>): DailyBrief {
   const ranked = rankAssets(state.radar)
   const top = ranked[0]
@@ -296,8 +309,16 @@ async function buildOracleStateFresh(): Promise<OracleState> {
     .filter((alert): alert is OracleAlert => Boolean(alert))
     .slice(0, 4)
 
-  const alerts = [...generatedAlerts, ...hintAlerts]
-  const calendar = buildCalendarFromAlerts(alerts)
+  const combinedAlerts = [...generatedAlerts, ...hintAlerts]
+  const persistedAlerts = await listOracleAlerts(400).catch(() => [])
+  const alerts = mergeAlertsWithReadState(combinedAlerts, persistedAlerts)
+  await upsertOracleAlerts(alerts).catch(() => undefined)
+
+  const [calendarFeed, centralBankRates] = await Promise.all([
+    fetchMacroCalendar(60).catch(() => [] as EconomicEvent[]),
+    fetchCentralBankRatesFromCalendar().catch(() => []),
+  ])
+  const calendar = calendarFeed.length > 0 ? calendarFeed : buildCalendarFromAlerts(alerts)
   const currencyStrength = await computeCurrencyStrength()
 
   const partialState: Omit<OracleState, 'brief'> = {
@@ -306,7 +327,7 @@ async function buildOracleStateFresh(): Promise<OracleState> {
     sessions,
     killZones,
     alerts,
-    centralBanks: [],
+    centralBanks: centralBankRates,
     calendar,
     currencyStrength,
     lastUpdated: new Date().toISOString(),

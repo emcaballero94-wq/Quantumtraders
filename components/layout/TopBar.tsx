@@ -63,6 +63,26 @@ export function TopBar({ sessions: initialSessions = [], alerts: initialAlerts =
     [alerts],
   )
 
+  const markAllAlertsAsRead = async () => {
+    const unread = alerts.filter((alert) => !alert.read)
+    if (unread.length === 0) return
+
+    try {
+      await Promise.all(
+        unread.map((alert) =>
+          fetch('/api/oracle/alerts', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: alert.id, read: true }),
+          }),
+        ),
+      )
+      setAlerts((previous) => previous.map((alert) => ({ ...alert, read: true })))
+    } catch {
+      // Keep local state untouched on failure.
+    }
+  }
+
   return (
     <header
       className="fixed top-0 left-0 md:left-[220px] right-0 h-11 flex items-center justify-between bg-bg-deep border-b border-bg-border z-20"
@@ -157,7 +177,10 @@ export function TopBar({ sessions: initialSessions = [], alerts: initialAlerts =
         </div>
 
         <div className="px-2 h-11 flex items-center border-l border-bg-border">
-          <button className="relative flex items-center justify-center w-7 h-7 rounded bg-bg-card border border-bg-border hover:border-oracle/30 hover:bg-oracle/5 transition-all">
+          <button
+            onClick={markAllAlertsAsRead}
+            className="relative flex items-center justify-center w-7 h-7 rounded bg-bg-card border border-bg-border hover:border-oracle/30 hover:bg-oracle/5 transition-all"
+          >
             <svg className="w-3.5 h-3.5 text-ink-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
             </svg>

@@ -11,9 +11,15 @@ export interface Trade {
 
 interface TradeJournalProps {
   trades: Trade[];
+  loading?: boolean;
 }
 
-export function TradeJournal({ trades }: TradeJournalProps) {
+export function TradeJournal({ trades, loading = false }: TradeJournalProps) {
+  const totalProfit = trades.reduce((acc, trade) => acc + trade.profit, 0)
+  const closedTrades = trades.filter((trade) => trade.result !== 'OPEN')
+  const winTrades = closedTrades.filter((trade) => trade.profit > 0)
+  const winRate = closedTrades.length > 0 ? Math.round((winTrades.length / closedTrades.length) * 100) : 0
+
   return (
     <div className="rounded-xl border border-bg-border bg-bg-deep overflow-hidden flex flex-col glass h-full">
       <div className="px-5 py-4 border-b border-bg-border bg-bg-card/50 flex items-center justify-between">
@@ -31,7 +37,17 @@ export function TradeJournal({ trades }: TradeJournalProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-bg-border/50">
-            {trades.map((t) => (
+            {loading && (
+              <tr>
+                <td colSpan={4} className="px-5 py-8 text-center text-ink-dim text-xs">Cargando journal...</td>
+              </tr>
+            )}
+            {!loading && trades.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-5 py-8 text-center text-ink-dim text-xs">Sin operaciones registradas.</td>
+              </tr>
+            )}
+            {!loading && trades.map((t) => (
               <tr key={t.id} className="hover:bg-bg-elevated/40 transition-colors">
                 <td className="px-5 py-3 font-bold text-ink-primary">{t.symbol}</td>
                 <td className="px-5 py-3">
@@ -47,8 +63,8 @@ export function TradeJournal({ trades }: TradeJournalProps) {
         </table>
       </div>
       <div className="p-4 border-t border-bg-border bg-bg-card/30 flex justify-between items-center">
-         <span className="text-[10px] text-ink-dim uppercase">Win Rate: 65%</span>
-         <span className="text-[10px] text-ink-dim uppercase tracking-widest">Operaciones Totales: 124</span>
+         <span className="text-[10px] text-ink-dim uppercase">Win Rate: {winRate}%</span>
+         <span className="text-[10px] text-ink-dim uppercase tracking-widest">Operaciones Totales: {trades.length} · P/L {totalProfit >= 0 ? '+' : ''}{totalProfit}$</span>
       </div>
     </div>
   )

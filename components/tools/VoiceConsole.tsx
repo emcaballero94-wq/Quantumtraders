@@ -57,15 +57,34 @@ export function VoiceConsole({ onTradeParsed }: VoiceConsoleProps) {
         
         if (data && data.symbol) {
              console.log("Trade parsed:", data);
+
+             const createRes = await fetch('/api/journal/trades', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  symbol: data.symbol,
+                  side: data.type === 'SELL' ? 'SELL' : 'BUY',
+                  result: 'OPEN',
+                  profit: 0,
+                  entryPrice: data.entry ?? null,
+                  stopLoss: data.sl ?? null,
+                  takeProfit: data.tp ?? null,
+                  notes: `Origen voz: ${command}`,
+                }),
+             })
+             const created = await createRes.json()
+
              playElevenLabsResponse(data.response || "Entendido, trade registrado.")
              if (onTradeParsed) {
                  onTradeParsed({
-                    id: Date.now(),
+                    id: created?.data?.id ?? Date.now(),
                     symbol: data.symbol,
                     type: data.type || 'UNKNOWN',
                     result: 'OPEN',
                     profit: 0,
-                    date: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                    date: created?.data?.createdAt
+                      ? new Date(created.data.createdAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                      : new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
                  })
              }
         } else {

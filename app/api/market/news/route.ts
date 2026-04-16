@@ -8,6 +8,8 @@
  * - Reuters Business
  */
 import { NextResponse } from 'next/server'
+import { withApiCache } from '@/lib/server/api-cache'
+import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
 
 interface NewsItem {
   id:          string
@@ -149,16 +151,24 @@ function hashCode(str: string): number {
 }
 
 export async function GET(request: Request) {
+  const blocked = rejectIfRateLimited(request, {
+    routeKey: 'market-news',
+    limit: 60,
+    windowMs: 60_000,
+  })
+  if (blocked) return blocked
+
   const { searchParams } = new URL(request.url)
   const filterSymbols = searchParams.get('symbols')?.split(',').map(s => s.toUpperCase()) ?? []
   const limit = parseInt(searchParams.get('limit') ?? '30')
 
   try {
-    // Fetch all feeds in parallel
-    const results = await Promise.allSettled(RSS_FEEDS.map(f => fetchFeed(f)))
-    const allItems = results
-      .filter(r => r.status === 'fulfilled')
-      .flatMap(r => (r as PromiseFulfilledResult<NewsItem[]>).value)
+    const allItems = await withApiCache('market-news:all-feeds', 120_000, async () => {
+      const results = await Promise.allSettled(RSS_FEEDS.map(f => fetchFeed(f)))
+      return results
+        .filter(r => r.status === 'fulfilled')
+        .flatMap(r => (r as PromiseFulfilledResult<NewsItem[]>).value)
+    })
 
     // Sort newest first
     allItems.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())

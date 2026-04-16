@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { analyzeTechnical } from '@/lib/oracle/technical-engine'
 import type { TechnicalRequest, TechnicalResponse } from '@/lib/oracle/types'
 import { fetchMarketHistory, resampleCandles } from '@/lib/market-data'
+import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
+import { withApiCache } from '@/lib/server/api-cache'
 
 function buildResponseError(message: string, status: number): NextResponse<TechnicalResponse> {
   return NextResponse.json(
@@ -11,6 +13,13 @@ function buildResponseError(message: string, status: number): NextResponse<Techn
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse<TechnicalResponse>> {
+  const blocked = rejectIfRateLimited(req, {
+    routeKey: 'oracle-technical-post',
+    limit: 90,
+    windowMs: 60_000,
+  })
+  if (blocked) return blocked as NextResponse<TechnicalResponse>
+
   try {
     const body = (await req.json()) as TechnicalRequest
 
@@ -36,13 +45,24 @@ export async function POST(req: NextRequest): Promise<NextResponse<TechnicalResp
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse<TechnicalResponse>> {
+  const blocked = rejectIfRateLimited(req, {
+    routeKey: 'oracle-technical-get',
+    limit: 90,
+    windowMs: 60_000,
+  })
+  if (blocked) return blocked as NextResponse<TechnicalResponse>
+
   try {
     const { searchParams } = new URL(req.url)
     const symbol = (searchParams.get('symbol') ?? 'EURUSD').toUpperCase()
 
     const [h1, m15] = await Promise.all([
-      fetchMarketHistory(symbol, { interval: '1h', range: '1mo' }),
-      fetchMarketHistory(symbol, { interval: '15m', range: '5d' }),
+      withApiCache(`oracle-technical:${symbol}:h1`, 30_000, async () =>
+        fetchMarketHistory(symbol, { interval: '1h', range: '1mo' }),
+      ),
+      withApiCache(`oracle-technical:${symbol}:m15`, 30_000, async () =>
+        fetchMarketHistory(symbol, { interval: '15m', range: '5d' }),
+      ),
     ])
     const h4 = resampleCandles(h1, 4)
 

@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server'
+import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
 
 export async function POST(request: Request) {
+  const blocked = rejectIfRateLimited(request, {
+    routeKey: 'oracle-parse-voice',
+    limit: 30,
+    windowMs: 60_000,
+  })
+  if (blocked) return blocked
+
   const { transcript } = await request.json()
   const apiKey = process.env.ANTHROPIC_API_KEY
 

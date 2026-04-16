@@ -9,141 +9,68 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ─── Backgrounds ─────────────────────────────────────────
+        // Institutional dark backgrounds
         bg: {
-          void:    '#03040A',   // deepest black — body bg
-          base:    '#06080F',   // main dark layer
-          deep:    '#080C16',   // sidebar / panels
-          card:    '#0D1120',   // card surfaces
-          elevated:'#121828',   // hover / elevated state
-          border:  '#1C2236',   // subtle edge separator
-          glass:   '#0D112080', // glassmorphism tint
+          deep:    '#04050A',
+          base:    '#080B12',
+          card:    '#0D1017',
+          elevated:'#12161F',
+          border:  '#1A1F2E',
         },
-        // ─── Ink / Text ───────────────────────────────────────────
+        // Text hierarchy
         ink: {
-          primary:   '#F0F2FA', // near-white — main text
-          secondary: '#8A95B0', // secondary text
-          muted:     '#4A5270', // labels / captions
-          dim:       '#252D45', // disabled / decorative
+          primary:   '#EEF0F5',
+          secondary: '#8892A4',
+          muted:     '#4D5566',
+          dim:       '#2A303D',
         },
-        // ─── Brand / Accent ───────────────────────────────────────
-        // ATLAS — Emerald Cyan (technical, price action)
-        atlas: {
-          DEFAULT: '#00D4AA',
-          bright:  '#00FFD0',
-          dim:     '#00D4AA18',
-          glow:    '#00D4AA30',
-        },
-        // ORACLE — Electric Blue (AI, insights)
-        oracle: {
-          DEFAULT: '#3B82F6',
-          bright:  '#60A5FA',
-          dim:     '#3B82F618',
-          glow:    '#3B82F630',
-        },
-        // NEXUS — Violet (correlations, macro)
-        nexus: {
-          DEFAULT: '#8B5CF6',
-          bright:  '#A78BFA',
-          dim:     '#8B5CF618',
-          glow:    '#8B5CF630',
-        },
-        // PULSE — Amber (alerts, sentiment)
-        pulse: {
-          DEFAULT: '#F59E0B',
-          bright:  '#FCD34D',
-          dim:     '#F59E0B18',
-          glow:    '#F59E0B30',
-        },
-        // ─── Semantic States ──────────────────────────────────────
-        bull:    '#10B981',   // green — long bias
-        bear:    '#EF4444',   // red  — short bias
-        caution: '#F59E0B',   // amber — warning
-      },
+        // Agent / semantic colors
+        atlas:  { DEFAULT: '#00C9A7', dim: '#00C9A720', glow: '#00C9A740' },
+        nexus:  { DEFAULT: '#7C3AED', dim: '#7C3AED20', glow: '#7C3AED40' },
+        pulse:  { DEFAULT: '#F59E0B', dim: '#F59E0B20', glow: '#F59E0B40' },
+        oracle: { DEFAULT: '#3B82F6', dim: '#3B82F620', glow: '#3B82F640' },
 
-      // ─── Typography ───────────────────────────────────────────
+        // Semantic states
+        bull:  '#00C9A7',
+        bear:  '#EF4444',
+        neutral: '#8892A4',
+        strong: '#00C9A7',
+        operable: '#3B82F6',
+        mixed: '#F59E0B',
+        avoid: '#EF4444',
+      },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', '"Fira Code"', 'Consolas', 'monospace'],
+        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
       },
       fontSize: {
-        '2xs': ['0.625rem', { lineHeight: '1rem',    letterSpacing: '0.05em' }],
-        '3xs': ['0.55rem',  { lineHeight: '0.875rem', letterSpacing: '0.06em' }],
+        '2xs': ['0.625rem', { lineHeight: '0.875rem' }],
       },
-
-      // ─── Shadows / Glows ─────────────────────────────────────
       boxShadow: {
-        'glow-atlas':  '0 0 0 1px #00D4AA20, 0 0 24px 0 #00D4AA18',
-        'glow-oracle': '0 0 0 1px #3B82F620, 0 0 24px 0 #3B82F618',
-        'glow-nexus':  '0 0 0 1px #8B5CF620, 0 0 24px 0 #8B5CF618',
-        'glow-pulse':  '0 0 0 1px #F59E0B20, 0 0 24px 0 #F59E0B18',
-        'panel':       '0 1px 3px 0 #00000080, inset 0 1px 0 0 #ffffff06',
-        'float':       '0 8px 32px 0 #000000A0, 0 0 0 1px #1C223680',
+        'atlas': '0 0 24px 0 #00C9A720',
+        'nexus': '0 0 24px 0 #7C3AED20',
+        'pulse': '0 0 24px 0 #F59E0B20',
+        'oracle': '0 0 24px 0 #3B82F620',
+        'card': '0 1px 3px 0 #00000060, 0 1px 2px -1px #00000040',
       },
-
-      // ─── Backgrounds ─────────────────────────────────────────
       backgroundImage: {
-        // Subtle dot grid for depth
-        'grid-dots': "radial-gradient(circle, #1C223620 1px, transparent 1px)",
-        // Edge vignette
-        'vignette':  "radial-gradient(ellipse at center, transparent 60%, #03040A 100%)",
-        // Card shimmer gradient
-        'card-surface': "linear-gradient(160deg, #121828 0%, #0D1120 40%, #080C16 100%)",
-        // Sidebar gradient
-        'sidebar-bg':   "linear-gradient(180deg, #080C16 0%, #06080F 100%)",
-        // Oracle accent gradient
-        'oracle-gradient': 'linear-gradient(135deg, #06080F 0%, #0A0F1E 100%)',
+        'grid-subtle': "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%231A1F2E' fill-opacity='0.4'%3E%3Cpath fill-rule='evenodd' d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E\")",
+        'oracle-gradient': 'linear-gradient(135deg, #04050A 0%, #080B12 50%, #0D1017 100%)',
       },
-      backgroundSize: {
-        'dots': '24px 24px',
-      },
-
-      // ─── Animations ───────────────────────────────────────────
       animation: {
-        'fade-in':       'fadeIn 0.25s ease-out',
-        'slide-up':      'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-        'slide-in-left': 'slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-        'pulse-slow':    'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'pulse-fast':    'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'flicker':       'flicker 2s ease-in-out infinite',
-        'scan':          'scan 4s linear infinite',
-        'glow-pulse':    'glowPulse 2s ease-in-out infinite',
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'fade-in': 'fadeIn 0.3s ease-in-out',
+        'slide-up': 'slideUp 0.3s ease-out',
       },
       keyframes: {
         fadeIn: {
-          '0%':   { opacity: '0' },
+          '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
         slideUp: {
-          '0%':   { transform: 'translateY(6px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)',   opacity: '1' },
+          '0%': { transform: 'translateY(8px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
         },
-        slideInLeft: {
-          '0%':   { transform: 'translateX(-8px)', opacity: '0' },
-          '100%': { transform: 'translateX(0)',    opacity: '1' },
-        },
-        flicker: {
-          '0%, 100%': { opacity: '1' },
-          '50%':      { opacity: '0.6' },
-        },
-        scan: {
-          '0%':   { transform: 'translateY(-100%)' },
-          '100%': { transform: 'translateY(100%)' },
-        },
-        glowPulse: {
-          '0%, 100%': { boxShadow: '0 0 8px 0 currentColor' },
-          '50%':      { boxShadow: '0 0 24px 4px currentColor' },
-        },
-      },
-
-      // ─── Border radius ────────────────────────────────────────
-      borderRadius: {
-        'sm': '4px',
-        DEFAULT: '6px',
-        'md': '8px',
-        'lg': '12px',
-        'xl': '16px',
-        '2xl': '20px',
       },
     },
   },

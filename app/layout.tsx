@@ -13,8 +13,6 @@ export const viewport: Viewport = {
   themeColor: '#04050A',
 }
 
-import { ShortcutHandler } from '@/components/utils/ShortcutHandler'
-
 export default function RootLayout({
   children,
 }: {
@@ -31,8 +29,6 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-bg-base text-ink-primary antialiased">
-        <div className="noise-overlay" />
-        <ShortcutHandler />
         {children}
       </body>
     </html>

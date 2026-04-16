@@ -48,6 +48,7 @@ const NAV: {
     context: 'Revisión y herramientas',
     items: [
       { href: '/dashboard/mind',   label: 'MIND',    sub: 'Diario · Journal', dot: 'bg-atlas',   icon: MindIcon    },
+      { href: '/dashboard/courses', label: 'COURSES', sub: 'Ruta + Certificación', dot: 'bg-oracle', icon: CoursesIcon },
       { href: '/dashboard/billing', label: 'BILLING', sub: 'Pagos cripto',     dot: 'bg-nexus',   icon: BillingIcon },
       { href: '/dashboard/tools',  label: 'TOOLS',   sub: 'Calculadoras',     dot: 'bg-ink-muted', icon: ToolsIcon  },
     ],
@@ -265,6 +266,14 @@ function BillingIcon({ cls }: { cls: string }) {
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M3 6h18a.75.75 0 01.75.75v10.5A.75.75 0 0121 18H3a.75.75 0 01-.75-.75V6.75A.75.75 0 013 6z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 14.25h3m-10.5 0h3" />
+    </svg>
+  )
+}
+function CoursesIcon({ cls }: { cls: string }) {
+  return (
+    <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 14L3 9l9-5 9 5-9 5z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9v6l9 5 9-5V9" />
     </svg>
   )
 }

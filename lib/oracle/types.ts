@@ -143,6 +143,7 @@ export interface RadarAsset {
   bias:           Bias
   rating:         Rating
   trend:          Trend
+  inKillZone?:    boolean
   change24h:      number
   currentPrice:   number
 }
@@ -163,7 +164,7 @@ export interface DailyBrief {
 // ─── Alerts ─────────────────────────────────────────────────
 
 export type AlertSeverity = 'info' | 'warning' | 'critical'
-export type AlertType = 'session' | 'killzone' | 'event' | 'technical' | 'macro'
+export type AlertType = 'session' | 'killzone' | 'event' | 'technical' | 'macro' | 'confluence'
 
 export interface OracleAlert {
   id:        string

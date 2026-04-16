@@ -4,6 +4,7 @@ import { listOracleAlerts, upsertOracleAlerts } from '@/lib/oracle/persistence'
 import { getTopOpportunity, rankAssets, computeOracleScore } from '@/lib/oracle/score-engine'
 import { analyzeTechnical } from '@/lib/oracle/technical-engine'
 import { analyzeTiming, getActiveKillZones, getActiveSessions } from '@/lib/oracle/timing-engine'
+import { scoreSetupFromAsset } from '@/lib/oracle/setup-rules'
 import type {
   DailyBrief,
   EconomicEvent,
@@ -134,6 +135,38 @@ function buildMarketAlerts(radar: RadarAsset[]): OracleAlert[] {
     })
   }
 
+  const confluenceCandidates = rankAssets(radar).slice(0, 6)
+  for (const asset of confluenceCandidates) {
+    const setup = scoreSetupFromAsset({ asset })
+    if (setup.confluence.count < 3) continue
+
+    const severity: OracleAlert['severity'] = setup.confluence.count >= 4 ? 'critical' : 'warning'
+    const confluenceFlags = [
+      setup.confluence.structure ? 'estructura' : null,
+      setup.confluence.zone ? 'zona' : null,
+      setup.confluence.timing ? 'timing' : null,
+      setup.confluence.risk ? 'riesgo' : null,
+    ].filter((item): item is string => Boolean(item))
+
+    alerts.push({
+      id: `confluence-${asset.symbol}`,
+      type: 'confluence',
+      severity,
+      title: `Confluencia ${asset.symbol} (${setup.score})`,
+      message: `Confluencias activas: ${confluenceFlags.join(' + ')}. Score setup ${setup.score}/100.`,
+      symbol: asset.symbol,
+      timestamp: now,
+      read: false,
+      priceZone: asset.currentPrice > 0
+        ? {
+            top: Number((asset.currentPrice * 1.004).toFixed(5)),
+            bottom: Number((asset.currentPrice * 0.996).toFixed(5)),
+            label: 'Zona de confluencia',
+          }
+        : undefined,
+    })
+  }
+
   const activeKillZone = getActiveKillZones().find((killZone) => killZone.isActive)
   if (activeKillZone) {
     alerts.push({
@@ -254,6 +287,7 @@ async function computeRadarAsset(
       bias: scored.bias,
       rating: scored.rating,
       trend: scored.trend,
+      inKillZone: timing.inKillZone,
       change24h: quote?.changePct ?? 0,
       currentPrice: quote?.price ?? 0,
     }

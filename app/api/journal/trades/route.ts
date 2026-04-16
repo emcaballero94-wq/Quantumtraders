@@ -1,5 +1,12 @@
 import { NextResponse } from 'next/server'
-import { insertTradeJournalEntry, listTradeJournalEntries } from '@/lib/oracle/persistence'
+import {
+  insertTradeJournalEntry,
+  listTradeJournalEntries,
+  listTradeChecklistsByTradeIds,
+  upsertTradeChecklist,
+} from '@/lib/oracle/persistence'
+import { buildOracleState } from '@/lib/oracle/live-state'
+import { scoreSetupFromAsset } from '@/lib/oracle/setup-rules'
 import { withApiCache } from '@/lib/server/api-cache'
 import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
 
@@ -13,7 +20,13 @@ export async function GET(request: Request) {
 
   try {
     const entries = await withApiCache('journal-trades', 10_000, async () => listTradeJournalEntries(300))
-    return NextResponse.json({ success: true, data: entries })
+    const tradeIds = entries.map((entry) => entry.id)
+    const checklists = await listTradeChecklistsByTradeIds(tradeIds)
+    const data = entries.map((entry) => ({
+      ...entry,
+      checklist: checklists[entry.id] ?? null,
+    }))
+    return NextResponse.json({ success: true, data })
   } catch (error) {
     console.error('[/api/journal/trades GET] Error:', error)
     return NextResponse.json({ success: false, data: [], error: 'Failed to load trade journal' }, { status: 500 })
@@ -59,7 +72,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Failed to persist trade journal entry' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, data: entry }, { status: 201 })
+    let checklist = null
+    try {
+      const state = await withApiCache('journal-trades-setup-state', 15_000, async () => buildOracleState())
+      const asset = state.radar.find((item) => item.symbol === entry.symbol)
+      if (asset) {
+        const setup = scoreSetupFromAsset({
+          asset,
+          entry: body.entryPrice ?? null,
+          stopLoss: body.stopLoss ?? null,
+          takeProfit: body.takeProfit ?? null,
+        })
+        checklist = await upsertTradeChecklist({
+          tradeId: entry.id,
+          setupScore: setup.score,
+          setupBias: setup.bias,
+          confluenceCount: setup.confluence.count,
+          setupRules: setup.rules,
+        })
+      } else {
+        checklist = await upsertTradeChecklist({ tradeId: entry.id })
+      }
+    } catch {
+      checklist = await upsertTradeChecklist({ tradeId: entry.id }).catch(() => null)
+    }
+
+    return NextResponse.json({ success: true, data: { ...entry, checklist } }, { status: 201 })
   } catch (error) {
     console.error('[/api/journal/trades POST] Error:', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })

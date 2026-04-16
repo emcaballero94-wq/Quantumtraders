@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { QuantumCore } from '@/components/ui/QuantumCore'
 import { LiveMonitor } from '@/components/ui/LiveMonitor'
 import { AgentCard } from '@/components/ui/AgentCard'
+import { DailyBiasBoard } from '@/components/dashboard/DailyBiasBoard'
+import { MacroVolatilityPanel } from '@/components/dashboard/MacroVolatilityPanel'
 import type { OracleState } from '@/lib/oracle/types'
 import { clsx } from 'clsx'
 
@@ -128,6 +130,17 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {state && (
+        <div className={clsx('grid grid-cols-12 gap-6 w-full mt-6 transition-all duration-1000', isActive ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0')}>
+          <div className="col-span-12 lg:col-span-6">
+            <DailyBiasBoard assets={state.radar} />
+          </div>
+          <div className="col-span-12 lg:col-span-6">
+            <MacroVolatilityPanel calendar={state.calendar} killZones={state.killZones} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

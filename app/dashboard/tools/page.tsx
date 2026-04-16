@@ -1,7 +1,7 @@
 'use client'
 
 import { LotCalculator } from '@/components/tools/LotCalculator'
-import { TradeJournal, Trade } from '@/components/tools/TradeJournal'
+import { TradeJournal, Trade, TradeChecklist } from '@/components/tools/TradeJournal'
 import { VoiceConsole } from '@/components/tools/VoiceConsole'
 import { useEffect, useState } from 'react'
 
@@ -12,6 +12,7 @@ type ApiTrade = {
   result: string
   profit: number
   createdAt: string
+  checklist?: TradeChecklist | null
 }
 
 export default function ToolsPage() {
@@ -39,6 +40,7 @@ export default function ToolsPage() {
               hour: '2-digit',
               minute: '2-digit',
             }),
+            checklist: item.checklist ?? null,
           })),
         )
       } catch {

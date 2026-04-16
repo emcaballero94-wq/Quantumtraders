@@ -146,11 +146,12 @@ async function fetchYahooQuotes(symbols: string[]): Promise<MarketQuote[]> {
   })
 
   if (!response.ok) {
-    throw new Error(`Quote provider responded with status ${response.status}`)
+    return fetchYahooSnapshotQuotes(symbols)
   }
 
   const json = await response.json()
   const results = Array.isArray(json?.quoteResponse?.result) ? json.quoteResponse.result : []
+  if (results.length === 0) return fetchYahooSnapshotQuotes(symbols)
 
   return results.map((row: any) => {
     const providerSymbol = String(row?.symbol ?? '')
@@ -171,6 +172,80 @@ async function fetchYahooQuotes(symbols: string[]): Promise<MarketQuote[]> {
       timestamp: Date.now(),
     } satisfies MarketQuote
   })
+}
+
+async function fetchYahooSnapshotQuote(symbol: string): Promise<MarketQuote | null> {
+  const providerSymbol = MARKET_SYMBOL_MAP[symbol]
+  if (!providerSymbol) return null
+
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(providerSymbol)}?interval=1h&range=2d&includePrePost=false`
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    },
+    next: { revalidate: 0 },
+  })
+  if (!response.ok) return null
+
+  const json = await response.json()
+  const result = json?.chart?.result?.[0]
+  const timestamps = Array.isArray(result?.timestamp) ? result.timestamp : []
+  const quote = result?.indicators?.quote?.[0] ?? {}
+  const opens = Array.isArray(quote?.open) ? quote.open : []
+  const highs = Array.isArray(quote?.high) ? quote.high : []
+  const lows = Array.isArray(quote?.low) ? quote.low : []
+  const closes = Array.isArray(quote?.close) ? quote.close : []
+  const volumes = Array.isArray(quote?.volume) ? quote.volume : []
+
+  const points: Array<{
+    timestamp: number
+    open: number
+    high: number
+    low: number
+    close: number
+    volume: number | null
+  }> = []
+
+  for (let index = 0; index < timestamps.length; index += 1) {
+    const timestamp = Number(timestamps[index])
+    const open = safeNumber(opens[index])
+    const high = safeNumber(highs[index])
+    const low = safeNumber(lows[index])
+    const close = safeNumber(closes[index])
+    const volume = safeNumber(volumes[index])
+    if (!Number.isFinite(timestamp) || open === null || high === null || low === null || close === null) continue
+    points.push({ timestamp, open, high, low, close, volume })
+  }
+
+  if (points.length === 0) return null
+  const last = points[points.length - 1]
+  const prev = points.length > 1 ? points[points.length - 2] : null
+  const prevClose = prev?.close ?? last.open
+  const change = last.close - prevClose
+  const changePct = prevClose === 0 ? 0 : (change / prevClose) * 100
+
+  return {
+    symbol,
+    providerSymbol,
+    price: last.close,
+    change,
+    changePct,
+    open: last.open,
+    high: last.high,
+    low: last.low,
+    prevClose,
+    volume: last.volume,
+    currency: typeof result?.meta?.currency === 'string' ? result.meta.currency : null,
+    description: typeof result?.meta?.shortName === 'string' ? result.meta.shortName : symbol,
+    timestamp: last.timestamp * 1000,
+  }
+}
+
+async function fetchYahooSnapshotQuotes(symbols: string[]): Promise<MarketQuote[]> {
+  if (symbols.length === 0) return []
+  const snapshots = await Promise.all(symbols.map((symbol) => fetchYahooSnapshotQuote(symbol).catch(() => null)))
+  return snapshots.filter((quote): quote is MarketQuote => Boolean(quote))
 }
 
 async function fetchBinanceQuotes(symbols: string[]): Promise<MarketQuote[]> {
@@ -248,8 +323,23 @@ export async function fetchMarketQuotes(symbols: string[]): Promise<MarketQuote[
   const resolvedSymbols = new Set(binanceQuotes.map((quote) => quote.symbol))
   const yahooSymbols = [...nonCryptoSymbols, ...cryptoSymbols.filter((symbol) => !resolvedSymbols.has(symbol))]
   const yahooQuotes = await fetchYahooQuotes(yahooSymbols)
+  const merged = new Map<string, MarketQuote>()
+  for (const quote of binanceQuotes) merged.set(quote.symbol, quote)
+  for (const quote of yahooQuotes) {
+    if (!merged.has(quote.symbol)) merged.set(quote.symbol, quote)
+  }
 
-  return [...binanceQuotes, ...yahooQuotes]
+  const unresolved = normalizedSymbols.filter((symbol) => !merged.has(symbol))
+  if (unresolved.length > 0) {
+    const fallbackSnapshots = await fetchYahooSnapshotQuotes(unresolved)
+    for (const quote of fallbackSnapshots) {
+      if (!merged.has(quote.symbol)) merged.set(quote.symbol, quote)
+    }
+  }
+
+  return normalizedSymbols
+    .map((symbol) => merged.get(symbol))
+    .filter((quote): quote is MarketQuote => Boolean(quote))
 }
 
 function mapHistoryIntervalToBinance(interval: string): string {

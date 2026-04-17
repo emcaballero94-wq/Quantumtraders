@@ -23,10 +23,15 @@ function deriveRating(score: number): Rating {
   return 'avoid'
 }
 
-function deriveBias(macro: number, technical: number): Bias {
-  const combined = macro * 0.40 + technical * 0.60
-  if (combined >= 60) return 'long'
-  if (combined <= 40) return 'short'
+function deriveBias(macro: number, technical: number, trend: Trend): Bias {
+  const combined = macro * 0.35 + technical * 0.65
+  const trendAdjusted = combined + (trend === 'uptrend' ? 8 : trend === 'downtrend' ? -8 : 0)
+
+  if (trend === 'downtrend' && technical <= 55) return 'short'
+  if (trend === 'uptrend' && technical >= 60) return 'long'
+
+  if (trendAdjusted >= 60) return 'long'
+  if (trendAdjusted <= 40) return 'short'
   return 'neutral'
 }
 
@@ -58,7 +63,7 @@ export function computeOracleScore(inputs: ScoreInputs): OracleScore {
   const { symbol, macroScore, technicalScore, timingScore, trend = 'sideways' } = inputs
 
   const totalScore = computeTotal(macroScore, technicalScore, timingScore)
-  const bias       = deriveBias(macroScore, technicalScore)
+  const bias       = deriveBias(macroScore, technicalScore, trend)
   const rating     = deriveRating(totalScore)
 
   return {

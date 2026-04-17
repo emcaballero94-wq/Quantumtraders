@@ -11,8 +11,33 @@ type ApiTrade = {
   side: 'BUY' | 'SELL'
   result: string
   profit: number
+  entryPrice: number | null
+  stopLoss: number | null
+  takeProfit: number | null
+  notes: string | null
   createdAt: string
   checklist?: TradeChecklist | null
+}
+
+function mapApiTrade(item: ApiTrade): Trade {
+  return {
+    id: item.id,
+    symbol: item.symbol,
+    type: item.side,
+    result: item.result,
+    profit: item.profit,
+    date: new Date(item.createdAt).toLocaleString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+    checklist: item.checklist ?? null,
+    entryPrice: item.entryPrice,
+    stopLoss: item.stopLoss,
+    takeProfit: item.takeProfit,
+    notes: item.notes,
+  }
 }
 
 export default function ToolsPage() {
@@ -27,22 +52,7 @@ export default function ToolsPage() {
         const payload = await response.json()
         if (!mounted) return
         const items = (payload?.data ?? []) as ApiTrade[]
-        setTrades(
-          items.map((item) => ({
-            id: item.id,
-            symbol: item.symbol,
-            type: item.side,
-            result: item.result,
-            profit: item.profit,
-            date: new Date(item.createdAt).toLocaleString('es-ES', {
-              day: '2-digit',
-              month: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-            checklist: item.checklist ?? null,
-          })),
-        )
+        setTrades(items.map(mapApiTrade))
       } catch {
         if (!mounted) return
         setTrades([])
@@ -59,6 +69,10 @@ export default function ToolsPage() {
 
   const handleTradeParsed = (trade: Trade) => {
       setTrades(prev => [trade, ...prev])
+  }
+
+  const handleTradeCreated = (trade: Trade) => {
+    setTrades((prev) => [trade, ...prev.filter((item) => String(item.id) !== String(trade.id))])
   }
 
   return (
@@ -85,7 +99,7 @@ export default function ToolsPage() {
 
         {/* Right: Journal */}
         <div className="col-span-12 lg:col-span-8">
-          <TradeJournal trades={trades} loading={loading} />
+          <TradeJournal trades={trades} loading={loading} onTradeCreated={handleTradeCreated} />
         </div>
 
       </div>

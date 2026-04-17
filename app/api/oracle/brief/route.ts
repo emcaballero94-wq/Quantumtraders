@@ -11,8 +11,13 @@ export async function GET(request: Request) {
   })
   if (blocked) return blocked
 
+  const { searchParams } = new URL(request.url)
+  const forceRefresh = searchParams.get('refresh') === '1'
+
   try {
-    const state = await withApiCache('oracle-brief', 20_000, async () => buildOracleState())
+    const state = forceRefresh
+      ? await buildOracleState({ forceRefresh: true })
+      : await withApiCache('oracle-brief', 20_000, async () => buildOracleState({ forceRefresh: false }))
     return NextResponse.json(state.brief)
   } catch (error) {
     console.error('[/api/oracle/brief] Error:', error)

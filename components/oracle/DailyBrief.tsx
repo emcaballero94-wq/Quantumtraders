@@ -10,18 +10,28 @@ export function DailyBrief() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let mounted = true
+
     const fetchBrief = async () => {
       try {
-        const res = await fetch('/api/oracle/brief')
+        const res = await fetch('/api/oracle/brief?refresh=1')
         const data = await res.json()
+        if (!mounted) return
         setBrief(data)
       } catch (e) {
         console.error('Failed to load live brief')
       } finally {
-        setLoading(false)
+        if (mounted) setLoading(false)
       }
     }
+
     fetchBrief()
+    const timer = setInterval(fetchBrief, 60_000)
+
+    return () => {
+      mounted = false
+      clearInterval(timer)
+    }
   }, [])
 
   if (loading || !brief) {

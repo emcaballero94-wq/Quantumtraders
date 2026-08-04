@@ -14,8 +14,8 @@ export function VoiceConsole({ onTradeParsed }: VoiceConsoleProps) {
   const recognitionRef = useRef<any>(null)
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && ('WebkitSpeechRecognition' in window || 'speechRecognition' in window)) {
-      const SpeechRecognition = (window as any).WebkitSpeechRecognition || (window as any).speechRecognition
+    if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
       recognitionRef.current = new SpeechRecognition()
       recognitionRef.current.continuous = false
       recognitionRef.current.interimResults = false
@@ -45,8 +45,7 @@ export function VoiceConsole({ onTradeParsed }: VoiceConsoleProps) {
 
   const handleVoiceCommand = async (command: string) => {
     setIsProcessing(true)
-    console.log('Comando de voz recibido:', command)
-    
+
     try {
         const res = await fetch('/api/oracle/parse-trade-voice', {
             method: 'POST',
@@ -56,8 +55,6 @@ export function VoiceConsole({ onTradeParsed }: VoiceConsoleProps) {
         const data = await res.json()
         
         if (data && data.symbol) {
-             console.log("Trade parsed:", data);
-
              const createRes = await fetch('/api/journal/trades', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -98,17 +95,15 @@ export function VoiceConsole({ onTradeParsed }: VoiceConsoleProps) {
     }
   }
 
-  // Placeholder for ElevenLabs integration
+  // TODO: swap for ElevenLabs TTS once API key is provisioned — browser TTS for now
   const playElevenLabsResponse = (text: string) => {
-    console.log('ElevenLabs (Mock):', text)
-    // In production: call API to get audio buffer from ElevenLabs and play it
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.lang = 'es-ES'
     window.speechSynthesis.speak(utterance)
   }
 
   return (
-    <div className="rounded-xl border border-bg-border bg-bg-deep p-6 glass space-y-4 relative overflow-hidden">
+    <div className="rounded-xl border border-bg-border bg-bg-deep p-6 glass-card space-y-4 relative overflow-hidden">
       <div className="absolute top-0 right-0 p-4">
         <div className={clsx(
           "w-2 h-2 rounded-full",
@@ -120,6 +115,7 @@ export function VoiceConsole({ onTradeParsed }: VoiceConsoleProps) {
         <button
           onClick={startListening}
           disabled={isListening || isProcessing}
+          aria-label={isListening ? 'Escuchando comando de voz' : 'Iniciar comando de voz'}
           className={clsx(
             "w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300",
             isListening 
@@ -147,7 +143,7 @@ export function VoiceConsole({ onTradeParsed }: VoiceConsoleProps) {
            <span className="w-1 h-1 bg-ink-dim rounded-full" /> STT: WebSpeech
          </span>
          <span className="text-[9px] font-mono text-ink-dim flex items-center gap-1">
-           <span className="w-1 h-1 bg-ink-dim rounded-full" /> TTS: ElevenLabs Ready
+           <span className="w-1 h-1 bg-ink-dim rounded-full" /> TTS: Navegador
          </span>
       </div>
     </div>

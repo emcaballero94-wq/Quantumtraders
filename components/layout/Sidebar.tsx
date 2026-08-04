@@ -2,8 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { clsx } from 'clsx'
 import type { ReactElement } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { getActiveSessions } from '@/lib/oracle/timing-engine'
 
 // ─── Navigation Structure ──────────────────────────────────────
 // Organised for a DAILY TRADER workflow:
@@ -58,9 +61,19 @@ const NAV: {
 // ─── Sidebar ────────────────────────────────────────────────────
 export function Sidebar() {
   const pathname = usePathname()
+  const [userLabel, setUserLabel] = useState<string | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    if (!supabase) return
+    supabase.auth.getUser().then((result: { data: { user: { email?: string } | null } }) => {
+      const email = result.data.user?.email
+      setUserLabel(email ? email.split('@')[0] : null)
+    })
+  }, [])
 
   return (
-    <aside className="h-full w-full flex flex-col bg-bg-deep relative overflow-hidden">
+    <aside className="hidden md:flex fixed inset-y-0 left-0 z-30 w-[220px] flex-col bg-bg-deep overflow-hidden">
       {/* Top edge accent */}
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-oracle/40 to-transparent" />
 
@@ -157,13 +170,13 @@ export function Sidebar() {
         {/* User */}
         <div className="flex items-center gap-2.5 px-2.5 py-2">
           <div className="w-5 h-5 rounded-full bg-oracle-dim border border-oracle/20 flex items-center justify-center shrink-0">
-            <span className="text-[8px] text-oracle font-mono font-bold">T</span>
+            <span className="text-[8px] text-oracle font-mono font-bold">{(userLabel ?? 'T')[0]?.toUpperCase()}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[9px] font-mono text-ink-secondary truncate">Trader Pro</p>
-            <p className="text-[8px] font-mono text-ink-dim">Session activa</p>
+            <p className="text-[9px] font-mono text-ink-secondary truncate">{userLabel ?? 'Invitado'}</p>
+            <p className="text-[8px] font-mono text-ink-dim">{userLabel ? 'Sesión activa' : 'Sin sesión'}</p>
           </div>
-          <span className="status-dot bg-bull animate-pulse-slow" style={{ width: 5, height: 5 }} />
+          <span className={clsx('status-dot animate-pulse-slow', userLabel ? 'bg-bull' : 'bg-ink-dim')} style={{ width: 5, height: 5 }} />
         </div>
       </div>
 
@@ -174,34 +187,44 @@ export function Sidebar() {
 }
 
 // ─── Market Status Strip ────────────────────────────────────────
+// Single source of truth for session state — shares lib/oracle/timing-engine
+// with the Oracle page and TopBar, instead of a separate UTC-hour heuristic.
+const SESSION_COLOR: Record<string, string> = {
+  London:    'text-atlas',
+  'New York': 'text-oracle',
+  Tokyo:     'text-nexus',
+  Sydney:    'text-pulse',
+}
+const SESSION_SHORT: Record<string, string> = {
+  London: 'LDN', 'New York': 'NY', Tokyo: 'TKY', Sydney: 'SYD',
+}
+
 function MarketStatusStrip() {
-  const now = new Date()
-  const hour = now.getUTCHours()
-  // Rough session detection
-  const sessions = [
-    { name: 'LDN', active: hour >= 7  && hour < 16,  color: 'text-atlas'  },
-    { name: 'NY',  active: hour >= 12 && hour < 21,  color: 'text-oracle' },
-    { name: 'TKY', active: hour >= 0  && hour < 9,   color: 'text-nexus'  },
-    { name: 'SYD', active: hour >= 21 || hour < 6,   color: 'text-pulse'  },
-  ]
-  const overlap = sessions.filter(s => s.active).length > 1
+  const [sessions, setSessions] = useState(() => getActiveSessions())
+
+  useEffect(() => {
+    const id = setInterval(() => setSessions(getActiveSessions()), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
+  const overlap = sessions.filter((s) => s.isActive).length > 1
 
   return (
     <div className="flex items-center justify-between gap-1">
-      {sessions.map(s => (
-        <div key={s.name} className="flex items-center gap-1">
-          <span className={clsx(
-            'status-dot shrink-0',
-            s.active ? `${s.color.replace('text-', 'bg-')} animate-pulse-slow` : 'bg-bg-elevated'
-          )} style={{ width: 4, height: 4 }} />
-          <span className={clsx(
-            'text-[8.5px] font-mono tracking-wider',
-            s.active ? s.color : 'text-ink-dim'
-          )}>
-            {s.name}
-          </span>
-        </div>
-      ))}
+      {sessions.map((s) => {
+        const color = SESSION_COLOR[s.name] ?? 'text-ink-muted'
+        return (
+          <div key={s.name} className="flex items-center gap-1">
+            <span className={clsx(
+              'status-dot shrink-0',
+              s.isActive ? `${color.replace('text-', 'bg-')} animate-pulse-slow` : 'bg-bg-elevated'
+            )} style={{ width: 4, height: 4 }} />
+            <span className={clsx('text-[8.5px] font-mono tracking-wider', s.isActive ? color : 'text-ink-dim')}>
+              {SESSION_SHORT[s.name] ?? s.name}
+            </span>
+          </div>
+        )
+      })}
       {overlap && (
         <span className="text-[7.5px] font-mono text-pulse uppercase tracking-wider px-1 py-0.5 rounded bg-pulse/10 border border-pulse/20">
           OVERLAP

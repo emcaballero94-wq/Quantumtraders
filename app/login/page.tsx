@@ -17,6 +17,12 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
+    if (!supabase) {
+      setError('Autenticación no configurada. Contacta al administrador.')
+      setLoading(false)
+      return
+    }
+
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -31,6 +37,10 @@ export default function LoginPage() {
   }
 
   const handleGoogleLogin = async () => {
+    if (!supabase) {
+      setError('Autenticación no configurada. Contacta al administrador.')
+      return
+    }
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -59,8 +69,9 @@ export default function LoginPage() {
         <div className="rounded-2xl border border-bg-border bg-bg-card p-8 glass-card space-y-6">
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-mono text-ink-muted uppercase tracking-wider">Email institucional</label>
+              <label htmlFor="email" className="text-[10px] font-mono text-ink-muted uppercase tracking-wider">Email institucional</label>
               <input
+                id="email"
                 type="email"
                 required
                 value={email}
@@ -70,8 +81,9 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-mono text-ink-muted uppercase tracking-wider">Clave de acceso</label>
+              <label htmlFor="password" className="text-[10px] font-mono text-ink-muted uppercase tracking-wider">Clave de acceso</label>
               <input
+                id="password"
                 type="password"
                 required
                 value={password}
@@ -82,7 +94,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="text-2xs font-mono text-bear bg-bear/10 border border-bear/30 p-3 rounded-lg">
+              <p role="alert" aria-live="polite" className="text-2xs font-mono text-bear bg-bear/10 border border-bear/30 p-3 rounded-lg">
                 {error}
               </p>
             )}

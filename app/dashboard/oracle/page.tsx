@@ -9,6 +9,7 @@ import { RadarTable } from '@/components/oracle/RadarTable'
 import { MarketContext } from '@/components/oracle/MarketContext'
 import { DepthPanel } from '@/components/oracle/DepthPanel'
 import { SectionTitle } from '@/components/ui/SectionTitle'
+import { DashboardSkeleton } from '@/components/ui/DashboardSkeleton'
 
 interface OracleStateResponse {
   success: boolean
@@ -52,7 +53,7 @@ export default function OraclePage() {
   const rankedAssets = useMemo(() => (state ? rankAssets(state.radar) : []), [state])
 
   if (loading) {
-    return <div className="p-5 text-ink-muted font-mono text-sm">Cargando Oracle en tiempo real...</div>
+    return <div className="p-5"><DashboardSkeleton /></div>
   }
 
   if (error || !state) {

@@ -1,6 +1,6 @@
 import { Sidebar } from '@/components/layout/Sidebar'
 import { TopBar } from '@/components/layout/TopBar'
-import { MOCK_SESSIONS, MOCK_ALERTS } from '@/lib/oracle/mock-data'
+import { ShortcutHandler } from '@/components/utils/ShortcutHandler'
 
 export default function DashboardLayout({
   children,
@@ -9,10 +9,11 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="min-h-screen bg-bg-base">
+      <ShortcutHandler />
       <Sidebar />
-      <TopBar sessions={MOCK_SESSIONS} alerts={MOCK_ALERTS} />
-      <main className="ml-[220px] pt-12 min-h-screen">
-        <div className="p-5">
+      <TopBar />
+      <main className="md:ml-[220px] pt-12 min-h-screen">
+        <div className="p-4 md:p-5">
           {children}
         </div>
       </main>

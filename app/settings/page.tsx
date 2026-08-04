@@ -1,10 +1,61 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+
+const STORAGE_KEY = 'qt-settings'
+
+const VOICE_OPTIONS = ['Adam (Premium)', 'Antoni (Expressive)', 'Bella (Narrative)'] as const
+
+interface Settings {
+  whatsAppEnabled: boolean
+  phoneNumber: string
+  voice: string
+  voiceSummaries: boolean
+  voiceConfirm: boolean
+}
+
+const DEFAULTS: Settings = {
+  whatsAppEnabled: false,
+  phoneNumber: '',
+  voice: VOICE_OPTIONS[0],
+  voiceSummaries: true,
+  voiceConfirm: true,
+}
+
+function isValidPhone(value: string): boolean {
+  return /^\+\d{8,15}$/.test(value.replace(/\s/g, ''))
+}
 
 export default function SettingsPage() {
-  const [whatsAppEnabled, setWhatsAppEnabled] = useState(false)
-  const [phoneNumber, setPhoneNumber] = useState('')
+  const [settings, setSettings] = useState<Settings>(DEFAULTS)
+  const [phoneStatus, setPhoneStatus] = useState<'idle' | 'valid' | 'invalid'>('idle')
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) {
+      try {
+        setSettings({ ...DEFAULTS, ...JSON.parse(raw) })
+      } catch {
+        // ignore corrupted local storage
+      }
+    }
+  }, [])
+
+  const update = <K extends keyof Settings>(key: K, value: Settings[K]) => {
+    setSettings((prev) => ({ ...prev, [key]: value }))
+    setSaved(false)
+  }
+
+  const handleSave = () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  const handleValidatePhone = () => {
+    setPhoneStatus(isValidPhone(settings.phoneNumber) ? 'valid' : 'invalid')
+  }
 
   return (
     <div className="max-w-[800px] mx-auto space-y-8 animate-fade-in py-10 px-6">
@@ -24,28 +75,45 @@ export default function SettingsPage() {
               </p>
             </div>
             <button
-              onClick={() => setWhatsAppEnabled(!whatsAppEnabled)}
-              className={`w-12 h-6 rounded-full transition-all relative ${whatsAppEnabled ? 'bg-atlas' : 'bg-bg-border'}`}
+              type="button"
+              role="switch"
+              aria-checked={settings.whatsAppEnabled}
+              aria-label="Activar alertas por WhatsApp"
+              onClick={() => update('whatsAppEnabled', !settings.whatsAppEnabled)}
+              className={`w-12 h-6 rounded-full transition-all relative ${settings.whatsAppEnabled ? 'bg-atlas' : 'bg-bg-border'}`}
             >
-              <div className={`absolute top-1 w-4 h-4 rounded-full bg-ink-primary transition-all ${whatsAppEnabled ? 'left-7' : 'left-1'}`} />
+              <div className={`absolute top-1 w-4 h-4 rounded-full bg-ink-primary transition-all ${settings.whatsAppEnabled ? 'left-7' : 'left-1'}`} />
             </button>
           </div>
 
-          {whatsAppEnabled && (
+          {settings.whatsAppEnabled && (
             <div className="space-y-3 animate-slide-up">
-              <label className="text-[10px] font-mono text-ink-muted uppercase tracking-wider">Número de Teléfono (Formato Internacional)</label>
+              <label htmlFor="phone" className="text-[10px] font-mono text-ink-muted uppercase tracking-wider">
+                Número de Teléfono (Formato Internacional)
+              </label>
               <div className="flex gap-2">
                 <input
+                  id="phone"
                   type="text"
-                  placeholder="+34 000 000 000"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  placeholder="+34600000000"
+                  value={settings.phoneNumber}
+                  onChange={(e) => { update('phoneNumber', e.target.value); setPhoneStatus('idle') }}
                   className="flex-1 bg-bg-deep border border-bg-border rounded-lg px-4 py-2.5 text-xs font-mono text-ink-primary focus:outline-none focus:border-atlas/50"
                 />
-                <button className="px-6 py-2.5 bg-atlas/10 text-atlas border border-atlas/30 rounded-lg text-[10px] font-mono font-bold hover:bg-atlas/20 transition-all uppercase tracking-widest">
+                <button
+                  type="button"
+                  onClick={handleValidatePhone}
+                  className="px-6 py-2.5 bg-atlas/10 text-atlas border border-atlas/30 rounded-lg text-[10px] font-mono font-bold hover:bg-atlas/20 transition-all uppercase tracking-widest"
+                >
                   Validar
                 </button>
               </div>
+              {phoneStatus === 'valid' && (
+                <p className="text-2xs font-mono text-atlas">Número válido.</p>
+              )}
+              {phoneStatus === 'invalid' && (
+                <p className="text-2xs font-mono text-bear">Usa formato internacional, ej. +34600000000.</p>
+              )}
             </div>
           )}
         </div>
@@ -55,24 +123,48 @@ export default function SettingsPage() {
           <h3 className="text-sm font-mono font-bold text-ink-primary uppercase italic">Interacción por Voz (MANDO AI)</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
              <div className="space-y-2">
-                <label className="text-[10px] font-mono text-ink-muted uppercase">Voz de Respuesta (ElevenLabs)</label>
-                <select className="w-full bg-bg-deep border border-bg-border rounded-lg px-4 py-2.5 text-xs font-mono text-ink-primary focus:outline-none focus:border-oracle/50">
-                  <option>Adam (Premium)</option>
-                  <option>Antoni (Expressive)</option>
-                  <option>Bella (Narrative)</option>
+                <label htmlFor="voice-select" className="text-[10px] font-mono text-ink-muted uppercase">Voz de Respuesta</label>
+                <select
+                  id="voice-select"
+                  value={settings.voice}
+                  onChange={(e) => update('voice', e.target.value)}
+                  className="w-full bg-bg-deep border border-bg-border rounded-lg px-4 py-2.5 text-xs font-mono text-ink-primary focus:outline-none focus:border-oracle/50"
+                >
+                  {VOICE_OPTIONS.map((v) => <option key={v}>{v}</option>)}
                 </select>
              </div>
              <div className="space-y-4 pt-6">
-                <div className="flex items-center gap-3">
-                   <input type="checkbox" className="w-4 h-4 rounded border-bg-border bg-bg-deep text-oracle" defaultChecked />
+                <label className="flex items-center gap-3 cursor-pointer">
+                   <input
+                     type="checkbox"
+                     checked={settings.voiceSummaries}
+                     onChange={(e) => update('voiceSummaries', e.target.checked)}
+                     className="w-4 h-4 rounded border-bg-border bg-bg-deep text-oracle"
+                   />
                    <span className="text-[10px] font-mono text-ink-secondary uppercase">Resúmenes por voz activados</span>
-                </div>
-                <div className="flex items-center gap-3">
-                   <input type="checkbox" className="w-4 h-4 rounded border-bg-border bg-bg-deep text-oracle" defaultChecked />
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                   <input
+                     type="checkbox"
+                     checked={settings.voiceConfirm}
+                     onChange={(e) => update('voiceConfirm', e.target.checked)}
+                     className="w-4 h-4 rounded border-bg-border bg-bg-deep text-oracle"
+                   />
                    <span className="text-[10px] font-mono text-ink-secondary uppercase">Confirmar trades por voz</span>
-                </div>
+                </label>
              </div>
           </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={handleSave}
+            className="px-6 py-2.5 bg-oracle/10 text-oracle border border-oracle/30 rounded-lg text-[10px] font-mono font-bold hover:bg-oracle/20 transition-all uppercase tracking-widest"
+          >
+            Guardar cambios
+          </button>
+          {saved && <span className="text-2xs font-mono text-atlas">Guardado.</span>}
         </div>
       </div>
     </div>

@@ -1,7 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { QuantumCore } from '@/components/ui/QuantumCore'
+import { ScoreOrb } from '@/components/ui/ScoreOrb'
 import { LiveMonitor } from '@/components/ui/LiveMonitor'
 import { AgentCard } from '@/components/ui/AgentCard'
 import { DailyBiasBoard } from '@/components/dashboard/DailyBiasBoard'
@@ -49,7 +50,6 @@ function buildAgents(state: OracleState | null): RuntimeAgent[] {
 
 export default function DashboardPage() {
   const [isActive, setIsActive] = useState(false)
-  const [isListening, setIsListening] = useState(false)
   const [state, setState] = useState<OracleState | null>(null)
 
   useEffect(() => {
@@ -95,14 +95,12 @@ export default function DashboardPage() {
       </div>
 
       <div className="relative z-10 flex flex-col items-center">
-        <div className="cursor-pointer group" onClick={() => setIsListening((value) => !value)}>
-          <QuantumCore isListening={isListening} />
-          <div className="absolute -bottom-20 w-full text-center">
-            <p className="text-[10px] font-mono text-ink-dim uppercase tracking-[0.2em] group-hover:text-oracle transition-colors">
-              {isListening ? 'Interaccion de voz habilitada' : 'Haz clic para activar comando de voz'}
-            </p>
-          </div>
-        </div>
+        <ScoreOrb score={topScore} label="Top Opportunity" />
+        <Link href="/dashboard/tools" className="group mt-6">
+          <p className="text-[10px] font-mono text-ink-dim uppercase tracking-[0.2em] group-hover:text-oracle transition-colors">
+            Ir a Comando de Voz →
+          </p>
+        </Link>
       </div>
 
       <div className={clsx('grid grid-cols-12 gap-6 w-full mt-24 transition-all duration-1000', isActive ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0')}>

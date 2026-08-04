@@ -1,6 +1,7 @@
 'use client'
 
 import { clsx } from 'clsx'
+import { useTilt } from '@/hooks/useTilt'
 
 interface Agent {
   id: string
@@ -12,8 +13,16 @@ interface Agent {
 }
 
 export function AgentCard({ agent }: { agent: Agent }) {
+  const tilt = useTilt(3)
+
   return (
-    <div className="rounded-xl border border-bg-border bg-bg-card p-4 space-y-3 glass-card hover:border-oracle/40 transition-all cursor-default group">
+    <div
+      ref={tilt.ref}
+      onMouseMove={tilt.onMouseMove}
+      onMouseLeave={tilt.onMouseLeave}
+      style={{ transition: 'transform 0.15s ease-out, border-color 0.15s ease-out' }}
+      className="rounded-xl border border-bg-border bg-bg-card p-4 space-y-3 glass-card hover:border-oracle/40 cursor-default group will-change-transform"
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
            <div className={clsx(

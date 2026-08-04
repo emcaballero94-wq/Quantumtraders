@@ -37,6 +37,7 @@ const NAV: {
     items: [
       { href: '/dashboard/atlas',  label: 'ATLAS',   sub: 'Gráficos · Live', dot: 'bg-atlas',     icon: AtlasIcon   },
       { href: '/dashboard/nexus',  label: 'NEXUS',   sub: 'Correlaciones',   dot: 'bg-nexus',     icon: NexusIcon   },
+      { href: '/dashboard/gex',    label: 'GEX',     sub: 'Gamma exposure (demo)', dot: 'bg-oracle', icon: GexIcon },
     ],
   },
   {
@@ -260,6 +261,13 @@ function NexusIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+    </svg>
+  )
+}
+function GexIcon({ cls }: { cls: string }) {
+  return (
+    <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 18.75a7.5 7.5 0 0115 0M12 12v6.75m0-6.75l4.5-4.5M12 12L7.5 7.5" />
     </svg>
   )
 }

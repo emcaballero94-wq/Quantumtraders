@@ -1,4 +1,17 @@
-create table if not exists public.oracle_alerts (
+-- Quantum Traders IA — shares this Supabase project (and its auth.users)
+-- with other apps, so everything lives in its own schema instead of `public`
+-- to avoid clashing with tables those apps already have.
+create schema if not exists quantumtraders;
+
+-- All table access from this app goes through the service_role key
+-- (lib/supabase/admin.ts), which bypasses RLS — these grants just make the
+-- schema visible to that role. IMPORTANT: after running this, also add
+-- "quantumtraders" to Settings -> API -> Exposed schemas in the Supabase
+-- dashboard, or PostgREST will 404 on every request regardless of grants.
+grant usage on schema quantumtraders to service_role;
+alter default privileges in schema quantumtraders grant all on tables to service_role;
+
+create table if not exists quantumtraders.oracle_alerts (
   id text primary key,
   type text not null,
   severity text not null,
@@ -12,10 +25,10 @@ create table if not exists public.oracle_alerts (
   zone_label text null
 );
 
-create index if not exists idx_oracle_alerts_timestamp on public.oracle_alerts (timestamp desc);
-create index if not exists idx_oracle_alerts_is_read on public.oracle_alerts (is_read);
+create index if not exists idx_oracle_alerts_timestamp on quantumtraders.oracle_alerts (timestamp desc);
+create index if not exists idx_oracle_alerts_is_read on quantumtraders.oracle_alerts (is_read);
 
-create table if not exists public.trade_journal_entries (
+create table if not exists quantumtraders.trade_journal_entries (
   id uuid primary key default gen_random_uuid(),
   symbol text not null,
   side text not null check (side in ('BUY', 'SELL')),
@@ -28,11 +41,11 @@ create table if not exists public.trade_journal_entries (
   created_at timestamptz not null default now()
 );
 
-create index if not exists idx_trade_journal_entries_created_at on public.trade_journal_entries (created_at desc);
-create index if not exists idx_trade_journal_entries_symbol on public.trade_journal_entries (symbol);
+create index if not exists idx_trade_journal_entries_created_at on quantumtraders.trade_journal_entries (created_at desc);
+create index if not exists idx_trade_journal_entries_symbol on quantumtraders.trade_journal_entries (symbol);
 
-create table if not exists public.trade_journal_checklists (
-  trade_id uuid primary key references public.trade_journal_entries(id) on delete cascade,
+create table if not exists quantumtraders.trade_journal_checklists (
+  trade_id uuid primary key references quantumtraders.trade_journal_entries(id) on delete cascade,
   pre_structure boolean not null default false,
   pre_zone boolean not null default false,
   pre_timing boolean not null default false,
@@ -49,7 +62,7 @@ create table if not exists public.trade_journal_checklists (
   updated_at timestamptz not null default now()
 );
 
-create table if not exists public.academy_block_progress (
+create table if not exists quantumtraders.academy_block_progress (
   learner_id text not null,
   route_id text not null,
   block_id text not null,
@@ -61,10 +74,10 @@ create table if not exists public.academy_block_progress (
   primary key (learner_id, route_id, block_id)
 );
 
-create index if not exists idx_academy_block_progress_route on public.academy_block_progress (route_id);
-create index if not exists idx_academy_block_progress_passed on public.academy_block_progress (passed);
+create index if not exists idx_academy_block_progress_route on quantumtraders.academy_block_progress (route_id);
+create index if not exists idx_academy_block_progress_passed on quantumtraders.academy_block_progress (passed);
 
-create table if not exists public.academy_badges (
+create table if not exists quantumtraders.academy_badges (
   id uuid primary key default gen_random_uuid(),
   badge_code text not null unique,
   learner_id text not null,
@@ -74,10 +87,10 @@ create table if not exists public.academy_badges (
   metadata jsonb null
 );
 
-create index if not exists idx_academy_badges_learner on public.academy_badges (learner_id);
-create index if not exists idx_academy_badges_route on public.academy_badges (route_id);
+create index if not exists idx_academy_badges_learner on quantumtraders.academy_badges (learner_id);
+create index if not exists idx_academy_badges_route on quantumtraders.academy_badges (route_id);
 
-create table if not exists public.crypto_payment_charges (
+create table if not exists quantumtraders.crypto_payment_charges (
   id uuid primary key default gen_random_uuid(),
   provider text not null check (provider in ('coinbase-commerce')),
   provider_charge_id text not null unique,
@@ -98,11 +111,11 @@ create table if not exists public.crypto_payment_charges (
   updated_at timestamptz not null default now()
 );
 
-create index if not exists idx_crypto_payment_charges_created_at on public.crypto_payment_charges (created_at desc);
-create index if not exists idx_crypto_payment_charges_status on public.crypto_payment_charges (status);
-create index if not exists idx_crypto_payment_charges_provider_charge_id on public.crypto_payment_charges (provider_charge_id);
+create index if not exists idx_crypto_payment_charges_created_at on quantumtraders.crypto_payment_charges (created_at desc);
+create index if not exists idx_crypto_payment_charges_status on quantumtraders.crypto_payment_charges (status);
+create index if not exists idx_crypto_payment_charges_provider_charge_id on quantumtraders.crypto_payment_charges (provider_charge_id);
 
-create table if not exists public.crypto_payment_events (
+create table if not exists quantumtraders.crypto_payment_events (
   id bigint generated always as identity primary key,
   provider text not null check (provider in ('coinbase-commerce')),
   provider_event_id text null,
@@ -115,5 +128,5 @@ create table if not exists public.crypto_payment_events (
   unique (provider, provider_event_id)
 );
 
-create index if not exists idx_crypto_payment_events_created_at on public.crypto_payment_events (created_at desc);
-create index if not exists idx_crypto_payment_events_provider_charge_id on public.crypto_payment_events (provider_charge_id);
+create index if not exists idx_crypto_payment_events_created_at on quantumtraders.crypto_payment_events (created_at desc);
+create index if not exists idx_crypto_payment_events_provider_charge_id on quantumtraders.crypto_payment_events (provider_charge_id);

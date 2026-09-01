@@ -9,5 +9,7 @@ export function createClient() {
     return null as any // Return as any to avoid type issues in components that handle null
   }
 
-  return createBrowserClient(supabaseUrl, supabaseAnonKey)
+  return createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    db: { schema: 'quantumtraders' },
+  })
 }

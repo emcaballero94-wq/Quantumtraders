@@ -14,6 +14,7 @@ export async function createClient() {
     supabaseUrl,
     supabaseAnonKey,
     {
+      db: { schema: 'quantumtraders' },
       cookies: {
         getAll() {
           return cookieStore.getAll()

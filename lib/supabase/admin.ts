@@ -7,6 +7,7 @@ export function createAdminClient() {
   if (!supabaseUrl || !serviceRole) return null
 
   return createClient(supabaseUrl, serviceRole, {
+    db: { schema: 'quantumtraders' },
     auth: {
       persistSession: false,
       autoRefreshToken: false,

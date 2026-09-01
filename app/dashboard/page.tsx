@@ -7,6 +7,7 @@ import { LiveMonitor } from '@/components/ui/LiveMonitor'
 import { AgentCard } from '@/components/ui/AgentCard'
 import { DailyBiasBoard } from '@/components/dashboard/DailyBiasBoard'
 import { MacroVolatilityPanel } from '@/components/dashboard/MacroVolatilityPanel'
+import { useLerp } from '@/hooks/useLerp'
 import type { OracleState } from '@/lib/oracle/types'
 import { clsx } from 'clsx'
 
@@ -53,9 +54,7 @@ export default function DashboardPage() {
   const [state, setState] = useState<OracleState | null>(null)
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsActive(true)
-    }, 1000)
+    const timer = setTimeout(() => setIsActive(true), 150)
     return () => clearTimeout(timer)
   }, [])
 
@@ -84,57 +83,74 @@ export default function DashboardPage() {
   const activeSessions = state?.sessions.filter((session) => session.isActive).length ?? 0
   const criticalAlerts = state?.alerts.filter((alert) => alert.severity === 'critical').length ?? 0
   const topScore = state?.topOpportunity?.totalScore ?? 0
+  const topSymbol = state?.topOpportunity?.symbol
+
+  const lerpedSessions = useLerp(activeSessions)
+  const lerpedAlerts = useLerp(criticalAlerts)
+  const lerpedScore = useLerp(topScore)
 
   return (
-    <div className="relative min-h-[calc(100vh-80px)] flex flex-col items-center justify-center overflow-hidden">
-      <div className={clsx('absolute inset-0 pointer-events-none transition-opacity duration-1000', isActive ? 'opacity-100' : 'opacity-0')}>
-        <div className="absolute top-0 left-0 w-32 h-32 border-t-2 border-l-2 border-oracle/20 rounded-tl-3xl m-4" />
-        <div className="absolute top-0 right-0 w-32 h-32 border-t-2 border-r-2 border-oracle/20 rounded-tr-3xl m-4" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 border-b-2 border-l-2 border-oracle/20 rounded-bl-3xl m-4" />
-        <div className="absolute bottom-0 right-0 w-32 h-32 border-b-2 border-r-2 border-oracle/20 rounded-br-3xl m-4" />
-      </div>
+    <div className="space-y-5">
 
-      <div className="relative z-10 flex flex-col items-center">
-        <ScoreOrb score={topScore} label="Top Opportunity" />
-        <Link href="/dashboard/tools" className="group mt-6">
-          <p className="text-[10px] font-mono text-ink-dim uppercase tracking-[0.2em] group-hover:text-oracle transition-colors">
-            Ir a Comando de Voz →
-          </p>
-        </Link>
-      </div>
-
-      <div className={clsx('grid grid-cols-12 gap-6 w-full mt-24 transition-all duration-1000', isActive ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0')}>
-        <div className="col-span-12 lg:col-span-3 space-y-6">
-          <HudStatBox label="Sesiones activas" value={`${activeSessions}`} accent="oracle" />
-          <HudStatBox label="Alertas criticas" value={`${criticalAlerts}`} accent={criticalAlerts > 0 ? 'bear' : 'atlas'} />
-          <HudStatBox label="Top score radar" value={`${topScore}`} accent="atlas" />
+      {/* ── Focus row: score + live stats + regime, all above the fold ── */}
+      <div
+        className={clsx(
+          'grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-5 transition-all duration-700',
+          isActive ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
+        )}
+      >
+        <div className="rounded-2xl border border-bg-border bg-bg-card glass-card p-5 flex items-center gap-5">
+          <ScoreOrb score={Math.round(lerpedScore)} label="Top Opportunity" />
+          <div className="hidden md:block">
+            <p className="text-[10px] font-mono text-ink-dim uppercase tracking-[0.2em]">Highest-scoring setup right now</p>
+            <p className="text-lg font-mono font-bold text-ink-primary mt-1">{topSymbol ?? '—'}</p>
+            <Link href="/dashboard/scanner" className="group inline-flex items-center gap-1 mt-3">
+              <p className="text-[10px] font-mono text-oracle uppercase tracking-[0.15em] group-hover:underline">
+                Open in Scanner →
+              </p>
+            </Link>
+          </div>
         </div>
 
-        <div className="col-span-12 lg:col-span-6">
-          <div className="rounded-2xl border border-bg-border bg-bg-card/30 backdrop-blur-md p-1 glass-card">
+        <div className="grid grid-cols-3 gap-3">
+          <HudStatBox label="Active sessions" value={Math.round(lerpedSessions)} accent="oracle" />
+          <HudStatBox label="Critical alerts" value={Math.round(lerpedAlerts)} accent={criticalAlerts > 0 ? 'bear' : 'atlas'} />
+          <HudStatBox label="Top radar score" value={Math.round(lerpedScore)} accent="atlas" />
+
+          <div className="col-span-3 rounded-xl border border-bg-border bg-bg-card glass-card overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-2 border-b border-bg-border">
-              <div className="w-2 h-2 rounded-full bg-atlas animate-pulse" />
-              <span className="text-[10px] font-mono text-ink-dim uppercase">Stream de monitorizacion</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-atlas animate-pulse" />
+              <span className="text-[10px] font-mono text-ink-dim uppercase tracking-wider">Live monitoring stream</span>
             </div>
             <LiveMonitor />
           </div>
         </div>
-
-        <div className="col-span-12 lg:col-span-3 space-y-4">
-          {agents.map((agent) => (
-            <div key={agent.id} className="scale-90 opacity-80 hover:scale-100 hover:opacity-100 transition-all">
-              <AgentCard agent={agent} />
-            </div>
-          ))}
-        </div>
       </div>
 
+      {/* ── Agent status row ── */}
+      <div
+        className={clsx(
+          'grid grid-cols-1 sm:grid-cols-3 gap-3 transition-all duration-700 delay-100',
+          isActive ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
+        )}
+      >
+        {agents.map((agent) => (
+          <AgentCard key={agent.id} agent={agent} />
+        ))}
+      </div>
+
+      {/* ── Market intelligence row ── */}
       {state && (
-        <div className={clsx('grid grid-cols-12 gap-6 w-full mt-6 transition-all duration-1000', isActive ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0')}>
-          <div className="col-span-12 lg:col-span-6">
+        <div
+          className={clsx(
+            'grid grid-cols-1 lg:grid-cols-12 gap-5 transition-all duration-700 delay-150',
+            isActive ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
+          )}
+        >
+          <div className="lg:col-span-7">
             <DailyBiasBoard assets={state.radar} />
           </div>
-          <div className="col-span-12 lg:col-span-6">
+          <div className="lg:col-span-5">
             <MacroVolatilityPanel calendar={state.calendar} killZones={state.killZones} />
           </div>
         </div>
@@ -143,15 +159,15 @@ export default function DashboardPage() {
   )
 }
 
-function HudStatBox({ label, value, accent }: { label: string; value: string; accent: 'oracle' | 'bear' | 'atlas' }) {
+function HudStatBox({ label, value, accent }: { label: string; value: number; accent: 'oracle' | 'bear' | 'atlas' }) {
   const colors = {
     oracle: 'text-oracle border-oracle/20 bg-oracle/5',
     bear: 'text-bear border-bear/20 bg-bear/5',
     atlas: 'text-atlas border-atlas/20 bg-atlas/5',
   }
   return (
-    <div className={clsx('p-4 border-l-2 rounded-r-xl glass-card', colors[accent])}>
-      <p className="text-[9px] font-mono uppercase opacity-50 mb-1">{label}</p>
+    <div className={clsx('p-3.5 border-l-2 rounded-r-xl glass-card', colors[accent])}>
+      <p className="text-[9px] font-mono uppercase opacity-50 mb-1 truncate">{label}</p>
       <p className="text-xl font-mono font-bold tabular-nums">{value}</p>
     </div>
   )

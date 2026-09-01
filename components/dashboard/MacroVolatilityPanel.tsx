@@ -58,11 +58,12 @@ export function MacroVolatilityPanel({ calendar, killZones }: MacroVolatilityPan
   const activeKillZone = killZones.find((zone) => zone.isActive) ?? null
 
   return (
-    <div className="rounded-xl border border-bg-border bg-bg-card p-4 space-y-4">
+    <div className="rounded-xl border border-bg-border bg-bg-card glass-card p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-[10px] font-mono font-bold text-ink-primary uppercase tracking-widest">Macro + ventanas de volatilidad</h3>
         {activeKillZone && (
-          <span className="text-[10px] font-mono uppercase text-pulse px-2 py-1 rounded border border-pulse/30 bg-pulse/10">
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase text-pulse px-2 py-1 rounded border border-pulse/30 bg-pulse/10">
+            <span className="w-1.5 h-1.5 rounded-full bg-pulse animate-pulse-slow" />
             {activeKillZone.name} activa
           </span>
         )}
@@ -75,7 +76,7 @@ export function MacroVolatilityPanel({ calendar, killZones }: MacroVolatilityPan
           </div>
         )}
         {relevantEvents.map((event) => (
-          <div key={event.id} className="flex items-center justify-between px-3 py-2 rounded border border-bg-border bg-bg-elevated/20">
+          <div key={event.id} className="flex items-center justify-between px-3 py-2 rounded border border-bg-border bg-bg-elevated/20 hover:border-oracle/25 hover:bg-bg-elevated/40 transition-colors">
             <div>
               <p className="text-xs font-mono text-ink-primary">{event.currency} · {event.title}</p>
               <p className="text-[10px] font-mono text-ink-dim">{relativeLabel(event.datetime)} · {toUtcHourMinute(event.datetime)} UTC</p>

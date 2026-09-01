@@ -35,8 +35,17 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // refreshing the auth token
-  const { data: { user } } = await supabase.auth.getUser()
+  // Refreshing the auth token. This hits Supabase's servers on every matched
+  // request — if the project is unreachable (bad URL, paused project, no
+  // network) this must fail fast instead of throwing and taking down every
+  // request in the app.
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch (err) {
+    console.error('[middleware] Supabase auth check failed — check NEXT_PUBLIC_SUPABASE_URL:', err instanceof Error ? err.message : err)
+  }
 
   const { pathname } = request.nextUrl
   const isProtected = pathname.startsWith('/dashboard') || pathname.startsWith('/settings')

@@ -50,6 +50,13 @@ export async function POST(request: Request) {
       entryPrice?: number | null
       stopLoss?: number | null
       takeProfit?: number | null
+      exitPrice?: number | null
+      lotSize?: number | null
+      commission?: number
+      swap?: number
+      closedAt?: string | null
+      emotionTag?: string | null
+      mistakeTag?: string | null
       notes?: string | null
     }
 
@@ -65,6 +72,12 @@ export async function POST(request: Request) {
       entryPrice: body.entryPrice,
       stopLoss: body.stopLoss,
       takeProfit: body.takeProfit,
+      exitPrice: body.exitPrice,
+      lotSize: body.lotSize,
+      commission: body.commission,
+      swap: body.swap,
+      closedAt: body.closedAt,
+      source: 'manual',
       notes: body.notes,
     })
 
@@ -89,12 +102,14 @@ export async function POST(request: Request) {
           setupBias: setup.bias,
           confluenceCount: setup.confluence.count,
           setupRules: setup.rules,
+          emotionTag: body.emotionTag,
+          mistakeTag: body.mistakeTag,
         })
       } else {
-        checklist = await upsertTradeChecklist({ tradeId: entry.id })
+        checklist = await upsertTradeChecklist({ tradeId: entry.id, emotionTag: body.emotionTag, mistakeTag: body.mistakeTag })
       }
     } catch {
-      checklist = await upsertTradeChecklist({ tradeId: entry.id }).catch(() => null)
+      checklist = await upsertTradeChecklist({ tradeId: entry.id, emotionTag: body.emotionTag, mistakeTag: body.mistakeTag }).catch(() => null)
     }
 
     return NextResponse.json({ success: true, data: { ...entry, checklist } }, { status: 201 })

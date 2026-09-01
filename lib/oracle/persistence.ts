@@ -10,6 +10,12 @@ export type TradeJournalEntry = {
   entryPrice: number | null
   stopLoss: number | null
   takeProfit: number | null
+  exitPrice: number | null
+  lotSize: number | null
+  commission: number
+  swap: number
+  closedAt: string | null
+  source: 'manual' | 'mt5'
   notes: string | null
   createdAt: string
 }
@@ -28,6 +34,8 @@ export type TradeChecklist = {
   setupBias: string | null
   confluenceCount: number | null
   setupRules: unknown
+  emotionTag: string | null
+  mistakeTag: string | null
   notes: string | null
   updatedAt: string
 }
@@ -55,6 +63,12 @@ type TradeJournalRow = {
   entry_price: number | null
   stop_loss: number | null
   take_profit: number | null
+  exit_price: number | null
+  lot_size: number | null
+  commission: number
+  swap: number
+  closed_at: string | null
+  source: 'manual' | 'mt5'
   notes: string | null
   created_at: string
 }
@@ -73,6 +87,8 @@ type TradeChecklistRow = {
   setup_bias: string | null
   confluence_count: number | null
   setup_rules: unknown
+  emotion_tag: string | null
+  mistake_tag: string | null
   notes: string | null
   updated_at: string
 }
@@ -120,6 +136,12 @@ function mapTradeRow(row: TradeJournalRow): TradeJournalEntry {
     entryPrice: row.entry_price,
     stopLoss: row.stop_loss,
     takeProfit: row.take_profit,
+    exitPrice: row.exit_price,
+    lotSize: row.lot_size,
+    commission: row.commission,
+    swap: row.swap,
+    closedAt: row.closed_at,
+    source: row.source,
     notes: row.notes,
     createdAt: row.created_at,
   }
@@ -140,6 +162,8 @@ function mapChecklistRow(row: TradeChecklistRow): TradeChecklist {
     setupBias: row.setup_bias,
     confluenceCount: row.confluence_count,
     setupRules: row.setup_rules,
+    emotionTag: row.emotion_tag,
+    mistakeTag: row.mistake_tag,
     notes: row.notes,
     updatedAt: row.updated_at,
   }
@@ -198,6 +222,12 @@ export async function insertTradeJournalEntry(input: {
   entryPrice?: number | null
   stopLoss?: number | null
   takeProfit?: number | null
+  exitPrice?: number | null
+  lotSize?: number | null
+  commission?: number
+  swap?: number
+  closedAt?: string | null
+  source?: 'manual' | 'mt5'
   notes?: string | null
 }): Promise<TradeJournalEntry | null> {
   const admin = createAdminClient()
@@ -211,6 +241,12 @@ export async function insertTradeJournalEntry(input: {
     entry_price: input.entryPrice ?? null,
     stop_loss: input.stopLoss ?? null,
     take_profit: input.takeProfit ?? null,
+    exit_price: input.exitPrice ?? null,
+    lot_size: input.lotSize ?? null,
+    commission: input.commission ?? 0,
+    swap: input.swap ?? 0,
+    closed_at: input.closedAt ?? null,
+    source: input.source ?? 'manual',
     notes: input.notes ?? null,
   }
 
@@ -267,6 +303,8 @@ export async function upsertTradeChecklist(input: {
   setupBias?: string | null
   confluenceCount?: number | null
   setupRules?: unknown
+  emotionTag?: string | null
+  mistakeTag?: string | null
   notes?: string | null
 }): Promise<TradeChecklist | null> {
   const admin = createAdminClient()
@@ -286,6 +324,8 @@ export async function upsertTradeChecklist(input: {
     setup_bias: input.setupBias ?? null,
     confluence_count: input.confluenceCount ?? null,
     setup_rules: input.setupRules ?? null,
+    emotion_tag: input.emotionTag ?? null,
+    mistake_tag: input.mistakeTag ?? null,
     notes: input.notes ?? null,
     updated_at: new Date().toISOString(),
   }

@@ -47,10 +47,23 @@ export const MARKET_SYMBOL_MAP: Record<string, string> = {
   ETHUSD: 'ETH-USD',
   DXY: 'DX-Y.NYB',
   SP500: '^GSPC',
+  SPX500: '^GSPC',
   NASDAQ: '^IXIC',
   NAS100: '^IXIC',
   US30: '^DJI',
   VIX: '^VIX',
+  // US mega-cap tech — same tickers on Yahoo as on any US exchange, no suffix needed
+  NVDA: 'NVDA',
+  MSFT: 'MSFT',
+  GOOGL: 'GOOGL',
+  AMZN: 'AMZN',
+  META: 'META',
+  AVGO: 'AVGO',
+  TSM: 'TSM',
+  AMD: 'AMD',
+  MU: 'MU',
+  TSLA: 'TSLA',
+  PLTR: 'PLTR',
 }
 
 const REVERSE_MARKET_SYMBOL_MAP: Record<string, string> = Object.fromEntries(

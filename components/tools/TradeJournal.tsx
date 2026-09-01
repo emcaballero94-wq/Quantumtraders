@@ -16,6 +16,8 @@ export interface TradeChecklist {
   setupBias: string | null
   confluenceCount: number | null
   setupRules: unknown
+  emotionTag?: string | null
+  mistakeTag?: string | null
   notes: string | null
   updatedAt: string
 }
@@ -37,12 +39,21 @@ export interface Trade {
   result: string
   profit: number
   date: string
+  createdAt?: string
+  entryPrice?: number | null
+  stopLoss?: number | null
+  takeProfit?: number | null
+  exitPrice?: number | null
+  lotSize?: number | null
+  commission?: number
+  swap?: number
   checklist?: TradeChecklist | null
 }
 
 interface TradeJournalProps {
   trades: Trade[]
   loading?: boolean
+  onAddTrade?: () => void
 }
 
 function checklistCompletion(checklist: TradeChecklist | null | undefined): number {
@@ -67,7 +78,7 @@ function setupBiasLabel(setupBias: string | null | undefined): string {
   return 'neutral'
 }
 
-export function TradeJournal({ trades, loading = false }: TradeJournalProps) {
+export function TradeJournal({ trades, loading = false, onAddTrade }: TradeJournalProps) {
   const totalProfit = trades.reduce((acc, trade) => acc + trade.profit, 0)
   const closedTrades = trades.filter((trade) => trade.result !== 'OPEN')
   const winTrades = closedTrades.filter((trade) => trade.profit > 0)
@@ -143,7 +154,14 @@ export function TradeJournal({ trades, loading = false }: TradeJournalProps) {
           <span className="text-[10px] font-mono text-ink-dim uppercase">
             Setup promedio: {avgSetupScore ?? '--'}
           </span>
-          <button className="text-[10px] font-mono text-oracle hover:underline uppercase">Nuevo Registro</button>
+          <button
+            type="button"
+            onClick={onAddTrade}
+            disabled={!onAddTrade}
+            className="text-[10px] font-mono text-oracle hover:underline uppercase disabled:opacity-40 disabled:no-underline"
+          >
+            Nuevo Registro
+          </button>
         </div>
       </div>
 

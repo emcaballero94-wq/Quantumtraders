@@ -130,3 +130,19 @@ create table if not exists quantumtraders.crypto_payment_events (
 
 create index if not exists idx_crypto_payment_events_created_at on quantumtraders.crypto_payment_events (created_at desc);
 create index if not exists idx_crypto_payment_events_provider_charge_id on quantumtraders.crypto_payment_events (provider_charge_id);
+
+-- Trade Audit — AUTO RECORD fields (populated by MT5 later) + MANUAL RECORD
+-- tagging (available today via the entry form). `source` distinguishes the
+-- two so Trade Audit can eventually cross-reference them, per the product
+-- direction: auto-captured execution data vs. trader-logged context.
+alter table quantumtraders.trade_journal_entries
+  add column if not exists lot_size double precision null,
+  add column if not exists exit_price double precision null,
+  add column if not exists commission double precision not null default 0,
+  add column if not exists swap double precision not null default 0,
+  add column if not exists closed_at timestamptz null,
+  add column if not exists source text not null default 'manual' check (source in ('manual', 'mt5'));
+
+alter table quantumtraders.trade_journal_checklists
+  add column if not exists emotion_tag text null,
+  add column if not exists mistake_tag text null;

@@ -8,7 +8,12 @@ import {
   analyzeATRQuality,
 } from '@/lib/oracle/indicators'
 
-export const SCANNER_ASSETS = ['EURUSD', 'GBPUSD', 'XAUUSD', 'NAS100', 'US30', 'BTCUSD'] as const
+// US-market focus: indices, mega-cap tech, and crypto — not forex.
+export const SCANNER_ASSETS = [
+  'SPX500', 'NAS100', 'US30',
+  'NVDA', 'MSFT', 'GOOGL', 'AMZN', 'META', 'AVGO', 'TSM', 'AMD', 'MU', 'TSLA', 'PLTR',
+  'BTCUSD',
+] as const
 export type ScannerAsset = (typeof SCANNER_ASSETS)[number]
 
 export const SCANNER_CONDITIONS = [

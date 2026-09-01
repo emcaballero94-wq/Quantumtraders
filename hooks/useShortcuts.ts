@@ -21,7 +21,7 @@ export function useShortcuts() {
       
       if (e.altKey) {
         switch (key) {
-          case 'o': router.push('/dashboard/oracle'); break;
+          case 'o': router.push('/dashboard/scanner'); break;
           case 'a': router.push('/dashboard/atlas'); break;
           case 'n': router.push('/dashboard/nexus'); break;
           case 'm': router.push('/dashboard/mind'); break;

@@ -29,14 +29,14 @@ export default function OraclePage() {
         const response = await fetch('/api/oracle/state')
         const json = (await response.json()) as OracleStateResponse
         if (!response.ok || !json.success || !json.data) {
-          throw new Error(json.error ?? 'No se pudo cargar el estado Oracle')
+          throw new Error(json.error ?? 'No se pudo cargar el estado del Scanner')
         }
         if (!mounted) return
         setState(json.data)
         setError(null)
       } catch (err: any) {
         if (!mounted) return
-        setError(err?.message ?? 'No se pudo cargar el estado Oracle')
+        setError(err?.message ?? 'No se pudo cargar el estado del Scanner')
       } finally {
         if (mounted) setLoading(false)
       }
@@ -59,7 +59,7 @@ export default function OraclePage() {
   if (error || !state) {
     return (
       <div className="p-5 text-bear font-mono text-sm">
-        {error ?? 'No fue posible cargar Oracle.'}
+        {error ?? 'No fue posible cargar el Scanner.'}
       </div>
     )
   }

@@ -25,7 +25,7 @@ export function DailyBrief() {
   }, [])
 
   if (loading || !brief) {
-    return <div className="p-5 text-ink-muted font-mono text-sm">Cargando Oracle...</div>
+    return <div className="p-5 text-ink-muted font-mono text-sm">Cargando Scanner...</div>
   }
 
   const sentimentColor = brief.sentiment === 'risk-on'  ? 'text-atlas'
@@ -57,7 +57,7 @@ export function DailyBrief() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-2xs font-mono text-ink-dim tracking-[0.2em] uppercase">
-                Oracle Daily Brief
+                Scanner Daily Brief
               </span>
               <span className="text-2xs font-mono text-ink-dim">·</span>
               <span className="text-2xs font-mono text-ink-dim capitalize">{dateFormatted}</span>

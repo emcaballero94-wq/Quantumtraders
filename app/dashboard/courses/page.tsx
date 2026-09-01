@@ -2,6 +2,18 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { PublicAcademyRoute } from '@/lib/academy/content'
+import { useLocale } from '@/lib/i18n/LocaleProvider'
+
+const LEVEL_KEY: Record<'beginner' | 'intermediate' | 'advanced', string> = {
+  beginner: 'level1',
+  intermediate: 'level2',
+  advanced: 'level3',
+}
+const LEVEL_SUB_KEY: Record<'beginner' | 'intermediate' | 'advanced', string> = {
+  beginner: 'level1Sub',
+  intermediate: 'level2Sub',
+  advanced: 'level3Sub',
+}
 
 type AcademyProgress = {
   learnerId: string
@@ -73,6 +85,7 @@ function getOrCreateLearnerId(): string {
 }
 
 export default function CoursesPage() {
+  const { t } = useLocale()
   const [learnerId, setLearnerId] = useState('')
   const [routes, setRoutes] = useState<PublicAcademyRoute[]>([])
   const [progress, setProgress] = useState<AcademyProgress[]>([])
@@ -178,8 +191,9 @@ export default function CoursesPage() {
     <div className="space-y-6 animate-fade-in pb-20">
       <div className="flex items-center justify-between border-b border-bg-border pb-4">
         <div>
-          <h1 className="text-xl font-mono font-bold text-ink-primary tracking-tight uppercase">Academia Quantum</h1>
-          <p className="text-xs font-mono text-ink-muted mt-1">Ruta clara de progreso + certificación verificable</p>
+          <p className="text-[10px] font-mono text-oracle uppercase tracking-[0.2em] mb-1">{t('roadmap.kicker')}</p>
+          <h1 className="text-xl font-mono font-bold text-ink-primary tracking-tight">{t('roadmap.title')}</h1>
+          <p className="text-xs font-mono text-ink-muted mt-1 max-w-md">{t('roadmap.subtitle')}</p>
         </div>
         <span className="text-[10px] font-mono text-ink-dim uppercase">Learner ID: {learnerId || '--'}</span>
       </div>
@@ -194,8 +208,9 @@ export default function CoursesPage() {
               onClick={() => setLevel(targetLevel)}
               className={`rounded-xl border p-4 text-left transition-all ${level === targetLevel ? 'border-oracle/40 bg-oracle/10' : 'border-bg-border bg-bg-card hover:bg-bg-elevated/40'}`}
             >
-              <p className="text-xs font-mono text-ink-muted uppercase">{targetLevel}</p>
-              <p className="text-sm font-mono font-bold text-ink-primary mt-1">{route?.title ?? 'Cargando...'}</p>
+              <p className="text-xs font-mono text-oracle uppercase tracking-wider">{t(`roadmap.${LEVEL_KEY[targetLevel]}`)}</p>
+              <p className="text-[10px] font-mono text-ink-dim mt-0.5">{t(`roadmap.${LEVEL_SUB_KEY[targetLevel]}`)}</p>
+              <p className="text-sm font-mono font-bold text-ink-primary mt-1.5">{route?.title ?? 'Loading...'}</p>
               <p className="text-[10px] font-mono text-ink-dim mt-2">
                 Progreso: {status?.completionPct ?? 0}% · {status?.completedBlocks ?? 0}/{status?.totalBlocks ?? route?.blocks.length ?? 0}
               </p>

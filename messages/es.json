@@ -1,0 +1,40 @@
+{
+  "nav": {
+    "sectionTerminal": "TERMINAL",
+    "sectionEducation": "EDUCACIÓN",
+    "sectionJournal": "JOURNAL",
+    "sectionAccount": "CUENTA",
+    "mando": "MANDO",
+    "mandoSub": "Cockpit",
+    "scanner": "SCANNER",
+    "scannerSub": "Brief diario",
+    "atlas": "ATLAS",
+    "atlasSub": "Gráficos · Live",
+    "nexus": "NEXUS",
+    "nexusSub": "Correlaciones",
+    "gex": "GEX",
+    "gexSub": "Gamma exposure (demo)",
+    "pulse": "PULSE",
+    "pulseSub": "Riesgo · Calendario",
+    "roadmap": "ROADMAP",
+    "roadmapSub": "Niveles + certificación",
+    "records": "RECORDS",
+    "recordsSub": "Journal · Calculadoras",
+    "mind": "MIND",
+    "mindSub": "Psicología del trading",
+    "billing": "BILLING",
+    "billingSub": "Pagos cripto",
+    "settings": "Ajustes"
+  },
+  "roadmap": {
+    "kicker": "RUTA DE DESARROLLO DEL TRADER",
+    "title": "De principiante a trader sistemático",
+    "subtitle": "Un camino estructurado: entender el mercado, leer el precio, gestionar el riesgo y luego construir una metodología.",
+    "level1": "NIVEL 01 — FUNDAMENTOS",
+    "level1Sub": "Entender el mercado",
+    "level2": "NIVEL 02 — EJECUCIÓN Y RIESGO",
+    "level2Sub": "Gestionar el riesgo y registrar tus operaciones",
+    "level3": "NIVEL 03 — EDGE PROFESIONAL",
+    "level3Sub": "Playbooks y edge estadístico"
+  }
+}

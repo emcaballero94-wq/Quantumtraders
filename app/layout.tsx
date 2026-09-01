@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { LocaleProvider } from '@/lib/i18n/LocaleProvider'
 
 export const metadata: Metadata = {
-  title: 'Quantum Traders IA',
-  description: 'Sistema operativo para traders profesionales — Oracle, Agentes IA, Análisis técnico institucional',
+  title: 'Quantum Traders',
+  description: 'Trading terminal, market intelligence and structured trader education in one platform.',
   icons: {
     icon: '/favicon.ico',
   },
@@ -19,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="es" className="dark">
+    <html lang="en" className="dark">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -29,7 +30,9 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-bg-base text-ink-primary antialiased">
-        {children}
+        <LocaleProvider>
+          {children}
+        </LocaleProvider>
       </body>
     </html>
   )

@@ -31,7 +31,7 @@ export default function MindPage() {
         <p className="text-2xs font-mono text-ink-dim mt-4">
           Mientras tanto, tu bitácora de trades ya funciona en{' '}
           <Link href="/dashboard/tools" className="text-oracle hover:underline">
-            TOOLS · Trade Journal
+            RECORDS · Trade Journal
           </Link>.
         </p>
       </div>

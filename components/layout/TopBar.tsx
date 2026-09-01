@@ -103,7 +103,7 @@ export function TopBar({ title }: TopBarProps) {
 
         {/* Alerts bell */}
         <Link
-          href="/dashboard/oracle"
+          href="/dashboard/scanner"
           className="relative flex items-center justify-center w-7 h-7 rounded bg-bg-card border border-bg-border hover:border-oracle/30 transition-colors"
           aria-label={unreadCount > 0 ? `${unreadCount} alertas sin leer` : 'Ver alertas'}
         >

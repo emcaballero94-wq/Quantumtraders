@@ -7,54 +7,45 @@ import { clsx } from 'clsx'
 import type { ReactElement } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getActiveSessions } from '@/lib/oracle/timing-engine'
+import { useLocale } from '@/lib/i18n/LocaleProvider'
 
 // ─── Navigation Structure ──────────────────────────────────────
-// Organised for a DAILY TRADER workflow:
-//  1. Command (MANDO) — the cockpit, boot screen
-//  2. Oracle — daily brief, session, economic calendar → context BEFORE trading
-//  3. ATLAS — charts, price action, live data → WHERE to trade
-//  4. NEXUS — correlations, DXY, macro context → WHY it moves
-//  5. PULSE — alerts, news, sentiment → monitoring WHILE in trade
-//  6. MIND — journal, trade log → AFTER the trade (review)
-//  7. Tools — calculators, risk, lot sizing
+// Four pillars: TERMINAL (market intelligence & analysis tools),
+// EDUCATION (structured trader roadmap), JOURNAL (records & review),
+// ACCOUNT (billing). Labels are resolved through i18n (messages/en|es.json)
+// — English is the source-of-truth language, Spanish a full translation.
 
-const NAV: {
-  section: string
-  context: string
-  items: { href: string; label: string; sub: string; dot: string; icon: (p: { cls: string }) => ReactElement }[]
-}[] = [
+type NavItem = { href: string; labelKey: string; subKey: string; dot: string; icon: (p: { cls: string }) => ReactElement }
+
+const NAV: { sectionKey: string; items: NavItem[] }[] = [
   {
-    section: 'COMMAND',
-    context: 'Centro de control',
+    sectionKey: 'sectionTerminal',
     items: [
-      { href: '/dashboard',        label: 'MANDO',   sub: 'Cockpit',         dot: 'bg-ink-muted', icon: MandoIcon   },
-      { href: '/dashboard/oracle', label: 'ORACLE',  sub: 'Brief diario',    dot: 'bg-oracle',    icon: OracleIcon  },
+      { href: '/dashboard',         labelKey: 'mando',   subKey: 'mandoSub',   dot: 'bg-ink-muted', icon: MandoIcon   },
+      { href: '/dashboard/scanner', labelKey: 'scanner', subKey: 'scannerSub', dot: 'bg-oracle',    icon: ScannerIcon },
+      { href: '/dashboard/atlas',   labelKey: 'atlas',   subKey: 'atlasSub',   dot: 'bg-atlas',     icon: AtlasIcon   },
+      { href: '/dashboard/nexus',   labelKey: 'nexus',   subKey: 'nexusSub',   dot: 'bg-nexus',     icon: NexusIcon   },
+      { href: '/dashboard/gex',     labelKey: 'gex',     subKey: 'gexSub',     dot: 'bg-oracle',    icon: GexIcon     },
+      { href: '/dashboard/pulse',   labelKey: 'pulse',   subKey: 'pulseSub',   dot: 'bg-pulse',     icon: PulseIcon   },
     ],
   },
   {
-    section: 'ANÁLISIS',
-    context: 'Antes de operar',
+    sectionKey: 'sectionEducation',
     items: [
-      { href: '/dashboard/atlas',  label: 'ATLAS',   sub: 'Gráficos · Live', dot: 'bg-atlas',     icon: AtlasIcon   },
-      { href: '/dashboard/nexus',  label: 'NEXUS',   sub: 'Correlaciones',   dot: 'bg-nexus',     icon: NexusIcon   },
-      { href: '/dashboard/gex',    label: 'GEX',     sub: 'Gamma exposure (demo)', dot: 'bg-oracle', icon: GexIcon },
+      { href: '/dashboard/courses', labelKey: 'roadmap', subKey: 'roadmapSub', dot: 'bg-oracle', icon: CoursesIcon },
     ],
   },
   {
-    section: 'MONITOREO',
-    context: 'Durante la operación',
+    sectionKey: 'sectionJournal',
     items: [
-      { href: '/dashboard/pulse',  label: 'PULSE',   sub: 'Alertas · Noticias', dot: 'bg-pulse',  icon: PulseIcon   },
+      { href: '/dashboard/tools', labelKey: 'records', subKey: 'recordsSub', dot: 'bg-ink-muted', icon: ToolsIcon },
+      { href: '/dashboard/mind',  labelKey: 'mind',    subKey: 'mindSub',    dot: 'bg-atlas',     icon: MindIcon  },
     ],
   },
   {
-    section: 'SISTEMA',
-    context: 'Revisión y herramientas',
+    sectionKey: 'sectionAccount',
     items: [
-      { href: '/dashboard/mind',   label: 'MIND',    sub: 'Diario · Journal', dot: 'bg-atlas',   icon: MindIcon    },
-      { href: '/dashboard/courses', label: 'COURSES', sub: 'Ruta + Certificación', dot: 'bg-oracle', icon: CoursesIcon },
-      { href: '/dashboard/billing', label: 'BILLING', sub: 'Pagos cripto',     dot: 'bg-nexus',   icon: BillingIcon },
-      { href: '/dashboard/tools',  label: 'TOOLS',   sub: 'Calculadoras',     dot: 'bg-ink-muted', icon: ToolsIcon  },
+      { href: '/dashboard/billing', labelKey: 'billing', subKey: 'billingSub', dot: 'bg-nexus', icon: BillingIcon },
     ],
   },
 ]
@@ -62,6 +53,7 @@ const NAV: {
 // ─── Sidebar ────────────────────────────────────────────────────
 export function Sidebar() {
   const pathname = usePathname()
+  const { t, locale, setLocale } = useLocale()
   const [userLabel, setUserLabel] = useState<string | null>(null)
 
   useEffect(() => {
@@ -98,17 +90,17 @@ export function Sidebar() {
 
       {/* ── Nav ────────────────────────────────────────────── */}
       <nav className="flex-1 px-2 py-3 space-y-4 overflow-y-auto">
-        {NAV.map(({ section, context, items }) => (
-          <div key={section}>
+        {NAV.map(({ sectionKey, items }) => (
+          <div key={sectionKey}>
             {/* Section header */}
             <div className="flex items-center gap-2 px-2 mb-1.5">
-              <span className="text-[8.5px] font-mono text-ink-dim tracking-[0.25em] uppercase font-semibold">{section}</span>
+              <span className="text-[8.5px] font-mono text-ink-dim tracking-[0.25em] uppercase font-semibold">{t(`nav.${sectionKey}`)}</span>
               <div className="flex-1 h-px bg-bg-border" />
             </div>
 
             {/* Items */}
             <ul className="space-y-0.5">
-              {items.map(({ href, label, sub, dot, icon: Icon }) => {
+              {items.map(({ href, labelKey, subKey, dot, icon: Icon }) => {
                 const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
                 return (
                   <li key={href}>
@@ -135,9 +127,9 @@ export function Sidebar() {
                       {/* Labels */}
                       <div className="flex-1 min-w-0">
                         <p className="text-[10px] font-mono font-semibold tracking-[0.15em] uppercase leading-none">
-                          {label}
+                          {t(`nav.${labelKey}`)}
                         </p>
-                        <p className="text-[8.5px] font-mono text-ink-dim mt-0.5 truncate">{sub}</p>
+                        <p className="text-[8.5px] font-mono text-ink-dim mt-0.5 truncate">{t(`nav.${subKey}`)}</p>
                       </div>
 
                       {/* Live indicator for ATLAS & PULSE */}
@@ -155,6 +147,26 @@ export function Sidebar() {
 
       {/* ── Bottom ─────────────────────────────────────────── */}
       <div className="border-t border-bg-border px-2 py-3 space-y-0.5">
+        {/* Language toggle */}
+        <div className="flex items-center gap-1 px-2.5 py-1.5">
+          {(['en', 'es'] as const).map((code) => (
+            <button
+              key={code}
+              type="button"
+              onClick={() => setLocale(code)}
+              className={clsx(
+                'flex-1 py-1 rounded text-[9px] font-mono font-semibold uppercase tracking-wider transition-colors',
+                locale === code
+                  ? 'bg-oracle/15 text-oracle border border-oracle/30'
+                  : 'text-ink-dim border border-transparent hover:text-ink-muted'
+              )}
+              aria-pressed={locale === code}
+            >
+              {code}
+            </button>
+          ))}
+        </div>
+
         <Link
           href="/settings"
           className={clsx(
@@ -165,7 +177,7 @@ export function Sidebar() {
           )}
         >
           <SettingsIcon cls="w-3.5 h-3.5 shrink-0" />
-          <span>Settings</span>
+          <span>{t('nav.settings')}</span>
         </Link>
 
         {/* User */}
@@ -243,7 +255,7 @@ function MandoIcon({ cls }: { cls: string }) {
     </svg>
   )
 }
-function OracleIcon({ cls }: { cls: string }) {
+function ScannerIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />

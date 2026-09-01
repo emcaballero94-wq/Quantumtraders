@@ -61,6 +61,34 @@ export function calculateATR(candles: Candle[], period: number = 14): number {
   return atr
 }
 
+// ─── RSI ────────────────────────────────────────────────────
+
+/**
+ * Relative Strength Index — Wilder's smoothing, standard 14-period default.
+ */
+export function calculateRSI(candles: Candle[], period: number = 14): number {
+  if (candles.length < period + 1) return 50
+
+  const changes: number[] = []
+  for (let i = 1; i < candles.length; i++) {
+    changes.push(candles[i].close - candles[i - 1].close)
+  }
+
+  let avgGain = changes.slice(0, period).reduce((sum, c) => sum + Math.max(c, 0), 0) / period
+  let avgLoss = changes.slice(0, period).reduce((sum, c) => sum + Math.max(-c, 0), 0) / period
+
+  for (let i = period; i < changes.length; i++) {
+    const gain = Math.max(changes[i], 0)
+    const loss = Math.max(-changes[i], 0)
+    avgGain = (avgGain * (period - 1) + gain) / period
+    avgLoss = (avgLoss * (period - 1) + loss) / period
+  }
+
+  if (avgLoss === 0) return 100
+  const rs = avgGain / avgLoss
+  return 100 - 100 / (1 + rs)
+}
+
 // ─── Trend Detection ────────────────────────────────────────
 
 /**

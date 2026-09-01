@@ -48,6 +48,8 @@ export const MARKET_SYMBOL_MAP: Record<string, string> = {
   DXY: 'DX-Y.NYB',
   SP500: '^GSPC',
   NASDAQ: '^IXIC',
+  NAS100: '^IXIC',
+  US30: '^DJI',
   VIX: '^VIX',
 }
 

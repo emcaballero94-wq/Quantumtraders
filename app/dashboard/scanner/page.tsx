@@ -10,6 +10,7 @@ import { MarketContext } from '@/components/oracle/MarketContext'
 import { DepthPanel } from '@/components/oracle/DepthPanel'
 import { SectionTitle } from '@/components/ui/SectionTitle'
 import { DashboardSkeleton } from '@/components/ui/DashboardSkeleton'
+import { MarketScanner } from '@/components/scanner/MarketScanner'
 
 interface OracleStateResponse {
   success: boolean
@@ -68,7 +69,7 @@ export default function OraclePage() {
     <div className="space-y-5 animate-slide-up max-w-[1400px]">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-mono font-bold text-ink-primary tracking-tight">ORACULO v3</h1>
+          <h1 className="text-xl font-mono font-bold text-ink-primary tracking-tight">SCANNER</h1>
           <p className="text-xs font-mono text-ink-muted mt-0.5">
             Centro de decision diaria · Actualizado {new Date(state.lastUpdated).toLocaleTimeString('es-ES', {
               hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
@@ -82,6 +83,8 @@ export default function OraclePage() {
           </div>
         </div>
       </div>
+
+      <MarketScanner />
 
       <DailyBrief />
 

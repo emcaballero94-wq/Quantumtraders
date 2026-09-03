@@ -15,7 +15,7 @@ interface CorrelationResponse {
   error?: string
 }
 
-const DEFAULT_SYMBOLS = ['EURUSD', 'GBPUSD', 'USDJPY', 'XAUUSD', 'DXY', 'SP500']
+const DEFAULT_SYMBOLS = ['SPX500', 'NAS100', 'NVDA', 'MSFT', 'GOOGL', 'XAUUSD', 'DXY', 'BTCUSD']
 
 function getCellColor(value: number): string {
   if (value === 1) return 'bg-bg-elevated text-ink-dim'

@@ -1,4 +1,4 @@
-import type { Candle, CurrencyStrength, Trend } from '@/lib/oracle/types'
+import type { Candle, SectorStrength, Trend } from '@/lib/oracle/types'
 
 export interface MarketQuote {
   symbol: string
@@ -64,6 +64,18 @@ export const MARKET_SYMBOL_MAP: Record<string, string> = {
   MU: 'MU',
   TSLA: 'TSLA',
   PLTR: 'PLTR',
+  // SPDR sector ETFs — used for sector relative-strength, same ticker on Yahoo
+  XLK: 'XLK',
+  XLF: 'XLF',
+  XLE: 'XLE',
+  XLV: 'XLV',
+  XLY: 'XLY',
+  XLP: 'XLP',
+  XLI: 'XLI',
+  XLU: 'XLU',
+  XLB: 'XLB',
+  XLRE: 'XLRE',
+  XLC: 'XLC',
 }
 
 const REVERSE_MARKET_SYMBOL_MAP: Record<string, string> = Object.fromEntries(
@@ -79,17 +91,19 @@ const REVERSE_BINANCE_SYMBOL_MAP: Record<string, string> = Object.fromEntries(
   Object.entries(BINANCE_SYMBOL_MAP).map(([symbol, providerSymbol]) => [providerSymbol, symbol]),
 )
 
-const PRICE_HISTORY_PAIRS = [
-  'EURUSD',
-  'GBPUSD',
-  'AUDUSD',
-  'NZDUSD',
-  'USDJPY',
-  'USDCHF',
-  'USDCAD',
-  'EURJPY',
-  'GBPJPY',
-]
+const SECTOR_ETFS: Record<string, string> = {
+  Technology: 'XLK',
+  Financials: 'XLF',
+  Energy: 'XLE',
+  Healthcare: 'XLV',
+  'Consumer Discretionary': 'XLY',
+  'Consumer Staples': 'XLP',
+  Industrials: 'XLI',
+  Utilities: 'XLU',
+  Materials: 'XLB',
+  'Real Estate': 'XLRE',
+  Communication: 'XLC',
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -101,22 +115,16 @@ function safeNumber(value: unknown): number | null {
   return value
 }
 
-function parsePair(symbol: string): { base: string; quote: string } {
-  const clean = symbol.replace('/', '').toUpperCase()
-  if (clean.length < 6) return { base: clean.slice(0, 3), quote: clean.slice(3, 6) }
-  return { base: clean.slice(0, 3), quote: clean.slice(3, 6) }
-}
-
 function calculateChangePct(current: number, previous: number): number {
   if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) return 0
   return ((current - previous) / previous) * 100
 }
 
-function normalizeCurrencyScore(rawScore: number): number {
+function normalizeSectorScore(rawScore: number): number {
   return clamp(Math.round(rawScore * 25), -100, 100)
 }
 
-function deriveCurrencyTrend(change4h: number): CurrencyStrength['trend'] {
+function deriveSectorTrend(change4h: number): SectorStrength['trend'] {
   if (change4h > 0.05) return 'strengthening'
   if (change4h < -0.05) return 'weakening'
   return 'stable'
@@ -656,12 +664,6 @@ export async function computeCorrelationMatrix(
   }
 }
 
-interface CurrencyAccumulator {
-  h1: number[]
-  h4: number[]
-  d1: number[]
-}
-
 function getCloseAtOffset(candles: Candle[], offset: number): number | null {
   if (candles.length === 0) return null
   const targetIndex = candles.length - 1 - offset
@@ -669,15 +671,21 @@ function getCloseAtOffset(candles: Candle[], offset: number): number | null {
   return candles[targetIndex]?.close ?? null
 }
 
-export async function computeCurrencyStrength(): Promise<CurrencyStrength[]> {
+/**
+ * Relative strength across US market sectors, using SPDR sector ETFs as the
+ * direct instrument for each sector — no base/quote decomposition needed
+ * (unlike the old forex currency-strength model), since each ETF already
+ * *is* its sector.
+ */
+export async function computeSectorStrength(): Promise<SectorStrength[]> {
   const histories = await Promise.all(
-    PRICE_HISTORY_PAIRS.map(async (pair) => ({
-      pair,
-      candles: await fetchMarketHistory(pair, { interval: '1h', range: '5d' }),
+    Object.entries(SECTOR_ETFS).map(async ([sector, symbol]) => ({
+      sector,
+      candles: await fetchMarketHistory(symbol, { interval: '1h', range: '5d' }),
     })),
   )
 
-  const accumulators: Record<string, CurrencyAccumulator> = {}
+  const strengths: SectorStrength[] = []
 
   for (const history of histories) {
     const candles = history.candles
@@ -689,39 +697,19 @@ export async function computeCurrencyStrength(): Promise<CurrencyStrength[]> {
     const close1d = getCloseAtOffset(candles, 24)
     if (lastClose === null || close1h === null || close4h === null || close1d === null) continue
 
-    const h1 = calculateChangePct(lastClose, close1h)
-    const h4 = calculateChangePct(lastClose, close4h)
-    const d1 = calculateChangePct(lastClose, close1d)
-    const { base, quote } = parsePair(history.pair)
+    const change1h = calculateChangePct(lastClose, close1h)
+    const change4h = calculateChangePct(lastClose, close4h)
+    const change1d = calculateChangePct(lastClose, close1d)
 
-    if (!accumulators[base]) accumulators[base] = { h1: [], h4: [], d1: [] }
-    if (!accumulators[quote]) accumulators[quote] = { h1: [], h4: [], d1: [] }
-
-    accumulators[base].h1.push(h1)
-    accumulators[base].h4.push(h4)
-    accumulators[base].d1.push(d1)
-    accumulators[quote].h1.push(-h1)
-    accumulators[quote].h4.push(-h4)
-    accumulators[quote].d1.push(-d1)
-  }
-
-  const strengths: CurrencyStrength[] = Object.entries(accumulators).map(([currency, values]) => {
-    const avg = (items: number[]) =>
-      items.length > 0 ? items.reduce((sum, value) => sum + value, 0) / items.length : 0
-    const change1h = avg(values.h1)
-    const change4h = avg(values.h4)
-    const change1d = avg(values.d1)
-    const score = normalizeCurrencyScore(change1d)
-
-    return {
-      currency,
-      score,
-      trend: deriveCurrencyTrend(change4h),
+    strengths.push({
+      sector: history.sector,
+      score: normalizeSectorScore(change1d),
+      trend: deriveSectorTrend(change4h),
       change1h,
       change4h,
       change1d,
-    }
-  })
+    })
+  }
 
   strengths.sort((a, b) => b.score - a.score)
   return strengths

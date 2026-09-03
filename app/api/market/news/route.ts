@@ -18,7 +18,7 @@ interface NewsItem {
   url:         string
   publishedAt: string
   source:      string
-  category:    'forex' | 'commodities' | 'macro' | 'crypto' | 'general'
+  category:    'forex' | 'commodities' | 'macro' | 'crypto' | 'stocks' | 'general'
   symbols:     string[]
 }
 
@@ -31,16 +31,25 @@ const RSS_FEEDS = [
   { url: 'https://s.marketwatch.com/public/resources/documents/rss/rss_fx.xml', source: 'MarketWatch FX', category: 'forex' },
 ]
 
-// Keywords to auto-detect relevant symbols in news
+// Keywords to auto-detect relevant symbols in news — US-market focused
+// (indices, mega-cap tech, crypto) rather than forex pairs.
 const SYMBOL_KEYWORDS: Record<string, string[]> = {
-  XAUUSD: ['gold', 'xau', 'oro', 'bullion'],
-  EURUSD: ['euro', 'eur', 'ecb', 'eurozone', 'draghui'],
-  GBPUSD: ['pound', 'gbp', 'sterling', 'boe', 'bank of england', 'brexit'],
+  SPX500: ['s&p', 'sp500', 's&p 500'],
+  NAS100: ['nasdaq', 'nasdaq 100', 'ndx'],
+  US30:   ['dow jones', 'dow 30'],
+  NVDA:   ['nvidia', 'nvda'],
+  MSFT:   ['microsoft', 'msft', 'azure'],
+  GOOGL:  ['google', 'alphabet', 'googl'],
+  AMZN:   ['amazon', 'amzn', 'aws'],
+  META:   ['meta platforms', 'facebook', 'instagram'],
+  AVGO:   ['broadcom', 'avgo'],
+  TSM:    ['tsmc', 'taiwan semiconductor'],
+  AMD:    ['amd', 'advanced micro devices'],
+  TSLA:   ['tesla', 'tsla', 'musk'],
+  PLTR:   ['palantir', 'pltr'],
   BTCUSD: ['bitcoin', 'btc', 'crypto', 'cryptocurrency'],
-  USDJPY: ['yen', 'jpy', 'boj', 'bank of japan', 'japan'],
-  XAGUSD: ['silver', 'xag'],
-  SP500:  ['s&p', 'sp500', 's&p 500', 'stocks', 'equities', 'nasdaq'],
-  DXY:    ['dollar', 'dxy', 'usd', 'fed', 'federal reserve', 'powell'],
+  XAUUSD: ['gold', 'xau', 'bullion'],
+  DXY:    ['dollar index', 'dxy', 'fed', 'federal reserve', 'powell'],
 }
 
 function detectSymbols(text: string): string[] {
@@ -51,11 +60,12 @@ function detectSymbols(text: string): string[] {
 }
 
 function detectCategory(text: string, source: string): NewsItem['category'] {
-  if (source === 'ForexLive' || source === 'DailyFX' || source.includes('FX')) return 'forex'
   const lower = text.toLowerCase()
   if (lower.includes('bitcoin') || lower.includes('crypto')) return 'crypto'
   if (lower.includes('gold') || lower.includes('silver') || lower.includes('oil')) return 'commodities'
   if (lower.includes('fed') || lower.includes('cpi') || lower.includes('gdp') || lower.includes('inflation')) return 'macro'
+  if (lower.includes('nasdaq') || lower.includes('s&p') || lower.includes('dow') || lower.includes('stock') || lower.includes('shares') || lower.includes('earnings')) return 'stocks'
+  if (source === 'ForexLive' || source === 'DailyFX' || source.includes('FX')) return 'forex'
   return 'general'
 }
 

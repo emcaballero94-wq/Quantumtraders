@@ -3,18 +3,23 @@
 import { useEffect, useRef, memo } from 'react'
 
 const TV_SYMBOL_MAP: Record<string, string> = {
-  XAUUSD: 'OANDA:XAUUSD',
-  EURUSD:  'OANDA:EURUSD',
-  GBPUSD:  'OANDA:GBPUSD',
+  SPX500:  'SP:SPX',
+  NAS100:  'NASDAQ:NDX',
+  US30:    'DJ:DJI',
+  NVDA:    'NASDAQ:NVDA',
+  MSFT:    'NASDAQ:MSFT',
+  GOOGL:   'NASDAQ:GOOGL',
+  AMZN:    'NASDAQ:AMZN',
+  META:    'NASDAQ:META',
+  AVGO:    'NASDAQ:AVGO',
+  TSM:     'NYSE:TSM',
+  AMD:     'NASDAQ:AMD',
+  MU:      'NASDAQ:MU',
+  TSLA:    'NASDAQ:TSLA',
+  PLTR:    'NASDAQ:PLTR',
   BTCUSD:  'BINANCE:BTCUSDT',
-  GBPJPY:  'OANDA:GBPJPY',
-  USDJPY:  'OANDA:USDJPY',
-  USDCAD:  'OANDA:USDCAD',
-  EURCAD:  'OANDA:EURCAD',
   ETHUSD:  'BINANCE:ETHUSDT',
-  XAGUSD:  'OANDA:XAGUSD',
-  NASDAQ:  'NASDAQ:QQQ',
-  SP500:   'AMEX:SPY',
+  XAUUSD:  'OANDA:XAUUSD',
   DXY:     'TVC:DXY',
 }
 

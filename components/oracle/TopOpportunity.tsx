@@ -14,6 +14,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   metals:  'METALS',
   indices: 'INDICES',
   crypto:  'CRYPTO',
+  stocks:  'STOCKS',
 }
 
 export function TopOpportunity({ asset }: TopOpportunityProps) {

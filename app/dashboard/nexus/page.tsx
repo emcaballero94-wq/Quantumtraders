@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CorrelationMatrix } from '@/components/nexus/CorrelationMatrix'
 import { SectionTitle } from '@/components/ui/SectionTitle'
 import { clsx } from 'clsx'
-import type { CurrencyStrength } from '@/lib/oracle/types'
+import type { SectorStrength } from '@/lib/oracle/types'
 
 interface CorrelationResponse {
   symbols: string[]
@@ -17,13 +17,13 @@ interface CorrelationResponse {
 interface OracleStateResponse {
   success: boolean
   data?: {
-    currencyStrength: CurrencyStrength[]
+    sectorStrength: SectorStrength[]
   }
 }
 
 export default function NexusPage() {
   const [correlations, setCorrelations] = useState<CorrelationResponse | null>(null)
-  const [currencyStrength, setCurrencyStrength] = useState<CurrencyStrength[]>([])
+  const [sectorStrength, setSectorStrength] = useState<SectorStrength[]>([])
 
   useEffect(() => {
     let mounted = true
@@ -36,11 +36,11 @@ export default function NexusPage() {
 
         if (!mounted) return
         setCorrelations(correlationResponse)
-        setCurrencyStrength(stateResponse?.data?.currencyStrength ?? [])
+        setSectorStrength(stateResponse?.data?.sectorStrength ?? [])
       } catch {
         if (!mounted) return
         setCorrelations(null)
-        setCurrencyStrength([])
+        setSectorStrength([])
       }
     }
 
@@ -52,9 +52,9 @@ export default function NexusPage() {
     }
   }, [])
 
-  const topStrength = useMemo(() => [...currencyStrength].slice(0, 4), [currencyStrength])
+  const topStrength = useMemo(() => [...sectorStrength].slice(0, 4), [sectorStrength])
   const topFlow = topStrength.slice(0, 2)
-  const weakestFlow = [...currencyStrength].slice(-2).reverse()
+  const weakestFlow = [...sectorStrength].slice(-2).reverse()
   const strongestPositive = correlations?.strongestPositive
   const strongestNegative = correlations?.strongestNegative
 
@@ -92,10 +92,10 @@ export default function NexusPage() {
               <SectionTitle label="Flujos de liquidez" accent="oracle" />
               <div className="space-y-3 font-mono text-xs">
                 {topFlow.map((item) => (
-                  <FlowItem key={`top-${item.currency}`} code={item.currency} value={item.change4h} positive />
+                  <FlowItem key={`top-${item.sector}`} code={item.sector} value={item.change4h} positive />
                 ))}
                 {weakestFlow.map((item) => (
-                  <FlowItem key={`weak-${item.currency}`} code={item.currency} value={item.change4h} positive={false} />
+                  <FlowItem key={`weak-${item.sector}`} code={item.sector} value={item.change4h} positive={false} />
                 ))}
               </div>
             </div>
@@ -104,15 +104,15 @@ export default function NexusPage() {
 
         <div className="xl:col-span-4 space-y-6">
           <div className="rounded-xl border border-bg-border bg-bg-card p-6 space-y-6">
-            <SectionTitle label="Momentum por divisa" accent="nexus" />
+            <SectionTitle label="Momentum por sector" accent="nexus" />
             <div className="space-y-6">
               {topStrength.map((item) => {
                 const buy = Math.max(0, Math.min(100, 50 + item.score / 2))
                 const sell = 100 - buy
                 return (
                   <SentimentBar
-                    key={item.currency}
-                    asset={item.currency}
+                    key={item.sector}
+                    asset={item.sector}
                     long={Number(buy.toFixed(0))}
                     short={Number(sell.toFixed(0))}
                   />

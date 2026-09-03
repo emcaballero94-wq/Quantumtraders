@@ -136,7 +136,7 @@ export default function OraclePage() {
 
       <DepthPanel
         centralBanks={state.centralBanks}
-        currencyStrength={state.currencyStrength}
+        sectorStrength={state.sectorStrength}
         calendar={state.calendar}
       />
     </div>

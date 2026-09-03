@@ -5,7 +5,7 @@
 
 import type {
   OracleState, RadarAsset, DailyBrief, OracleAlert,
-  CentralBankRate, EconomicEvent, CurrencyStrength,
+  CentralBankRate, EconomicEvent, SectorStrength,
   MarketSession, KillZone,
 } from './types'
 
@@ -29,9 +29,9 @@ export const MOCK_KILL_ZONES: KillZone[] = [
 
 export const MOCK_RADAR: RadarAsset[] = [
   {
-    symbol:         'XAUUSD',
-    name:           'Gold / US Dollar',
-    category:       'metals',
+    symbol:         'NVDA',
+    name:           'NVIDIA Corp',
+    category:       'stocks',
     macroScore:     78,
     technicalScore: 82,
     timingScore:    75,
@@ -40,12 +40,12 @@ export const MOCK_RADAR: RadarAsset[] = [
     rating:         'strong',
     trend:          'uptrend',
     change24h:      +1.24,
-    currentPrice:   2341.50,
+    currentPrice:   223.96,
   },
   {
-    symbol:         'GBPUSD',
-    name:           'British Pound / US Dollar',
-    category:       'forex',
+    symbol:         'SPX500',
+    name:           'S&P 500 Index',
+    category:       'indices',
     macroScore:     65,
     technicalScore: 72,
     timingScore:    80,
@@ -54,12 +54,12 @@ export const MOCK_RADAR: RadarAsset[] = [
     rating:         'strong',
     trend:          'uptrend',
     change24h:      +0.42,
-    currentPrice:   1.2748,
+    currentPrice:   6210.30,
   },
   {
-    symbol:         'EURUSD',
-    name:           'Euro / US Dollar',
-    category:       'forex',
+    symbol:         'NAS100',
+    name:           'Nasdaq 100 Index',
+    category:       'indices',
     macroScore:     58,
     technicalScore: 63,
     timingScore:    80,
@@ -68,12 +68,12 @@ export const MOCK_RADAR: RadarAsset[] = [
     rating:         'operable',
     trend:          'uptrend',
     change24h:      +0.18,
-    currentPrice:   1.0842,
+    currentPrice:   21480.00,
   },
   {
-    symbol:         'GBPJPY',
-    name:           'British Pound / Japanese Yen',
-    category:       'forex',
+    symbol:         'MSFT',
+    name:           'Microsoft Corp',
+    category:       'stocks',
     macroScore:     72,
     technicalScore: 68,
     timingScore:    60,
@@ -82,12 +82,12 @@ export const MOCK_RADAR: RadarAsset[] = [
     rating:         'operable',
     trend:          'uptrend',
     change24h:      +0.65,
-    currentPrice:   192.34,
+    currentPrice:   512.34,
   },
   {
-    symbol:         'USDJPY',
-    name:           'US Dollar / Japanese Yen',
-    category:       'forex',
+    symbol:         'GOOGL',
+    name:           'Alphabet Inc',
+    category:       'stocks',
     macroScore:     62,
     technicalScore: 55,
     timingScore:    65,
@@ -96,7 +96,7 @@ export const MOCK_RADAR: RadarAsset[] = [
     rating:         'operable',
     trend:          'sideways',
     change24h:      +0.22,
-    currentPrice:   150.82,
+    currentPrice:   248.15,
   },
   {
     symbol:         'BTCUSD',
@@ -113,9 +113,9 @@ export const MOCK_RADAR: RadarAsset[] = [
     currentPrice:   67450.00,
   },
   {
-    symbol:         'USDCAD',
-    name:           'US Dollar / Canadian Dollar',
-    category:       'forex',
+    symbol:         'TSLA',
+    name:           'Tesla Inc',
+    category:       'stocks',
     macroScore:     38,
     technicalScore: 35,
     timingScore:    60,
@@ -124,12 +124,12 @@ export const MOCK_RADAR: RadarAsset[] = [
     rating:         'mixed',
     trend:          'downtrend',
     change24h:      -0.31,
-    currentPrice:   1.3621,
+    currentPrice:   483.36,
   },
   {
-    symbol:         'EURCAD',
-    name:           'Euro / Canadian Dollar',
-    category:       'forex',
+    symbol:         'XAUUSD',
+    name:           'Gold / US Dollar',
+    category:       'metals',
     macroScore:     28,
     technicalScore: 22,
     timingScore:    50,
@@ -138,7 +138,7 @@ export const MOCK_RADAR: RadarAsset[] = [
     rating:         'avoid',
     trend:          'downtrend',
     change24h:      -0.55,
-    currentPrice:   1.4762,
+    currentPrice:   2341.50,
   },
 ]
 
@@ -147,8 +147,8 @@ export const MOCK_RADAR: RadarAsset[] = [
 export const MOCK_BRIEF: DailyBrief = {
   date:          new Date().toISOString(),
   marketBias:    'long',
-  summary:       'Sesgo alcista dominante con London y New York solapados. El oro lidera con alineación técnica y macro completa. El dólar muestra debilidad moderada frente a GBP y EUR. NFP mañana — ajustar tamaños antes del evento.',
-  topSetup:      'XAUUSD — pullback a 2328 con estructura alcista H1 intacta',
+  summary:       'Sesgo alcista dominante con la sesión de New York activa. NVDA lidera con alineación técnica y macro completa. El S&P 500 y el Nasdaq 100 muestran continuación de tendencia. NFP mañana — ajustar tamaños antes del evento.',
+  topSetup:      'NVDA — pullback a EMA21 con estructura alcista H1 intacta',
   keyEvent:      'Jobless Claims USD — 13:30 UTC (alto impacto)',
   activeSession: 'New York',
   conditions:    'Kill Zone activa · Alta liquidez · Spread normal',
@@ -173,7 +173,7 @@ export const MOCK_ALERTS: OracleAlert[] = [
     severity:  'critical',
     title:     'Evento de Alto Impacto',
     message:   'Jobless Claims USD en 45 min. Considerar cerrar posiciones abiertas o ajustar stops.',
-    symbol:    'EURUSD',
+    symbol:    'SPX500',
     timestamp: new Date().toISOString(),
     read:      false,
   },
@@ -181,12 +181,12 @@ export const MOCK_ALERTS: OracleAlert[] = [
     id:        'a3',
     type:      'technical',
     severity:  'info',
-    title:     'XAUUSD — Setup Confirmado',
-    message:   'Gold retestea EMA21 en H1. Estructura bullish M15 intacta. Score 80/100.',
-    symbol:    'XAUUSD',
+    title:     'NVDA — Setup Confirmado',
+    message:   'NVDA retestea EMA21 en H1. Estructura bullish M15 intacta. Score 80/100.',
+    symbol:    'NVDA',
     timestamp: new Date(Date.now() - 15 * 60000).toISOString(),
     read:      false,
-    priceZone: { top: 2328, bottom: 2320, label: 'JARVIS Buy Zone' }
+    priceZone: { top: 228, bottom: 220, label: 'Buy Zone' }
   },
 ]
 
@@ -242,31 +242,31 @@ export const MOCK_CALENDAR: EconomicEvent[] = [
   },
 ]
 
-// ─── Currency Strength ────────────────────────────────────────
+// ─── Sector Strength ──────────────────────────────────────────
 
-export const MOCK_CURRENCY_STRENGTH: CurrencyStrength[] = [
-  { currency: 'GBP', score:  68, trend: 'strengthening', change1h:  0.12, change4h:  0.38, change1d:  0.65 },
-  { currency: 'EUR', score:  52, trend: 'stable',        change1h:  0.05, change4h:  0.18, change1d:  0.22 },
-  { currency: 'AUD', score:  48, trend: 'stable',        change1h: -0.02, change4h:  0.10, change1d: -0.15 },
-  { currency: 'NZD', score:  45, trend: 'stable',        change1h:  0.01, change4h: -0.05, change1d: -0.30 },
-  { currency: 'USD', score:  38, trend: 'weakening',     change1h: -0.08, change4h: -0.22, change1d: -0.55 },
-  { currency: 'CAD', score:  35, trend: 'weakening',     change1h: -0.10, change4h: -0.30, change1d: -0.48 },
-  { currency: 'CHF', score:  40, trend: 'stable',        change1h:  0.03, change4h: -0.08, change1d:  0.12 },
-  { currency: 'JPY', score:  22, trend: 'weakening',     change1h: -0.15, change4h: -0.45, change1d: -0.82 },
+export const MOCK_SECTOR_STRENGTH: SectorStrength[] = [
+  { sector: 'Technology',             score:  68, trend: 'strengthening', change1h:  0.12, change4h:  0.38, change1d:  0.65 },
+  { sector: 'Communication',          score:  52, trend: 'stable',        change1h:  0.05, change4h:  0.18, change1d:  0.22 },
+  { sector: 'Consumer Discretionary', score:  48, trend: 'stable',        change1h: -0.02, change4h:  0.10, change1d: -0.15 },
+  { sector: 'Financials',             score:  45, trend: 'stable',        change1h:  0.01, change4h: -0.05, change1d: -0.30 },
+  { sector: 'Industrials',            score:  38, trend: 'weakening',     change1h: -0.08, change4h: -0.22, change1d: -0.55 },
+  { sector: 'Healthcare',             score:  35, trend: 'weakening',     change1h: -0.10, change4h: -0.30, change1d: -0.48 },
+  { sector: 'Energy',                 score:  40, trend: 'stable',        change1h:  0.03, change4h: -0.08, change1d:  0.12 },
+  { sector: 'Utilities',              score:  22, trend: 'weakening',     change1h: -0.15, change4h: -0.45, change1d: -0.82 },
 ]
 
 // ─── Full Oracle State ────────────────────────────────────────
 
 export const MOCK_ORACLE_STATE: OracleState = {
   brief:            MOCK_BRIEF,
-  topOpportunity:   MOCK_RADAR[0]!,  // XAUUSD
+  topOpportunity:   MOCK_RADAR[0]!,  // NVDA
   radar:            MOCK_RADAR,
   sessions:         MOCK_SESSIONS,
   killZones:        MOCK_KILL_ZONES,
   alerts:           MOCK_ALERTS,
   centralBanks:     MOCK_CENTRAL_BANKS,
   calendar:         MOCK_CALENDAR,
-  currencyStrength: MOCK_CURRENCY_STRENGTH,
+  sectorStrength:   MOCK_SECTOR_STRENGTH,
   lastUpdated:      new Date().toISOString(),
 }
 

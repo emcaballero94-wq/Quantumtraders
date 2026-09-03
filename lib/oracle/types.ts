@@ -135,7 +135,7 @@ export interface OracleScore {
 export interface RadarAsset {
   symbol:         string
   name:           string
-  category:       'forex' | 'metals' | 'indices' | 'crypto'
+  category:       'forex' | 'metals' | 'indices' | 'crypto' | 'stocks'
   macroScore:     number
   technicalScore: number
   timingScore:    number
@@ -207,10 +207,12 @@ export interface EconomicEvent {
   pending:   boolean
 }
 
-// ─── Currency Strength ──────────────────────────────────────
+// ─── Sector Strength ────────────────────────────────────────
+// Relative strength across US market sectors (SPDR sector ETFs) — replaces
+// the old forex-only Currency Strength concept for a US-market-first product.
 
-export interface CurrencyStrength {
-  currency: string
+export interface SectorStrength {
+  sector:   string
   score:    number   // -100 to +100
   trend:    'strengthening' | 'weakening' | 'stable'
   change1h: number
@@ -267,6 +269,6 @@ export interface OracleState {
   alerts:         OracleAlert[]
   centralBanks:   CentralBankRate[]
   calendar:       EconomicEvent[]
-  currencyStrength: CurrencyStrength[]
+  sectorStrength: SectorStrength[]
   lastUpdated:    string
 }

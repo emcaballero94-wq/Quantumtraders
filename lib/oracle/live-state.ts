@@ -14,7 +14,7 @@ import type {
   SessionName,
 } from '@/lib/oracle/types'
 import {
-  computeCurrencyStrength,
+  computeSectorStrength,
   detectTrendFromCandles,
   fetchMarketHistory,
   fetchMarketQuotes,
@@ -34,17 +34,17 @@ interface RadarComputation {
 }
 
 const RADAR_DEFINITIONS: RadarDefinition[] = [
-  { symbol: 'XAUUSD', name: 'Gold / US Dollar', category: 'metals' },
-  { symbol: 'EURUSD', name: 'Euro / US Dollar', category: 'forex' },
-  { symbol: 'GBPUSD', name: 'British Pound / US Dollar', category: 'forex' },
-  { symbol: 'USDJPY', name: 'US Dollar / Japanese Yen', category: 'forex' },
-  { symbol: 'GBPJPY', name: 'British Pound / Japanese Yen', category: 'forex' },
+  { symbol: 'SPX500', name: 'S&P 500 Index', category: 'indices' },
+  { symbol: 'NAS100', name: 'Nasdaq 100 Index', category: 'indices' },
+  { symbol: 'US30', name: 'Dow Jones Industrial Average', category: 'indices' },
+  { symbol: 'NVDA', name: 'NVIDIA Corp', category: 'stocks' },
+  { symbol: 'MSFT', name: 'Microsoft Corp', category: 'stocks' },
+  { symbol: 'GOOGL', name: 'Alphabet Inc', category: 'stocks' },
+  { symbol: 'AMZN', name: 'Amazon.com Inc', category: 'stocks' },
+  { symbol: 'META', name: 'Meta Platforms Inc', category: 'stocks' },
+  { symbol: 'TSLA', name: 'Tesla Inc', category: 'stocks' },
   { symbol: 'BTCUSD', name: 'Bitcoin / US Dollar', category: 'crypto' },
-  { symbol: 'USDCAD', name: 'US Dollar / Canadian Dollar', category: 'forex' },
-  { symbol: 'EURCAD', name: 'Euro / Canadian Dollar', category: 'forex' },
-  { symbol: 'DXY', name: 'US Dollar Index', category: 'indices' },
-  { symbol: 'SP500', name: 'S&P 500 Index', category: 'indices' },
-  { symbol: 'NASDAQ', name: 'Nasdaq Composite', category: 'indices' },
+  { symbol: 'XAUUSD', name: 'Gold / US Dollar', category: 'metals' },
 ]
 
 let stateCache: { expiresAt: number; state: OracleState } | null = null
@@ -318,7 +318,7 @@ async function computeRadarAsset(
 
 async function buildOracleStateFresh(): Promise<OracleState> {
   const allQuotes = await fetchMarketQuotes(
-    Array.from(new Set([...RADAR_DEFINITIONS.map((definition) => definition.symbol), 'VIX'])),
+    Array.from(new Set([...RADAR_DEFINITIONS.map((definition) => definition.symbol), 'VIX', 'DXY', 'SP500'])),
   )
   const quoteMap = new Map(allQuotes.map((quote) => [quote.symbol, quote]))
 
@@ -353,7 +353,7 @@ async function buildOracleStateFresh(): Promise<OracleState> {
     fetchCentralBankRatesFromCalendar().catch(() => []),
   ])
   const calendar = calendarFeed.length > 0 ? calendarFeed : buildCalendarFromAlerts(alerts)
-  const currencyStrength = await computeCurrencyStrength()
+  const sectorStrength = await computeSectorStrength()
 
   const partialState: Omit<OracleState, 'brief'> = {
     topOpportunity: getTopOpportunity(radar),
@@ -363,7 +363,7 @@ async function buildOracleStateFresh(): Promise<OracleState> {
     alerts,
     centralBanks: centralBankRates,
     calendar,
-    currencyStrength,
+    sectorStrength,
     lastUpdated: new Date().toISOString(),
   }
 

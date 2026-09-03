@@ -1,17 +1,17 @@
 'use client'
 
 import { clsx } from 'clsx'
-import type { CentralBankRate, CurrencyStrength, EconomicEvent } from '@/lib/oracle/types'
+import type { CentralBankRate, SectorStrength, EconomicEvent } from '@/lib/oracle/types'
 import { CollapsePanel } from '@/components/ui/CollapsePanel'
 import { SectionTitle } from '@/components/ui/SectionTitle'
 
 interface DepthPanelProps {
-  centralBanks:     CentralBankRate[]
-  currencyStrength: CurrencyStrength[]
-  calendar:         EconomicEvent[]
+  centralBanks:   CentralBankRate[]
+  sectorStrength: SectorStrength[]
+  calendar:       EconomicEvent[]
 }
 
-export function DepthPanel({ centralBanks, currencyStrength, calendar }: DepthPanelProps) {
+export function DepthPanel({ centralBanks, sectorStrength, calendar }: DepthPanelProps) {
   return (
     <CollapsePanel title="Profundidad — Contexto Macro" defaultOpen={false}>
       <div className="p-4 space-y-4">
@@ -54,19 +54,19 @@ export function DepthPanel({ centralBanks, currencyStrength, calendar }: DepthPa
 
         <div className="h-px bg-bg-border" />
 
-        {/* Currency Strength */}
+        {/* Sector Strength */}
         <div className="space-y-3">
-          <SectionTitle label="Fuerza de Divisas" sublabel="Ranking relativo" accent="oracle" />
+          <SectionTitle label="Fuerza Sectorial" sublabel="Ranking relativo" accent="oracle" />
           <div className="space-y-2">
-            {[...currencyStrength]
+            {[...sectorStrength]
               .sort((a, b) => b.score - a.score)
               .map((cs, idx) => {
                 const isStrong = cs.score >= 55
                 const isWeak   = cs.score <= 35
                 return (
-                  <div key={cs.currency} className="flex items-center gap-3">
+                  <div key={cs.sector} className="flex items-center gap-3">
                     <span className="text-2xs font-mono text-ink-muted w-4 tabular-nums">{idx + 1}</span>
-                    <span className="text-xs font-mono font-bold text-ink-primary w-8">{cs.currency}</span>
+                    <span className="text-xs font-mono font-bold text-ink-primary w-28 truncate">{cs.sector}</span>
                     <div className="flex-1 h-1.5 bg-bg-border rounded-full overflow-hidden">
                       <div
                         className={clsx(

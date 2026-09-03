@@ -25,7 +25,7 @@ const TradingViewChart = dynamic(
   }
 )
 
-const SYMBOLS = ['XAUUSD', 'EURUSD', 'GBPUSD', 'BTCUSD', 'USDJPY', 'GBPJPY']
+const SYMBOLS = ['SPX500', 'NAS100', 'US30', 'NVDA', 'MSFT', 'GOOGL', 'AMZN', 'META', 'AVGO', 'TSM', 'AMD', 'MU', 'TSLA', 'PLTR', 'BTCUSD', 'XAUUSD']
 
 const TIMEFRAMES: { label: string; value: string }[] = [
   { label: 'M1',  value: '1'   },
@@ -39,22 +39,21 @@ const TIMEFRAMES: { label: string; value: string }[] = [
 ]
 
 const TV_DISPLAY_MAP: Record<string, string> = {
-  XAUUSD: 'XAU/USD',
-  EURUSD: 'EUR/USD',
-  GBPUSD: 'GBP/USD',
+  SPX500: 'S&P 500',
+  NAS100: 'Nasdaq 100',
+  US30: 'Dow 30',
   BTCUSD: 'BTC/USDT',
-  USDJPY: 'USD/JPY',
-  GBPJPY: 'GBP/JPY',
+  XAUUSD: 'XAU/USD',
 }
 
 function formatPrice(price: number | null, symbol: string): string {
   if (price === null) return '—'
-  const decimals = symbol.includes('JPY') ? 3 : symbol === 'XAUUSD' ? 2 : 5
+  const decimals = symbol === 'BTCUSD' ? 1 : 2
   return price.toFixed(decimals)
 }
 
 export default function AtlasPage() {
-  const [selectedSymbol, setSelectedSymbol] = useState('XAUUSD')
+  const [selectedSymbol, setSelectedSymbol] = useState('SPX500')
   const [selectedInterval, setSelectedInterval] = useState('60')
   const [prevPrice, setPrevPrice] = useState<number | null>(null)
   const [priceDir, setPriceDir] = useState<'up' | 'down' | 'neutral'>('neutral')

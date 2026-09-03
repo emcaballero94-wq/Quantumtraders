@@ -3,7 +3,7 @@ import { computeCorrelationMatrix } from '@/lib/market-data'
 import { withApiCache } from '@/lib/server/api-cache'
 import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
 
-const DEFAULT_SYMBOLS = ['EURUSD', 'GBPUSD', 'USDJPY', 'XAUUSD', 'DXY', 'SP500']
+const DEFAULT_SYMBOLS = ['SPX500', 'NAS100', 'NVDA', 'MSFT', 'GOOGL', 'XAUUSD', 'DXY', 'BTCUSD']
 
 export async function GET(request: Request) {
   const blocked = rejectIfRateLimited(request, {

@@ -2,13 +2,23 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { SectionTitle } from '@/components/ui/SectionTitle'
-import type { SectorStrength } from '@/lib/oracle/types'
+import { EconomicCalendar, type DayPnl } from '@/components/pulse/EconomicCalendar'
+import type { SectorStrength, EconomicEvent } from '@/lib/oracle/types'
 
 interface OracleStateResponse {
   success: boolean
   data?: {
     sectorStrength: SectorStrength[]
+    calendar: EconomicEvent[]
   }
+}
+
+interface JournalTrade {
+  createdAt: string
+  profit: number
+  commission: number
+  swap: number
+  result: string
 }
 
 interface QuoteItem {
@@ -41,6 +51,8 @@ function riskRegimeFromVix(vix: number | null): { score: number; label: string; 
 
 export default function PulsePage() {
   const [sectorStrength, setSectorStrength] = useState<SectorStrength[]>([])
+  const [calendar, setCalendar] = useState<EconomicEvent[]>([])
+  const [trades, setTrades] = useState<JournalTrade[]>([])
   const [quotes, setQuotes] = useState<Record<string, QuoteItem>>({})
   const [dxyStats, setDxyStats] = useState<{ min: number | null; max: number | null }>({ min: null, max: null })
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
@@ -49,14 +61,17 @@ export default function PulsePage() {
     let mounted = true
     const fetchData = async () => {
       try {
-        const [statePayload, quotePayload, dxyHistory] = await Promise.all([
+        const [statePayload, quotePayload, dxyHistory, tradesPayload] = await Promise.all([
           fetch('/api/oracle/state').then((response) => response.json() as Promise<OracleStateResponse>),
           fetch('/api/market/quote?symbols=DXY,VIX,SPX500,NAS100,BTCUSD').then((response) => response.json() as Promise<QuoteResponse>),
           fetch('/api/market/history?symbol=DXY&interval=1h&outputsize=180').then((response) => response.json() as Promise<HistoryResponseItem[]>),
+          fetch('/api/journal/trades').then((response) => response.json()),
         ])
         if (!mounted) return
 
         setSectorStrength(statePayload?.data?.sectorStrength ?? [])
+        setCalendar(statePayload?.data?.calendar ?? [])
+        setTrades((tradesPayload?.data ?? []) as JournalTrade[])
         const quoteMap: Record<string, QuoteItem> = {}
         for (const item of quotePayload?.quotes ?? []) quoteMap[item.symbol] = item
         setQuotes(quoteMap)
@@ -93,6 +108,19 @@ export default function PulsePage() {
     () => ['DXY', 'SPX500', 'NAS100', 'BTCUSD'].map((symbol) => quotes[symbol]).filter(Boolean) as QuoteItem[],
     [quotes],
   )
+
+  const dailyPnl: DayPnl[] = useMemo(() => {
+    const byDay = new Map<string, { pnl: number; trades: number }>()
+    for (const t of trades) {
+      if (t.result === 'OPEN') continue
+      const day = t.createdAt.slice(0, 10)
+      const entry = byDay.get(day) ?? { pnl: 0, trades: 0 }
+      entry.pnl += t.profit - t.commission - t.swap
+      entry.trades += 1
+      byDay.set(day, entry)
+    }
+    return [...byDay.entries()].map(([date, v]) => ({ date, pnl: v.pnl, trades: v.trades }))
+  }, [trades])
 
   return (
     <div className="space-y-6 animate-fade-in pb-20">
@@ -184,6 +212,8 @@ export default function PulsePage() {
           </div>
         </div>
       </div>
+
+      <EconomicCalendar events={calendar} dailyPnl={dailyPnl} />
 
       <div className="rounded-xl border border-oracle/30 bg-bg-card p-6 border-l-4 border-l-oracle space-y-4">
         <div className="flex items-center gap-2">

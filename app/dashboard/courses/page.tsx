@@ -74,6 +74,40 @@ type ExamEvaluation = {
   }>
 }
 
+function LessonCard({ lesson, index }: { lesson: PublicAcademyRoute['blocks'][number]['lessons'][number]; index: number }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="rounded-lg border border-bg-border bg-bg-card overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-bg-elevated/30 transition-colors"
+      >
+        <span className="text-xs font-mono text-ink-primary">
+          <span className="text-ink-dim mr-2">{String(index + 1).padStart(2, '0')}.</span>
+          {lesson.title}
+        </span>
+        <svg className={`w-3.5 h-3.5 text-ink-dim shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="px-3 pb-3.5 pt-0.5 space-y-2.5 border-t border-bg-border">
+          <p className="text-xs font-mono text-ink-secondary leading-relaxed pt-2.5">{lesson.content}</p>
+          <ul className="space-y-1">
+            {lesson.keyPoints.map((point) => (
+              <li key={point} className="text-[10.5px] font-mono text-ink-muted flex gap-1.5">
+                <span className="text-oracle shrink-0">✓</span>
+                <span>{point}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function getOrCreateLearnerId(): string {
   if (typeof window === 'undefined') return 'guest-web'
   const storageKey = 'qt_learner_id'
@@ -257,11 +291,12 @@ export default function CoursesPage() {
                     </div>
                   </div>
 
-                  <ul className="space-y-1">
-                    {block.lessons.map((lesson) => (
-                      <li key={lesson} className="text-xs font-mono text-ink-secondary">• {lesson}</li>
+                  <div className="space-y-1.5">
+                    <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest">Lecciones ({block.lessons.length})</p>
+                    {block.lessons.map((lesson, lessonIndex) => (
+                      <LessonCard key={lesson.id} lesson={lesson} index={lessonIndex} />
                     ))}
-                  </ul>
+                  </div>
 
                   <div className="space-y-3">
                     <p className="text-[10px] font-mono text-ink-muted uppercase">Examen del bloque (mínimo {block.exam.passScore})</p>

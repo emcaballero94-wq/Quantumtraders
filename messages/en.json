@@ -26,6 +26,14 @@
     "billingSub": "Crypto payments",
     "settings": "Settings"
   },
+  "home": {
+    "analysisCard": "ANALYSIS",
+    "analysisCardSub": "Market intelligence & tools",
+    "educationCard": "EDUCATION",
+    "educationCardSub": "Your learning roadmap",
+    "toolsCard": "TOOLS",
+    "toolsCardSub": "Journal & psychology"
+  },
   "roadmap": {
     "kicker": "TRADER DEVELOPMENT ROADMAP",
     "title": "From beginner to systematic trader",

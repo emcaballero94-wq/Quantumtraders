@@ -7,6 +7,7 @@ import { computeTradeAudit } from '@/lib/journal/audit-engine'
 import type { TradeJournalEntry, TradeChecklist } from '@/lib/oracle/persistence'
 import type { OracleState } from '@/lib/oracle/types'
 import type { PublicAcademyRoute } from '@/lib/academy/content'
+import { useLocale } from '@/lib/i18n/LocaleProvider'
 import { clsx } from 'clsx'
 
 interface OracleStateResponse {
@@ -69,13 +70,96 @@ function isToday(iso: string): boolean {
   return iso.slice(0, 10) === new Date().toISOString().slice(0, 10)
 }
 
+type CardKey = 'analysis' | 'education' | 'tools'
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={clsx('w-4 h-4 text-ink-dim transition-transform duration-300', open && 'rotate-180')}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  )
+}
+
+function HomeCard({
+  title,
+  subtitle,
+  accent,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string
+  subtitle: string
+  accent: 'oracle' | 'atlas' | 'pulse'
+  open: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  const accentText = accent === 'oracle' ? 'text-oracle' : accent === 'atlas' ? 'text-atlas' : 'text-pulse'
+  const accentBorder = accent === 'oracle' ? 'border-oracle/30' : accent === 'atlas' ? 'border-atlas/30' : 'border-pulse/30'
+
+  return (
+    <div className={clsx('rounded-xl border bg-bg-card glass-card overflow-hidden transition-colors', open ? accentBorder : 'border-bg-border')}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left hover:bg-bg-elevated/20 transition-colors"
+      >
+        <div>
+          <p className={clsx('text-sm font-mono font-bold tracking-widest', accentText)}>{title}</p>
+          <p className="text-xs font-mono text-ink-muted mt-1">{subtitle}</p>
+        </div>
+        <ChevronIcon open={open} />
+      </button>
+      <div
+        className={clsx('grid transition-all duration-300 ease-out', open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}
+        style={{ display: 'grid' }}
+      >
+        <div className="overflow-hidden">
+          <div className="px-5 pb-5 pt-1 border-t border-bg-border space-y-4">{children}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LinkTile({ href, label, sublabel, color }: { href: string; label: string; sublabel: string; color: string }) {
+  return (
+    <Link
+      href={href}
+      className={clsx(
+        'flex items-center justify-between px-4 py-3 bg-bg-elevated/40 hover:bg-bg-elevated rounded-lg border border-bg-border transition-colors group',
+      )}
+    >
+      <div>
+        <p className={clsx('text-xs font-mono font-bold uppercase tracking-wider', color)}>{label}</p>
+        <p className="text-[10px] font-mono text-ink-dim mt-0.5">{sublabel}</p>
+      </div>
+      <svg className="w-3.5 h-3.5 text-ink-dim group-hover:text-ink-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+      </svg>
+    </Link>
+  )
+}
+
 export default function DashboardPage() {
+  const { t } = useLocale()
+  const [openCard, setOpenCard] = useState<CardKey | null>(null)
   const [userLabel, setUserLabel] = useState<string | null>(null)
   const [state, setState] = useState<OracleState | null>(null)
   const [routes, setRoutes] = useState<PublicAcademyRoute[]>([])
   const [progress, setProgress] = useState<AcademyProgressRow[]>([])
   const [trades, setTrades] = useState<TradeJournalEntry[]>([])
   const [checklists, setChecklists] = useState<Record<string, TradeChecklist>>({})
+
+  const toggleCard = (key: CardKey) => setOpenCard((current) => (current === key ? null : key))
 
   useEffect(() => {
     const supabase = createClient()
@@ -175,65 +259,95 @@ export default function DashboardPage() {
   return (
     <div className="space-y-5">
       {/* ── Greeting ── */}
-      <div>
-        <h1 className="text-xl font-mono font-bold text-ink-primary tracking-tight">
-          {greeting()}{userLabel ? `, ${userLabel.toUpperCase()}` : ''}
-        </h1>
-        <p className="text-xs font-mono text-ink-muted mt-0.5">Your trading workspace</p>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-xl font-mono font-bold text-ink-primary tracking-tight">
+            {greeting()}{userLabel ? `, ${userLabel.toUpperCase()}` : ''}
+          </h1>
+          <p className="text-xs font-mono text-ink-muted mt-0.5">Your trading workspace</p>
+        </div>
+        <Link
+          href="/dashboard/billing"
+          className="px-3 py-1.5 rounded-lg border border-bg-border bg-bg-elevated/30 text-[10px] font-mono text-ink-muted hover:text-ink-primary hover:border-ink-dim transition-colors uppercase tracking-wider"
+        >
+          {'Billing'} →
+        </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div className="space-y-4">
 
-        {/* ── Continue Learning ── */}
-        <div className="lg:col-span-7 rounded-xl border border-bg-border bg-bg-card glass-card p-5">
-          <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest mb-2">Continue Where You Left Off</p>
-          {allComplete ? (
-            <p className="text-sm font-mono text-atlas">All roadmap levels complete — nice work.</p>
-          ) : nextBlock ? (
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-mono text-oracle uppercase tracking-wider">{nextBlock.routeLevel} · {nextBlock.title}</p>
-                <p className="text-xs font-mono text-ink-secondary mt-1 max-w-md">{nextBlock.objective}</p>
-              </div>
-              <Link
-                href="/dashboard/courses"
-                className="shrink-0 px-4 py-2 bg-oracle/10 text-oracle border border-oracle/30 rounded-lg text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-oracle/20 transition-all"
-              >
-                Continue →
-              </Link>
-            </div>
-          ) : (
-            <p className="text-xs font-mono text-ink-dim">Loading your roadmap...</p>
-          )}
-        </div>
-
-        {/* ── Today ── */}
-        <div className="lg:col-span-5 rounded-xl border border-bg-border bg-bg-card glass-card p-5">
-          <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest mb-3">Today</p>
-          <div className="grid grid-cols-2 gap-3 text-xs font-mono">
-            <div>
-              <p className="text-ink-dim uppercase text-[9px]">Trades logged</p>
-              <p className="text-ink-primary font-bold text-lg tabular-nums">{todayTrades.length}</p>
-            </div>
-            <div>
-              <p className="text-ink-dim uppercase text-[9px]">Next lesson</p>
-              <p className="text-ink-primary font-bold truncate">{nextBlock ? nextBlock.title : '—'}</p>
+        {/* ── ANÁLISIS ── */}
+        <HomeCard
+          title={t('home.analysisCard')}
+          subtitle={t('home.analysisCardSub')}
+          accent="atlas"
+          open={openCard === 'analysis'}
+          onToggle={() => toggleCard('analysis')}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[9px] font-mono text-ink-dim uppercase tracking-widest">Market Status</span>
+            <div className="flex items-center gap-1.5">
+              <span className={clsx('w-1.5 h-1.5 rounded-full', activeSession ? 'bg-atlas animate-pulse-slow' : 'bg-ink-dim')} />
+              <span className="text-[10px] font-mono text-ink-secondary">{activeSession ? `${activeSession} session active` : 'No major session active'}</span>
             </div>
           </div>
-          {todayTrades.length > 0 && (
-            <Link href="/dashboard/tools" className="inline-block mt-3 text-[10px] font-mono text-oracle hover:underline uppercase tracking-wider">
-              Review today's trades →
-            </Link>
+          {marketGlance.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              {marketGlance.map((asset) => (
+                <div key={asset.symbol} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-bg-border bg-bg-elevated/30">
+                  <span className="text-xs font-mono font-bold text-ink-primary">{asset.symbol}</span>
+                  <span className={clsx(
+                    'text-[10px] font-mono uppercase',
+                    asset.bias === 'long' ? 'text-atlas' : asset.bias === 'short' ? 'text-bear' : 'text-ink-muted',
+                  )}>
+                    {asset.bias === 'long' ? 'Bullish' : asset.bias === 'short' ? 'Bearish' : 'Neutral'}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
-        </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <LinkTile href="/dashboard/scanner" label="Scanner" sublabel="Daily brief · Market Scanner" color="text-oracle" />
+            <LinkTile href="/dashboard/atlas" label="Charts" sublabel="Atlas · Live analysis" color="text-atlas" />
+            <LinkTile href="/dashboard/nexus" label="Correlations" sublabel="Nexus · DXY & sectors" color="text-nexus" />
+            <LinkTile href="/dashboard/gex" label="Gamma" sublabel="GEX exposure (demo)" color="text-oracle" />
+            <LinkTile href="/dashboard/pulse" label="Risk" sublabel="Pulse · Calendar & regime" color="text-pulse" />
+          </div>
+        </HomeCard>
 
-        {/* ── Trading Development ── */}
-        <div className="lg:col-span-7 rounded-xl border border-bg-border bg-bg-card glass-card p-5 space-y-3">
-          <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest">Trading Development</p>
-          {blocks.length === 0 ? (
-            <p className="text-xs font-mono text-ink-dim">Loading roadmap progress...</p>
-          ) : (
-            <div className="space-y-2.5">
+        {/* ── EDUCACIÓN ── */}
+        <HomeCard
+          title={t('home.educationCard')}
+          subtitle={t('home.educationCardSub')}
+          accent="oracle"
+          open={openCard === 'education'}
+          onToggle={() => toggleCard('education')}
+        >
+          <div>
+            <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest mb-2">Continue Where You Left Off</p>
+            {allComplete ? (
+              <p className="text-sm font-mono text-atlas">All roadmap levels complete — nice work.</p>
+            ) : nextBlock ? (
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <p className="text-[10px] font-mono text-oracle uppercase tracking-wider">{nextBlock.routeLevel} · {nextBlock.title}</p>
+                  <p className="text-xs font-mono text-ink-secondary mt-1 max-w-md">{nextBlock.objective}</p>
+                </div>
+                <Link
+                  href="/dashboard/courses"
+                  className="shrink-0 px-4 py-2 bg-oracle/10 text-oracle border border-oracle/30 rounded-lg text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-oracle/20 transition-all"
+                >
+                  Continue →
+                </Link>
+              </div>
+            ) : (
+              <p className="text-xs font-mono text-ink-dim">Loading your roadmap...</p>
+            )}
+          </div>
+
+          {blocks.length > 0 && (
+            <div className="border-t border-bg-border pt-4 space-y-2.5">
+              <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest">Trading Development</p>
               {blocks.map((b) => (
                 <div key={b.blockId} className="flex items-center gap-3">
                   <span className="text-[10px] font-mono text-ink-secondary w-44 truncate">{b.title}</span>
@@ -248,10 +362,18 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
-        </div>
 
-        {/* ── Your Trading ── */}
-        <div className="lg:col-span-5 rounded-xl border border-bg-border bg-bg-card glass-card p-5 space-y-4">
+          <LinkTile href="/dashboard/courses" label="Roadmap" sublabel="Levels + certification" color="text-oracle" />
+        </HomeCard>
+
+        {/* ── HERRAMIENTAS ── */}
+        <HomeCard
+          title={t('home.toolsCard')}
+          subtitle={t('home.toolsCardSub')}
+          accent="pulse"
+          open={openCard === 'tools'}
+          onToggle={() => toggleCard('tools')}
+        >
           <div className="flex items-center justify-between">
             <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest">Your Trading</p>
             <span className="text-[9px] font-mono text-ink-dim uppercase">Today</span>
@@ -289,37 +411,11 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <Link href="/dashboard/tools" className="block text-center text-[10px] font-mono text-oracle hover:underline uppercase tracking-wider">
-            View Trade Audit →
-          </Link>
-        </div>
-
-        {/* ── Market Status (mini) ── */}
-        <div className="lg:col-span-12 rounded-xl border border-bg-border bg-bg-card glass-card p-5">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest">Market Status</p>
-            <div className="flex items-center gap-1.5">
-              <span className={clsx('w-1.5 h-1.5 rounded-full', activeSession ? 'bg-atlas animate-pulse-slow' : 'bg-ink-dim')} />
-              <span className="text-[10px] font-mono text-ink-secondary">{activeSession ? `${activeSession} session active` : 'No major session active'}</span>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+            <LinkTile href="/dashboard/tools" label="Trade Audit" sublabel="Journal · Calculators" color="text-oracle" />
+            <LinkTile href="/dashboard/mind" label="Mind" sublabel="Trading psychology" color="text-nexus" />
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {marketGlance.map((asset) => (
-              <div key={asset.symbol} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-bg-border bg-bg-elevated/30">
-                <span className="text-xs font-mono font-bold text-ink-primary">{asset.symbol}</span>
-                <span className={clsx(
-                  'text-[10px] font-mono uppercase',
-                  asset.bias === 'long' ? 'text-atlas' : asset.bias === 'short' ? 'text-bear' : 'text-ink-muted',
-                )}>
-                  {asset.bias === 'long' ? 'Bullish' : asset.bias === 'short' ? 'Bearish' : 'Neutral'}
-                </span>
-              </div>
-            ))}
-            <Link href="/dashboard/scanner" className="ml-auto text-[10px] font-mono text-oracle hover:underline uppercase tracking-wider">
-              Open Scanner →
-            </Link>
-          </div>
-        </div>
+        </HomeCard>
 
       </div>
     </div>

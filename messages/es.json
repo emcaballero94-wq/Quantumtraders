@@ -26,6 +26,14 @@
     "billingSub": "Pagos cripto",
     "settings": "Ajustes"
   },
+  "home": {
+    "analysisCard": "ANÁLISIS",
+    "analysisCardSub": "Inteligencia de mercado y herramientas",
+    "educationCard": "EDUCACIÓN",
+    "educationCardSub": "Tu ruta de aprendizaje",
+    "toolsCard": "HERRAMIENTAS",
+    "toolsCardSub": "Journal y psicología"
+  },
   "roadmap": {
     "kicker": "RUTA DE DESARROLLO DEL TRADER",
     "title": "De principiante a trader sistemático",

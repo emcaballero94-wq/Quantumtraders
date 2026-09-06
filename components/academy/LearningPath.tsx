@@ -12,11 +12,11 @@ export interface PathNodeData {
   onClick?: () => void
 }
 
-const ACCENT_CLASSES: Record<string, { text: string; bg: string; border: string; ring: string }> = {
-  oracle: { text: 'text-oracle', bg: 'bg-oracle/15', border: 'border-oracle', ring: 'ring-oracle/30' },
-  atlas: { text: 'text-atlas', bg: 'bg-atlas/15', border: 'border-atlas', ring: 'ring-atlas/30' },
-  nexus: { text: 'text-nexus', bg: 'bg-nexus/15', border: 'border-nexus', ring: 'ring-nexus/30' },
-  pulse: { text: 'text-pulse', bg: 'bg-pulse/15', border: 'border-pulse', ring: 'ring-pulse/30' },
+const ACCENT_CLASSES: Record<string, { text: string; bg: string; border: string; ring: string; solid: string }> = {
+  oracle: { text: 'text-oracle', bg: 'bg-oracle/20', border: 'border-oracle', ring: 'ring-oracle/40', solid: 'bg-oracle' },
+  atlas: { text: 'text-atlas', bg: 'bg-atlas/20', border: 'border-atlas', ring: 'ring-atlas/40', solid: 'bg-atlas' },
+  nexus: { text: 'text-nexus', bg: 'bg-nexus/20', border: 'border-nexus', ring: 'ring-nexus/40', solid: 'bg-nexus' },
+  pulse: { text: 'text-pulse', bg: 'bg-pulse/20', border: 'border-pulse', ring: 'ring-pulse/40', solid: 'bg-pulse' },
 }
 
 function LockIcon() {
@@ -29,7 +29,7 @@ function LockIcon() {
 
 function CheckIcon() {
   return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
     </svg>
   )
@@ -37,7 +37,7 @@ function CheckIcon() {
 
 function StarIcon() {
   return (
-    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+    <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 20 20">
       <path d="M10 1.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6-4.5-4.2 6.1-.7z" />
     </svg>
   )
@@ -57,10 +57,11 @@ function buildPathD(points: { x: number; y: number }[]): string {
 }
 
 export function LearningPath({ nodes, accent = 'oracle' }: { nodes: PathNodeData[]; accent?: keyof typeof ACCENT_CLASSES }) {
-  const spacing = 92
-  const amplitude = 24
-  const topPad = 40
-  const height = topPad + Math.max(0, nodes.length - 1) * spacing + 40
+  const spacing = 150
+  const amplitude = 22
+  const topPad = 44
+  const bottomPad = 96
+  const height = topPad + Math.max(0, nodes.length - 1) * spacing + bottomPad
 
   const points = nodes.map((_, i) => ({ x: 50 + nodeOffset(i) * amplitude, y: topPad + i * spacing }))
 
@@ -68,29 +69,30 @@ export function LearningPath({ nodes, accent = 'oracle' }: { nodes: PathNodeData
   const colors = ACCENT_CLASSES[accent] ?? ACCENT_CLASSES.oracle
 
   return (
-    <div className="relative mx-auto w-full max-w-[340px]" style={{ height }}>
+    <div className="relative mx-auto w-full max-w-[380px]" style={{ height }}>
       <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 100 ${height}`} preserveAspectRatio="none">
-        <path d={buildPathD(points)} fill="none" stroke="currentColor" className="text-bg-border" strokeWidth={3.5} strokeLinecap="round" />
+        <path d={buildPathD(points)} fill="none" stroke="currentColor" className="text-bg-border" strokeWidth={3} strokeLinecap="round" />
         {lastDoneIndex > 0 && (
-          <path d={buildPathD(points.slice(0, lastDoneIndex + 1))} fill="none" stroke="currentColor" className={colors.text} strokeWidth={3.5} strokeLinecap="round" opacity={0.55} />
+          <path d={buildPathD(points.slice(0, lastDoneIndex + 1))} fill="none" stroke="currentColor" className={colors.text} strokeWidth={3} strokeLinecap="round" opacity={0.7} />
         )}
       </svg>
 
       {points.map((p, i) => {
         const node = nodes[i]
         const isCheckpoint = node.kind === 'checkpoint'
-        const size = isCheckpoint ? 60 : 52
+        const size = isCheckpoint ? 72 : 60
+
         return (
-          <div key={node.id} className="absolute flex flex-col items-center gap-1.5" style={{ left: `${p.x}%`, top: p.y, transform: 'translate(-50%, -50%)' }}>
+          <div key={node.id} className="absolute" style={{ left: `${p.x}%`, top: p.y }}>
             <button
               type="button"
               onClick={node.onClick}
               disabled={node.state === 'locked' || !node.onClick}
               aria-label={node.label}
-              style={{ width: size, height: size }}
+              style={{ width: size, height: size, transform: 'translate(-50%, -50%)' }}
               className={clsx(
-                'rounded-full border-2 flex items-center justify-center font-mono font-bold transition-all shrink-0',
-                node.state === 'locked' && 'bg-bg-elevated/60 border-bg-border text-ink-dim cursor-not-allowed',
+                'absolute left-0 top-0 rounded-full border-[3px] flex items-center justify-center font-mono font-extrabold transition-all shrink-0 shadow-lg',
+                node.state === 'locked' && 'bg-bg-elevated border-bg-border text-ink-dim cursor-not-allowed shadow-none',
                 node.state === 'done' && clsx(colors.bg, colors.border, colors.text, 'hover:scale-105'),
                 node.state === 'current' && clsx(colors.bg, colors.border, colors.text, 'animate-pulse-slow ring-4', colors.ring, 'hover:scale-105'),
               )}
@@ -102,10 +104,20 @@ export function LearningPath({ nodes, accent = 'oracle' }: { nodes: PathNodeData
               ) : node.state === 'done' ? (
                 <CheckIcon />
               ) : (
-                <span className="text-sm">{i + 1}</span>
+                <span className="text-lg">{i + 1}</span>
               )}
             </button>
-            <span className={clsx('text-[9px] font-mono text-center max-w-[86px] leading-tight', node.state === 'locked' ? 'text-ink-dim' : 'text-ink-secondary')}>
+
+            <span
+              className={clsx(
+                'absolute left-0 -translate-x-1/2 text-center text-[11px] font-mono font-bold leading-snug max-w-[140px] px-2.5 py-1.5 rounded-lg border',
+                node.state === 'locked'
+                  ? 'text-ink-dim border-bg-border/60 bg-bg-deep/60'
+                  : 'text-ink-primary border-bg-border bg-bg-deep/90',
+              )}
+              style={{ top: size / 2 + 10 }}
+            >
+              {node.kind === 'checkpoint' ? 'EXAMEN · ' : ''}
               {node.label}
             </span>
           </div>

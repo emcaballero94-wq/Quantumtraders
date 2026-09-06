@@ -61,17 +61,17 @@ export function RadarTable({ assets }: RadarTableProps) {
                 >
                   {/* Symbol */}
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                    <Link href={`/dashboard/stock/${asset.symbol}`} className="flex items-center gap-2 group">
                       {isTop && (
                         <span className="text-atlas text-2xs">★</span>
                       )}
                       <div>
-                        <p className="text-sm font-mono font-semibold text-ink-primary">
+                        <p className="text-sm font-mono font-semibold text-ink-primary group-hover:text-oracle transition-colors">
                           {asset.symbol}
                         </p>
                         <p className="text-2xs font-mono text-ink-muted">{asset.category.toUpperCase()}</p>
                       </div>
-                    </div>
+                    </Link>
                   </td>
 
                   {/* Macro */}

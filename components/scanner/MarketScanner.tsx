@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { clsx } from 'clsx'
 import { SectionTitle } from '@/components/ui/SectionTitle'
 import {
@@ -148,7 +149,11 @@ export function MarketScanner() {
                     className="border-t border-bg-border hover:bg-bg-elevated/30 transition-colors animate-slide-up"
                     style={{ animationDelay: `${i * 30}ms`, animationFillMode: 'backwards' }}
                   >
-                    <td className="px-3 py-2 font-bold text-ink-primary">{row.asset}</td>
+                    <td className="px-3 py-2 font-bold">
+                      <Link href={`/dashboard/stock/${row.asset}`} className="text-ink-primary hover:text-oracle transition-colors">
+                        {row.asset}
+                      </Link>
+                    </td>
                     <td className="px-3 py-2 text-ink-secondary">{row.setup}</td>
                     <td className="px-3 py-2 text-ink-dim">{row.timeframe}</td>
                     <td className="px-3 py-2">

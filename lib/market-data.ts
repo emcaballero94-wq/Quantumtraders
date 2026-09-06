@@ -91,7 +91,7 @@ const REVERSE_BINANCE_SYMBOL_MAP: Record<string, string> = Object.fromEntries(
   Object.entries(BINANCE_SYMBOL_MAP).map(([symbol, providerSymbol]) => [providerSymbol, symbol]),
 )
 
-const SECTOR_ETFS: Record<string, string> = {
+export const SECTOR_ETFS: Record<string, string> = {
   Technology: 'XLK',
   Financials: 'XLF',
   Energy: 'XLE',

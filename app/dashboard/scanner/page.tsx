@@ -11,6 +11,7 @@ import { DepthPanel } from '@/components/oracle/DepthPanel'
 import { SectionTitle } from '@/components/ui/SectionTitle'
 import { DashboardSkeleton } from '@/components/ui/DashboardSkeleton'
 import { MarketScanner } from '@/components/scanner/MarketScanner'
+import { MarketHeatmap } from '@/components/scanner/MarketHeatmap'
 
 interface OracleStateResponse {
   success: boolean
@@ -83,6 +84,8 @@ export default function OraclePage() {
           </div>
         </div>
       </div>
+
+      <MarketHeatmap />
 
       <MarketScanner />
 

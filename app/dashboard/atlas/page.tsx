@@ -15,7 +15,7 @@ const TradingViewChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="w-full h-full flex items-center justify-center bg-[#0D1017]">
+      <div className="w-full h-full flex items-center justify-center bg-[#161310]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-atlas border-t-transparent rounded-full animate-spin" />
           <span className="text-[10px] font-mono text-atlas uppercase tracking-[0.2em]">Conectando con TradingView...</span>

@@ -237,7 +237,7 @@ export function LandingPage() {
         <div className="max-w-[1400px] mx-auto px-6 md:px-10 w-full grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-12 items-center">
           <div>
             <p className="text-[10px] font-mono text-ink-dim uppercase tracking-[0.25em]">{t.breadcrumb}</p>
-            <h1 className="font-sans text-4xl sm:text-5xl font-bold tracking-tight leading-[1.15] mt-5 text-ink-primary">
+            <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-[1.15] mt-5 text-ink-primary">
               {t.h1a}
               <br />
               <span className="text-oracle">{t.h1b}</span>
@@ -380,7 +380,7 @@ export function LandingPage() {
 
         <div className="space-y-6">
           <p className="text-[10px] font-mono text-oracle uppercase tracking-[0.25em] font-bold">{t.advantage.kicker}</p>
-          <h2 className="font-sans text-3xl font-bold text-ink-primary leading-tight">{t.advantage.title}</h2>
+          <h2 className="font-display text-3xl font-bold text-ink-primary leading-tight">{t.advantage.title}</h2>
           <p className="text-sm font-mono text-ink-muted leading-relaxed max-w-md">{t.advantage.desc}</p>
           <div className="flex items-center gap-8">
             {t.advantage.stats.map((stat) => (

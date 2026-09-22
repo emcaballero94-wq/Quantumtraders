@@ -45,7 +45,7 @@ interface Pulse {
 }
 
 const GLYPHS = '01アカサ01$01%01+01-0101'.split('')
-const NEBULA_COLORS = ['59, 130, 246', '0, 201, 167', '124, 58, 237']
+const NEBULA_COLORS = ['232, 180, 76', '16, 185, 129', '249, 115, 22']
 const TARGET_FRAME_TIME = 1 / 30
 
 function randomGlyph() {
@@ -82,10 +82,10 @@ export function HeroSpaceBackground() {
     const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 1.5) : 1
 
-    const starSprite = makeGlowSprite('210, 226, 255', 24)
-    const nodeSprite = makeGlowSprite('150, 190, 255', 20)
-    const pulseSprite = makeGlowSprite('140, 255, 230', 26)
-    const matrixHeadSprite = makeGlowSprite('0, 201, 167', 22)
+    const starSprite = makeGlowSprite('255, 244, 224', 24)
+    const nodeSprite = makeGlowSprite('235, 210, 150', 20)
+    const pulseSprite = makeGlowSprite('110, 231, 183', 26)
+    const matrixHeadSprite = makeGlowSprite('16, 185, 129', 22)
     const nebulaLayer = document.createElement('canvas')
     const nebulaCtx = nebulaLayer.getContext('2d')
 
@@ -197,7 +197,7 @@ export function HeroSpaceBackground() {
         } else {
           ctx.beginPath()
           ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2)
-          ctx.fillStyle = `rgba(225, 236, 255, ${alpha})`
+          ctx.fillStyle = `rgba(245, 232, 210, ${alpha})`
           ctx.fill()
         }
       }
@@ -225,9 +225,9 @@ export function HeroSpaceBackground() {
             ctx.globalAlpha = Math.min(1, alpha + 0.3)
             ctx.drawImage(matrixHeadSprite, stream.x - size / 2, y - size / 2, size, size)
             ctx.globalAlpha = 1
-            ctx.fillStyle = `rgba(140, 255, 220, ${Math.min(1, alpha + 0.2)})`
+            ctx.fillStyle = `rgba(110, 231, 183, ${Math.min(1, alpha + 0.2)})`
           } else {
-            ctx.fillStyle = `rgba(70, 150, 255, ${alpha})`
+            ctx.fillStyle = `rgba(232, 180, 76, ${alpha})`
           }
           ctx.fillText(ch, stream.x, y)
         })
@@ -243,7 +243,7 @@ export function HeroSpaceBackground() {
         n.x = Math.min(width, Math.max(0, n.x))
         n.y = Math.min(height, Math.max(0, n.y))
       }
-      ctx.strokeStyle = 'rgba(90, 160, 255, 0.35)'
+      ctx.strokeStyle = 'rgba(232, 180, 76, 0.35)'
       ctx.lineWidth = 0.8
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
@@ -295,9 +295,9 @@ export function HeroSpaceBackground() {
 
       // Gentle left-side contrast wash so headline text stays legible
       const wash = ctx.createLinearGradient(0, 0, width, 0)
-      wash.addColorStop(0, 'rgba(4, 5, 10, 0.45)')
-      wash.addColorStop(0.32, 'rgba(4, 5, 10, 0.18)')
-      wash.addColorStop(0.5, 'rgba(4, 5, 10, 0)')
+      wash.addColorStop(0, 'rgba(10, 9, 8, 0.45)')
+      wash.addColorStop(0.32, 'rgba(10, 9, 8, 0.18)')
+      wash.addColorStop(0.5, 'rgba(10, 9, 8, 0)')
       ctx.fillStyle = wash
       ctx.fillRect(0, 0, width, height)
     }

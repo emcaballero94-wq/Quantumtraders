@@ -94,26 +94,26 @@ export function getTopOpportunity(assets: RadarAsset[]): RadarAsset | null {
 // ─── Score Label Helpers (for UI) ────────────────────────────
 
 export function scoreToColor(score: number): string {
-  if (score >= 70) return '#00C9A7'   // atlas green — strong
-  if (score >= 50) return '#3B82F6'   // blue — operable
-  if (score >= 30) return '#F59E0B'   // amber — mixed
+  if (score >= 70) return '#10B981'   // atlas emerald — strong
+  if (score >= 50) return '#E8B44C'   // gold — operable
+  if (score >= 30) return '#F97316'   // orange — mixed
   return '#EF4444'                    // red — avoid
 }
 
 export function ratingToColor(rating: Rating): string {
   switch (rating) {
-    case 'strong':   return '#00C9A7'
-    case 'operable': return '#3B82F6'
-    case 'mixed':    return '#F59E0B'
+    case 'strong':   return '#10B981'
+    case 'operable': return '#E8B44C'
+    case 'mixed':    return '#F97316'
     case 'avoid':    return '#EF4444'
   }
 }
 
 export function biasToColor(bias: Bias): string {
   switch (bias) {
-    case 'long':    return '#00C9A7'
+    case 'long':    return '#10B981'
     case 'short':   return '#EF4444'
-    case 'neutral': return '#8892A4'
+    case 'neutral': return '#A69C88'
   }
 }
 

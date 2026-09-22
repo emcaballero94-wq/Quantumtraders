@@ -17,8 +17,8 @@
   body {
     max-width: 100vw;
     overflow-x: hidden;
-    background-color: #080B12;
-    color: #EEF0F5;
+    background-color: #0F0D0A;
+    color: #F3EFE7;
   }
 
   /* Scrollbar */
@@ -28,22 +28,22 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: #080B12;
+    background: #0F0D0A;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #1A1F2E;
+    background: #2E2A22;
     border-radius: 2px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #2A303D;
+    background: #3A342A;
   }
 
   /* Selection */
   ::selection {
-    background: #3B82F620;
-    color: #EEF0F5;
+    background: #E8B44C20;
+    color: #F3EFE7;
   }
 }
 
@@ -59,14 +59,14 @@
 
   /* Gradient text */
   .text-gradient-atlas {
-    background: linear-gradient(135deg, #00C9A7, #00E5BE);
+    background: linear-gradient(135deg, #10B981, #34D399);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .text-gradient-oracle {
-    background: linear-gradient(135deg, #3B82F6, #60A5FA);
+    background: linear-gradient(135deg, #E8B44C, #F5CD7E);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -74,11 +74,11 @@
 
   /* Card glow variants */
   .glow-atlas {
-    box-shadow: 0 0 30px 0 #00C9A715;
+    box-shadow: 0 0 30px 0 #10B98115;
   }
 
   .glow-oracle {
-    box-shadow: 0 0 30px 0 #3B82F615;
+    box-shadow: 0 0 30px 0 #E8B44C15;
   }
 
   /* Premium glass surface — cinematic depth recipe, shared platform-wide.
@@ -90,9 +90,9 @@
     -webkit-backdrop-filter: blur(20px) saturate(1.25);
     box-shadow:
       0 1px 0 0 rgba(255, 255, 255, 0.07) inset,
-      0 -18px 36px -30px rgba(61, 217, 235, 0.14) inset,
+      0 -18px 36px -30px rgba(232, 180, 76, 0.14) inset,
       0 24px 48px -24px rgba(0, 0, 0, 0.85),
-      0 0 32px -16px rgba(61, 217, 235, 0.10);
+      0 0 32px -16px rgba(232, 180, 76, 0.10);
   }
 
   .status-dot {
@@ -105,16 +105,16 @@
      Tailwind chain on every field. */
   .qt-input {
     width: 100%;
-    background-color: #0D1017;
-    border: 1px solid #1A1F2E;
+    background-color: #161310;
+    border: 1px solid #2E2A22;
     border-radius: 0.5rem;
     padding: 0.5rem 0.75rem;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.75rem;
-    color: #EEF0F5;
+    color: #F3EFE7;
   }
   .qt-input:focus {
     outline: none;
-    border-color: #3B82F680;
+    border-color: #E8B44C80;
   }
 }

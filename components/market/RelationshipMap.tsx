@@ -37,7 +37,7 @@ export function RelationshipMap({ center, nodes }: { center: string; nodes: Rela
               y1={50}
               x2={xPct}
               y2={yPct}
-              stroke={node.changePct !== null && node.changePct >= 0 ? '#00C9A7' : '#EF4444'}
+              stroke={node.changePct !== null && node.changePct >= 0 ? '#10B981' : '#EF4444'}
               strokeOpacity={0.35}
               strokeWidth={0.6}
             />

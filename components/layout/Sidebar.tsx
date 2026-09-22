@@ -10,29 +10,35 @@ import { getActiveSessions } from '@/lib/oracle/timing-engine'
 import { useLocale } from '@/lib/i18n/LocaleProvider'
 
 // ─── Navigation Structure ──────────────────────────────────────
-// Four pillars: TERMINAL (market intelligence & analysis tools),
-// EDUCATION (structured trader roadmap), JOURNAL (records & review),
-// ACCOUNT (billing). Labels are resolved through i18n (messages/en|es.json)
-// — English is the source-of-truth language, Spanish a full translation.
+// Organized around how a trader works, not around tool names:
+// COMMAND (the daily cockpit) → MARKETS (analysis tools) → RISK
+// (regime + calendar) → JOURNAL (post-trade review) → LEARN
+// (structured roadmap) → ACCOUNT (billing/settings). GEX stays a real
+// route but is intentionally left out of primary nav while it's a demo.
+// Labels are resolved through i18n (messages/en|es.json) — English is
+// the source-of-truth language, Spanish a full translation.
 
 type NavItem = { href: string; labelKey: string; subKey: string; dot: string; icon: (p: { cls: string }) => ReactElement }
 
 const NAV: { sectionKey: string; items: NavItem[] }[] = [
   {
-    sectionKey: 'sectionTerminal',
+    sectionKey: 'sectionCommand',
     items: [
-      { href: '/dashboard',         labelKey: 'mando',   subKey: 'mandoSub',   dot: 'bg-ink-muted', icon: MandoIcon   },
-      { href: '/dashboard/scanner', labelKey: 'scanner', subKey: 'scannerSub', dot: 'bg-oracle',    icon: ScannerIcon },
-      { href: '/dashboard/atlas',   labelKey: 'atlas',   subKey: 'atlasSub',   dot: 'bg-atlas',     icon: AtlasIcon   },
-      { href: '/dashboard/nexus',   labelKey: 'nexus',   subKey: 'nexusSub',   dot: 'bg-nexus',     icon: NexusIcon   },
-      { href: '/dashboard/gex',     labelKey: 'gex',     subKey: 'gexSub',     dot: 'bg-oracle',    icon: GexIcon     },
-      { href: '/dashboard/pulse',   labelKey: 'pulse',   subKey: 'pulseSub',   dot: 'bg-pulse',     icon: PulseIcon   },
+      { href: '/dashboard', labelKey: 'mando', subKey: 'mandoSub', dot: 'bg-ink-muted', icon: MandoIcon },
     ],
   },
   {
-    sectionKey: 'sectionEducation',
+    sectionKey: 'sectionMarkets',
     items: [
-      { href: '/dashboard/courses', labelKey: 'roadmap', subKey: 'roadmapSub', dot: 'bg-oracle', icon: CoursesIcon },
+      { href: '/dashboard/scanner', labelKey: 'scanner', subKey: 'scannerSub', dot: 'bg-oracle', icon: ScannerIcon },
+      { href: '/dashboard/atlas',   labelKey: 'atlas',   subKey: 'atlasSub',   dot: 'bg-atlas',   icon: AtlasIcon   },
+      { href: '/dashboard/nexus',   labelKey: 'nexus',   subKey: 'nexusSub',   dot: 'bg-nexus',   icon: NexusIcon   },
+    ],
+  },
+  {
+    sectionKey: 'sectionRisk',
+    items: [
+      { href: '/dashboard/pulse', labelKey: 'pulse', subKey: 'pulseSub', dot: 'bg-pulse', icon: PulseIcon },
     ],
   },
   {
@@ -40,6 +46,12 @@ const NAV: { sectionKey: string; items: NavItem[] }[] = [
     items: [
       { href: '/dashboard/tools', labelKey: 'records', subKey: 'recordsSub', dot: 'bg-ink-muted', icon: ToolsIcon },
       { href: '/dashboard/mind',  labelKey: 'mind',    subKey: 'mindSub',    dot: 'bg-atlas',     icon: MindIcon  },
+    ],
+  },
+  {
+    sectionKey: 'sectionLearn',
+    items: [
+      { href: '/dashboard/courses', labelKey: 'roadmap', subKey: 'roadmapSub', dot: 'bg-oracle', icon: CoursesIcon },
     ],
   },
   {
@@ -86,6 +98,7 @@ export function Sidebar({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile
         <div className="leading-none">
           <p className="text-ink-primary text-[11px] font-mono font-bold tracking-[0.18em] uppercase">QUANTUM</p>
           <p className="text-ink-muted text-[9px] font-mono tracking-[0.22em] uppercase mt-0.5">Traders · OS</p>
+          <p className="text-ink-dim text-[7px] font-mono tracking-[0.15em] uppercase mt-1">Market Intelligence Terminal</p>
         </div>
       </div>
 

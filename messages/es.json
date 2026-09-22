@@ -1,10 +1,12 @@
 {
   "nav": {
-    "sectionTerminal": "TERMINAL",
-    "sectionEducation": "EDUCACIÓN",
+    "sectionCommand": "COMMAND",
+    "sectionMarkets": "MARKETS",
+    "sectionRisk": "RISK",
+    "sectionLearn": "LEARN",
     "sectionJournal": "JOURNAL",
     "sectionAccount": "CUENTA",
-    "mando": "OVERVIEW",
+    "mando": "COMMAND",
     "mandoSub": "Mando · Cockpit",
     "scanner": "SCANNER",
     "scannerSub": "Brief diario",
@@ -26,13 +28,10 @@
     "billingSub": "Pagos cripto",
     "settings": "Ajustes"
   },
-  "home": {
-    "analysisCard": "ANÁLISIS",
-    "analysisCardSub": "Inteligencia de mercado y herramientas",
-    "educationCard": "EDUCACIÓN",
-    "educationCardSub": "Tu ruta de aprendizaje",
-    "toolsCard": "HERRAMIENTAS",
-    "toolsCardSub": "Journal y psicología"
+  "command": {
+    "kicker": "COMMAND · COCKPIT EN VIVO",
+    "title": "Qué está pasando, dónde está la oportunidad, cuál es el riesgo",
+    "subtitle": "Tu punto de partida diario — todo lo que necesitás para decidir qué investigar ahora."
   },
   "roadmap": {
     "kicker": "RUTA DE DESARROLLO DEL TRADER",

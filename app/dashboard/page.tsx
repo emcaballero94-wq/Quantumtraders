@@ -2,34 +2,32 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { computeTradeAudit } from '@/lib/journal/audit-engine'
-import type { TradeJournalEntry, TradeChecklist } from '@/lib/oracle/persistence'
-import type { OracleState } from '@/lib/oracle/types'
-import type { PublicAcademyRoute } from '@/lib/academy/content'
-import { useLocale } from '@/lib/i18n/LocaleProvider'
 import { clsx } from 'clsx'
+import { useLocale } from '@/lib/i18n/LocaleProvider'
+import { getActiveSessions } from '@/lib/oracle/timing-engine'
+import { riskRegimeFromVix, computeAggregateBias } from '@/lib/oracle/risk-regime'
+import { rankAssets } from '@/lib/oracle/score-engine'
+import { GaugeMeter } from '@/components/ui/GaugeMeter'
+import { RatingBadge, BiasBadge } from '@/components/ui/StatusBadge'
+import type { RadarAsset, EconomicEvent, SectorStrength, EventImpact } from '@/lib/oracle/types'
 
 interface OracleStateResponse {
   success: boolean
-  data: OracleState | null
+  data?: {
+    radar: RadarAsset[]
+    calendar: EconomicEvent[]
+    sectorStrength: SectorStrength[]
+  }
 }
 
-interface AcademyContentResponse {
-  success: boolean
-  data: { routes: PublicAcademyRoute[] }
+interface QuoteItem {
+  symbol: string
+  price: number | null
+  changePct: number | null
 }
 
-interface AcademyProgressRow {
-  routeId: string
-  blockId: string
-  bestScore: number
-  passed: boolean
-}
-
-interface AcademyProgressResponse {
-  success: boolean
-  data: { progress: AcademyProgressRow[] }
+interface QuoteResponse {
+  quotes: QuoteItem[]
 }
 
 interface ApiTrade {
@@ -39,174 +37,54 @@ interface ApiTrade {
   result: string
   profit: number
   createdAt: string
-  entryPrice: number | null
-  stopLoss: number | null
-  takeProfit: number | null
-  exitPrice: number | null
-  lotSize: number | null
-  commission: number
-  swap: number
-  checklist?: TradeChecklist | null
 }
 
-interface BlockWithProgress {
-  routeId: string
-  routeLevel: string
-  blockId: string
-  title: string
-  objective: string
-  score: number
-  passed: boolean
+interface PulseBriefResponse {
+  success: boolean
+  data?: { brief: string }
+  error?: string
 }
 
-function greeting(): string {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'Good morning'
-  if (hour < 19) return 'Good afternoon'
-  return 'Good evening'
-}
+const KEY_INSTRUMENTS = ['SPX500', 'NAS100', 'US30', 'XAUUSD', 'BTCUSD']
 
-function isToday(iso: string): boolean {
-  return iso.slice(0, 10) === new Date().toISOString().slice(0, 10)
-}
+const IMPACT_DOT: Record<EventImpact, string> = { high: 'bg-bear', medium: 'bg-pulse', low: 'bg-oracle' }
 
-type CardKey = 'analysis' | 'education' | 'tools'
-
-function ChevronIcon({ open }: { open: boolean }) {
-  return (
-    <svg
-      className={clsx('w-4 h-4 text-ink-dim transition-transform duration-300', open && 'rotate-180')}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-    </svg>
-  )
-}
-
-function HomeCard({
-  title,
-  subtitle,
-  accent,
-  open,
-  onToggle,
-  children,
-}: {
-  title: string
-  subtitle: string
-  accent: 'oracle' | 'atlas' | 'pulse'
-  open: boolean
-  onToggle: () => void
-  children: React.ReactNode
-}) {
-  const accentText = accent === 'oracle' ? 'text-oracle' : accent === 'atlas' ? 'text-atlas' : 'text-pulse'
-  const accentBorder = accent === 'oracle' ? 'border-oracle/30' : accent === 'atlas' ? 'border-atlas/30' : 'border-pulse/30'
-
-  return (
-    <div className={clsx('rounded-xl border bg-bg-card glass-card overflow-hidden transition-colors', open ? accentBorder : 'border-bg-border')}>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="w-full flex items-center justify-between gap-4 px-5 py-5 text-left hover:bg-bg-elevated/20 transition-colors"
-      >
-        <div>
-          <p className={clsx('text-sm font-mono font-bold tracking-widest', accentText)}>{title}</p>
-          <p className="text-xs font-mono text-ink-muted mt-1">{subtitle}</p>
-        </div>
-        <ChevronIcon open={open} />
-      </button>
-      <div
-        className={clsx('grid transition-all duration-300 ease-out', open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}
-        style={{ display: 'grid' }}
-      >
-        <div className="overflow-hidden">
-          <div className="px-5 pb-5 pt-1 border-t border-bg-border space-y-4">{children}</div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function LinkTile({ href, label, sublabel, color }: { href: string; label: string; sublabel: string; color: string }) {
-  return (
-    <Link
-      href={href}
-      className={clsx(
-        'flex items-center justify-between px-4 py-3 bg-bg-elevated/40 hover:bg-bg-elevated rounded-lg border border-bg-border transition-colors group',
-      )}
-    >
-      <div>
-        <p className={clsx('text-xs font-mono font-bold uppercase tracking-wider', color)}>{label}</p>
-        <p className="text-[10px] font-mono text-ink-dim mt-0.5">{sublabel}</p>
-      </div>
-      <svg className="w-3.5 h-3.5 text-ink-dim group-hover:text-ink-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-      </svg>
-    </Link>
-  )
-}
-
-export default function DashboardPage() {
+export default function CommandPage() {
   const { t } = useLocale()
-  const [openCard, setOpenCard] = useState<CardKey | null>(null)
-  const [userLabel, setUserLabel] = useState<string | null>(null)
-  const [state, setState] = useState<OracleState | null>(null)
-  const [routes, setRoutes] = useState<PublicAcademyRoute[]>([])
-  const [progress, setProgress] = useState<AcademyProgressRow[]>([])
-  const [trades, setTrades] = useState<TradeJournalEntry[]>([])
-  const [checklists, setChecklists] = useState<Record<string, TradeChecklist>>({})
-
-  const toggleCard = (key: CardKey) => setOpenCard((current) => (current === key ? null : key))
+  const [radar, setRadar] = useState<RadarAsset[]>([])
+  const [calendar, setCalendar] = useState<EconomicEvent[]>([])
+  const [sectorStrength, setSectorStrength] = useState<SectorStrength[]>([])
+  const [quotes, setQuotes] = useState<Record<string, QuoteItem>>({})
+  const [trades, setTrades] = useState<ApiTrade[]>([])
+  const [sessions, setSessions] = useState(() => getActiveSessions())
+  const [brief, setBrief] = useState<string | null>(null)
+  const [briefError, setBriefError] = useState<string | null>(null)
+  const [briefLoading, setBriefLoading] = useState(false)
 
   useEffect(() => {
-    const supabase = createClient()
-    if (!supabase) return
-    supabase.auth.getUser().then((result: { data: { user: { email?: string } | null } }) => {
-      const email = result.data.user?.email
-      setUserLabel(email ? email.split('@')[0] : null)
-    })
+    const id = setInterval(() => setSessions(getActiveSessions()), 60_000)
+    return () => clearInterval(id)
   }, [])
 
   useEffect(() => {
     let mounted = true
     const load = async () => {
       try {
-        const [statePayload, contentPayload, progressPayload, tradesPayload] = await Promise.all([
+        const [statePayload, quotePayload, tradesPayload] = await Promise.all([
           fetch('/api/oracle/state').then((r) => r.json() as Promise<OracleStateResponse>),
-          fetch('/api/academy/content').then((r) => r.json() as Promise<AcademyContentResponse>),
-          fetch('/api/academy/progress').then((r) => r.json() as Promise<AcademyProgressResponse>),
+          fetch(`/api/market/quote?symbols=VIX,${KEY_INSTRUMENTS.join(',')}`).then((r) => r.json() as Promise<QuoteResponse>),
           fetch('/api/journal/trades').then((r) => r.json()),
         ])
         if (!mounted) return
-        if (statePayload.success) setState(statePayload.data)
-        if (contentPayload.success) setRoutes(contentPayload.data.routes)
-        if (progressPayload.success) setProgress(progressPayload.data.progress)
+        setRadar(statePayload?.data?.radar ?? [])
+        setCalendar(statePayload?.data?.calendar ?? [])
+        setSectorStrength(statePayload?.data?.sectorStrength ?? [])
 
-        const items = (tradesPayload?.data ?? []) as ApiTrade[]
-        setTrades(items.map((item): TradeJournalEntry => ({
-          id: item.id,
-          symbol: item.symbol,
-          side: item.side,
-          result: item.result,
-          profit: item.profit,
-          entryPrice: item.entryPrice,
-          stopLoss: item.stopLoss,
-          takeProfit: item.takeProfit,
-          exitPrice: item.exitPrice,
-          lotSize: item.lotSize,
-          commission: item.commission,
-          swap: item.swap,
-          closedAt: null,
-          source: 'manual',
-          notes: null,
-          createdAt: item.createdAt,
-        })))
-        const checklistMap: Record<string, TradeChecklist> = {}
-        for (const item of items) if (item.checklist) checklistMap[item.id] = item.checklist
-        setChecklists(checklistMap)
+        const quoteMap: Record<string, QuoteItem> = {}
+        for (const item of quotePayload?.quotes ?? []) quoteMap[item.symbol] = item
+        setQuotes(quoteMap)
+
+        setTrades(((tradesPayload?.data ?? []) as ApiTrade[]).slice(0, 5))
       } catch {
         if (!mounted) return
       }
@@ -219,204 +97,221 @@ export default function DashboardPage() {
     }
   }, [])
 
-  // ── Trading Development: every real academy block, scored from real progress ──
-  const blocks: BlockWithProgress[] = useMemo(() => {
-    const progressMap = new Map(progress.map((p) => [`${p.routeId}:${p.blockId}`, p]))
-    return routes.flatMap((route) =>
-      route.blocks.map((block) => {
-        const p = progressMap.get(`${route.id}:${block.id}`)
-        return {
-          routeId: route.id,
-          routeLevel: route.level,
-          blockId: block.id,
-          title: block.title,
-          objective: block.objective,
-          score: p?.bestScore ?? 0,
-          passed: p?.passed ?? false,
-        }
+  const vix = quotes.VIX?.price ?? null
+  const riskRegime = riskRegimeFromVix(vix)
+  const biasAgg = useMemo(() => computeAggregateBias(radar), [radar])
+  const topOpportunities = useMemo(() => rankAssets(radar).slice(0, 4), [radar])
+  const strongest = sectorStrength[0] ?? null
+  const weakest = sectorStrength[sectorStrength.length - 1] ?? null
+
+  const upcomingEvents = useMemo(() => {
+    const now = Date.now()
+    return [...calendar]
+      .filter((e) => new Date(e.datetime).getTime() >= now)
+      .sort((a, b) => a.datetime.localeCompare(b.datetime))
+      .slice(0, 4)
+  }, [calendar])
+
+  useEffect(() => {
+    if (!biasAgg) return
+    let mounted = true
+    setBriefLoading(true)
+    fetch('/api/market/pulse-brief', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        biasLabel: biasAgg.label,
+        biasIntensity: biasAgg.avgScore,
+        bullishCount: biasAgg.bullish,
+        bearishCount: biasAgg.bearish,
+        neutralCount: biasAgg.neutral,
+        vixLabel: riskRegime.label,
+        vix,
+        strongestSector: strongest?.sector ?? null,
+        weakestSector: weakest?.sector ?? null,
+        relativeStrengthTop: [],
+        drawdownWorst: [],
       }),
-    )
-  }, [routes, progress])
-
-  const nextBlock = blocks.find((b) => !b.passed) ?? null
-  const allComplete = blocks.length > 0 && nextBlock === null
-
-  // ── Trading snapshot: real trades, via the same audit engine as Trade Audit ──
-  const todayTrades = useMemo(() => trades.filter((t) => isToday(t.createdAt)), [trades])
-  const todayClosed = todayTrades.filter((t) => t.result !== 'OPEN')
-  const todayPnL = todayClosed.reduce((sum, t) => sum + t.profit - t.commission - t.swap, 0)
-
-  const last30dTrades = useMemo(() => {
-    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
-    return trades.filter((t) => new Date(t.createdAt).getTime() >= cutoff)
-  }, [trades])
-  const audit30d = useMemo(() => computeTradeAudit(last30dTrades, checklists), [last30dTrades, checklists])
-
-  // ── Market status: minimal context, not the full Scanner ──
-  const activeSession = state?.sessions.find((s) => s.isActive)?.name ?? null
-  const marketGlance = useMemo(() => (state ? [...state.radar].sort((a, b) => b.totalScore - a.totalScore).slice(0, 3) : []), [state])
+    })
+      .then((r) => r.json() as Promise<PulseBriefResponse>)
+      .then((payload) => {
+        if (!mounted) return
+        if (payload.success && payload.data) {
+          setBrief(payload.data.brief)
+          setBriefError(null)
+        } else {
+          setBrief(null)
+          setBriefError(payload.error ?? 'Resumen de IA no disponible')
+        }
+      })
+      .catch(() => {
+        if (!mounted) return
+        setBrief(null)
+        setBriefError('Resumen de IA no disponible')
+      })
+      .finally(() => {
+        if (mounted) setBriefLoading(false)
+      })
+    return () => {
+      mounted = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [biasAgg, vix])
 
   return (
-    <div className="space-y-5">
-      {/* ── Greeting ── */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-mono font-bold text-ink-primary tracking-tight">
-            {greeting()}{userLabel ? `, ${userLabel.toUpperCase()}` : ''}
-          </h1>
-          <p className="text-xs font-mono text-ink-muted mt-0.5">Your trading workspace</p>
-        </div>
-        <Link
-          href="/dashboard/billing"
-          className="px-3 py-1.5 rounded-lg border border-bg-border bg-bg-elevated/30 text-[10px] font-mono text-ink-muted hover:text-ink-primary hover:border-ink-dim transition-colors uppercase tracking-wider"
-        >
-          {'Billing'} →
-        </Link>
+    <div className="space-y-5 animate-fade-in pb-20">
+      <div>
+        <p className="text-[10px] font-mono text-oracle uppercase tracking-[0.2em] mb-1">{t('command.kicker')}</p>
+        <h1 className="text-lg font-mono font-bold text-ink-primary tracking-tight">{t('command.title')}</h1>
+        <p className="text-xs font-mono text-ink-muted mt-1 max-w-xl">{t('command.subtitle')}</p>
       </div>
 
-      <div className="space-y-4">
+      {/* AI brief */}
+      <div className="rounded-xl border border-oracle/30 bg-bg-card p-5 border-l-4 border-l-oracle space-y-2">
+        <p className="text-[10px] font-mono text-oracle uppercase tracking-widest font-bold">AI Market Brief</p>
+        {briefLoading && <p className="text-sm font-mono text-ink-dim">Generando resumen...</p>}
+        {!briefLoading && brief && <p className="text-sm font-mono text-ink-primary leading-relaxed">{brief}</p>}
+        {!briefLoading && !brief && <p className="text-xs font-mono text-ink-dim">{briefError ?? 'Esperando datos suficientes.'}</p>}
+      </div>
 
-        {/* ── ANÁLISIS ── */}
-        <HomeCard
-          title={t('home.analysisCard')}
-          subtitle={t('home.analysisCardSub')}
-          accent="atlas"
-          open={openCard === 'analysis'}
-          onToggle={() => toggleCard('analysis')}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] font-mono text-ink-dim uppercase tracking-widest">Market Status</span>
-            <div className="flex items-center gap-1.5">
-              <span className={clsx('w-1.5 h-1.5 rounded-full', activeSession ? 'bg-atlas animate-pulse-slow' : 'bg-ink-dim')} />
-              <span className="text-[10px] font-mono text-ink-secondary">{activeSession ? `${activeSession} session active` : 'No major session active'}</span>
-            </div>
-          </div>
-          {marketGlance.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 mb-3">
-              {marketGlance.map((asset) => (
-                <div key={asset.symbol} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-bg-border bg-bg-elevated/30">
-                  <span className="text-xs font-mono font-bold text-ink-primary">{asset.symbol}</span>
-                  <span className={clsx(
-                    'text-[10px] font-mono uppercase',
-                    asset.bias === 'long' ? 'text-atlas' : asset.bias === 'short' ? 'text-bear' : 'text-ink-muted',
-                  )}>
-                    {asset.bias === 'long' ? 'Bullish' : asset.bias === 'short' ? 'Bearish' : 'Neutral'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <LinkTile href="/dashboard/scanner" label="Scanner" sublabel="Daily brief · Market Scanner" color="text-oracle" />
-            <LinkTile href="/dashboard/atlas" label="Charts" sublabel="Atlas · Live analysis" color="text-atlas" />
-            <LinkTile href="/dashboard/nexus" label="Correlations" sublabel="Nexus · DXY & sectors" color="text-nexus" />
-            <LinkTile href="/dashboard/gex" label="Gamma" sublabel="GEX exposure (demo)" color="text-oracle" />
-            <LinkTile href="/dashboard/pulse" label="Risk" sublabel="Pulse · Calendar & regime" color="text-pulse" />
-          </div>
-        </HomeCard>
-
-        {/* ── EDUCACIÓN ── */}
-        <HomeCard
-          title={t('home.educationCard')}
-          subtitle={t('home.educationCardSub')}
-          accent="oracle"
-          open={openCard === 'education'}
-          onToggle={() => toggleCard('education')}
-        >
-          <div>
-            <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest mb-2">Continue Where You Left Off</p>
-            {allComplete ? (
-              <p className="text-sm font-mono text-atlas">All roadmap levels complete — nice work.</p>
-            ) : nextBlock ? (
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                  <p className="text-[10px] font-mono text-oracle uppercase tracking-wider">{nextBlock.routeLevel} · {nextBlock.title}</p>
-                  <p className="text-xs font-mono text-ink-secondary mt-1 max-w-md">{nextBlock.objective}</p>
-                </div>
-                <Link
-                  href="/dashboard/courses"
-                  className="shrink-0 px-4 py-2 bg-oracle/10 text-oracle border border-oracle/30 rounded-lg text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-oracle/20 transition-all"
-                >
-                  Continue →
-                </Link>
-              </div>
-            ) : (
-              <p className="text-xs font-mono text-ink-dim">Loading your roadmap...</p>
-            )}
-          </div>
-
-          {blocks.length > 0 && (
-            <div className="border-t border-bg-border pt-4 space-y-2.5">
-              <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest">Trading Development</p>
-              {blocks.map((b) => (
-                <div key={b.blockId} className="flex items-center gap-3">
-                  <span className="text-[10px] font-mono text-ink-secondary w-44 truncate">{b.title}</span>
-                  <div className="flex-1 h-1.5 bg-bg-deep rounded-full overflow-hidden">
-                    <div
-                      className={clsx('h-full rounded-full transition-all duration-700', b.passed ? 'bg-atlas' : b.score > 0 ? 'bg-oracle' : 'bg-bg-border')}
-                      style={{ width: `${b.score}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] font-mono text-ink-dim w-8 text-right tabular-nums">{b.score}%</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <LinkTile href="/dashboard/courses" label="Roadmap" sublabel="Levels + certification" color="text-oracle" />
-        </HomeCard>
-
-        {/* ── HERRAMIENTAS ── */}
-        <HomeCard
-          title={t('home.toolsCard')}
-          subtitle={t('home.toolsCardSub')}
-          accent="pulse"
-          open={openCard === 'tools'}
-          onToggle={() => toggleCard('tools')}
-        >
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Market regime + sessions */}
+        <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-4">
+          <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Market Regime</p>
           <div className="flex items-center justify-between">
-            <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest">Your Trading</p>
-            <span className="text-[9px] font-mono text-ink-dim uppercase">Today</span>
+            <span className={clsx('text-xl font-mono font-bold', riskRegime.color)}>{riskRegime.label}</span>
+            <span className="text-xs font-mono text-ink-secondary">VIX <span className="text-ink-primary font-bold">{vix?.toFixed(1) ?? '—'}</span></span>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div>
-              <p className="text-lg font-mono font-bold text-ink-primary tabular-nums">{todayClosed.length}</p>
-              <p className="text-[8.5px] font-mono text-ink-dim uppercase">Trades</p>
-            </div>
-            <div>
-              <p className={clsx('text-lg font-mono font-bold tabular-nums', todayPnL >= 0 ? 'text-atlas' : 'text-bear')}>
-                {todayPnL >= 0 ? '+' : ''}${todayPnL.toFixed(0)}
-              </p>
-              <p className="text-[8.5px] font-mono text-ink-dim uppercase">P&amp;L</p>
-            </div>
-            <div>
-              <p className="text-lg font-mono font-bold text-ink-primary tabular-nums">{todayClosed.length > 0 ? '✓' : '—'}</p>
-              <p className="text-[8.5px] font-mono text-ink-dim uppercase">Logged</p>
-            </div>
-          </div>
-          <div className="border-t border-bg-border pt-3">
-            <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest mb-2">Last 30 Days</p>
-            <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono">
-              <div>
-                <p className="text-ink-primary font-bold tabular-nums">{audit30d.profitFactor === null ? '—' : audit30d.profitFactor === Infinity ? '∞' : audit30d.profitFactor.toFixed(2)}</p>
-                <p className="text-[8px] text-ink-dim uppercase">PF</p>
+          <div className="border-t border-bg-border pt-3 space-y-1.5">
+            <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest mb-1.5">Sessions</p>
+            {sessions.map((s) => (
+              <div key={s.name} className="flex items-center justify-between text-xs font-mono">
+                <span className={clsx('flex items-center gap-2', s.isActive ? 'text-ink-primary font-bold' : 'text-ink-dim')}>
+                  <span className={clsx('w-1.5 h-1.5 rounded-full', s.isActive ? 'bg-atlas animate-pulse-slow' : 'bg-bg-elevated')} />
+                  {s.name}
+                </span>
+                <span className={s.isActive ? 'text-atlas' : 'text-ink-dim'}>{s.isActive ? 'Active' : 'Closed'}</span>
               </div>
-              <div>
-                <p className="text-ink-primary font-bold tabular-nums">{audit30d.winRate === null ? '—' : `${audit30d.winRate.toFixed(0)}%`}</p>
-                <p className="text-[8px] text-ink-dim uppercase">Win Rate</p>
-              </div>
-              <div>
-                <p className="text-ink-primary font-bold tabular-nums">{audit30d.maxDrawdown === null ? '—' : `$${audit30d.maxDrawdown.toFixed(0)}`}</p>
-                <p className="text-[8px] text-ink-dim uppercase">Max DD</p>
-              </div>
-            </div>
+            ))}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-            <LinkTile href="/dashboard/tools" label="Trade Audit" sublabel="Journal · Calculators" color="text-oracle" />
-            <LinkTile href="/dashboard/mind" label="Mind" sublabel="Trading psychology" color="text-nexus" />
-          </div>
-        </HomeCard>
+        </div>
 
+        {/* Bias agregado */}
+        <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
+          <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Bias</p>
+          <div className="flex items-center justify-center">
+            <GaugeMeter value={biasAgg?.avgScore ?? 0} />
+          </div>
+          {biasAgg && (
+            <div className="flex items-center justify-center gap-3 text-[10px] font-mono">
+              <span className="text-atlas font-bold">{biasAgg.bullish} ↑</span>
+              <span className="text-bear font-bold">{biasAgg.bearish} ↓</span>
+              <span className="text-ink-secondary font-bold">{biasAgg.neutral} →</span>
+            </div>
+          )}
+        </div>
+
+        {/* Key instruments */}
+        <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-2.5">
+          <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest mb-1">Key Instruments</p>
+          {KEY_INSTRUMENTS.map((symbol) => {
+            const q = quotes[symbol]
+            const up = (q?.changePct ?? 0) >= 0
+            return (
+              <Link key={symbol} href={`/dashboard/stock/${symbol}`} className="flex items-center justify-between hover:bg-bg-elevated/30 -mx-1 px-1 py-0.5 rounded transition-colors">
+                <span className="text-xs font-mono font-bold text-ink-primary">{symbol}</span>
+                <span className="flex items-center gap-2 text-xs font-mono">
+                  <span className="text-ink-secondary">{q?.price?.toLocaleString('en-US', { maximumFractionDigits: symbol === 'BTCUSD' ? 0 : 2 }) ?? '—'}</span>
+                  <span className={up ? 'text-atlas' : 'text-bear'}>{q?.changePct !== null && q?.changePct !== undefined ? `${up ? '+' : ''}${q.changePct.toFixed(2)}%` : '—'}</span>
+                </span>
+              </Link>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Scanner opportunities */}
+        <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Scanner Opportunities</p>
+            <Link href="/dashboard/scanner" className="text-[10px] font-mono text-oracle hover:underline uppercase">View all →</Link>
+          </div>
+          <div className="space-y-2">
+            {topOpportunities.length === 0 && <p className="text-xs font-mono text-ink-dim">Cargando radar...</p>}
+            {topOpportunities.map((asset) => (
+              <div key={asset.symbol} className="flex items-center justify-between px-3 py-2 rounded-lg border border-bg-border bg-bg-elevated/20">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-bold text-ink-primary">{asset.symbol}</span>
+                  <BiasBadge bias={asset.bias} size="sm" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <RatingBadge rating={asset.rating} />
+                  <span className="text-xs font-mono font-bold text-ink-primary tabular-nums w-8 text-right">{asset.totalScore}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Economic calendar */}
+        <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Economic Calendar</p>
+            <Link href="/dashboard/pulse" className="text-[10px] font-mono text-oracle hover:underline uppercase">View full calendar →</Link>
+          </div>
+          <div className="space-y-1.5">
+            {upcomingEvents.length === 0 && <p className="text-xs font-mono text-ink-dim">Sin eventos próximos.</p>}
+            {upcomingEvents.map((ev) => (
+              <div key={ev.id} className="flex items-center justify-between px-3 py-2 rounded-lg border border-bg-border bg-bg-elevated/20">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', IMPACT_DOT[ev.impact])} />
+                  <span className="text-[10px] font-mono text-ink-dim shrink-0">{ev.currency}</span>
+                  <span className="text-xs font-mono text-ink-secondary truncate">{ev.title}</span>
+                </div>
+                <span className="text-[10px] font-mono text-ink-dim shrink-0 ml-2">
+                  {new Date(ev.datetime).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Recent trade audit */}
+      <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Recent Trade Audit</p>
+          <Link href="/dashboard/tools" className="text-[10px] font-mono text-oracle hover:underline uppercase">Open trade audit →</Link>
+        </div>
+        {trades.length === 0 ? (
+          <p className="text-xs font-mono text-ink-dim">Aún no hay operaciones registradas.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs font-mono">
+              <thead>
+                <tr className="text-[9px] text-ink-dim uppercase tracking-wider border-b border-bg-border">
+                  <th className="text-left py-2">Time</th>
+                  <th className="text-left py-2">Symbol</th>
+                  <th className="text-left py-2">Side</th>
+                  <th className="text-right py-2">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trades.map((trade) => (
+                  <tr key={trade.id} className="border-b border-bg-border/50">
+                    <td className="py-2 text-ink-dim">{new Date(trade.createdAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td className="py-2 text-ink-primary font-bold">{trade.symbol}</td>
+                    <td className="py-2 text-ink-secondary">{trade.side}</td>
+                    <td className={clsx('py-2 text-right font-bold', trade.profit >= 0 ? 'text-atlas' : 'text-bear')}>
+                      {trade.result === 'OPEN' ? 'Open' : `${trade.profit >= 0 ? '+' : ''}$${trade.profit.toFixed(0)}`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

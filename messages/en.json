@@ -1,10 +1,12 @@
 {
   "nav": {
-    "sectionTerminal": "TERMINAL",
-    "sectionEducation": "EDUCATION",
+    "sectionCommand": "COMMAND",
+    "sectionMarkets": "MARKETS",
+    "sectionRisk": "RISK",
+    "sectionLearn": "LEARN",
     "sectionJournal": "JOURNAL",
     "sectionAccount": "ACCOUNT",
-    "mando": "OVERVIEW",
+    "mando": "COMMAND",
     "mandoSub": "Mando · Cockpit",
     "scanner": "SCANNER",
     "scannerSub": "Daily brief",
@@ -26,13 +28,10 @@
     "billingSub": "Crypto payments",
     "settings": "Settings"
   },
-  "home": {
-    "analysisCard": "ANALYSIS",
-    "analysisCardSub": "Market intelligence & tools",
-    "educationCard": "EDUCATION",
-    "educationCardSub": "Your learning roadmap",
-    "toolsCard": "TOOLS",
-    "toolsCardSub": "Journal & psychology"
+  "command": {
+    "kicker": "COMMAND · LIVE COCKPIT",
+    "title": "What's happening, where's the opportunity, what's the risk",
+    "subtitle": "Your daily starting point — everything you need to decide what to investigate next."
   },
   "roadmap": {
     "kicker": "TRADER DEVELOPMENT ROADMAP",

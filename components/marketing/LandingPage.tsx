@@ -244,10 +244,10 @@ export function LandingPage() {
             >
               {t.ctaPrimary} →
             </Link>
-            <Link href="/dashboard/courses" className="text-xs font-mono font-bold uppercase tracking-widest text-ink-secondary hover:text-ink-primary transition-colors inline-flex items-center gap-2">
+            <a href="#showcase" className="text-xs font-mono font-bold uppercase tracking-widest text-ink-secondary hover:text-ink-primary transition-colors inline-flex items-center gap-2">
               <span className="w-6 h-6 rounded-full border border-bg-border flex items-center justify-center">▶</span>
               {t.ctaSecondary}
-            </Link>
+            </a>
           </div>
         </div>
 
@@ -293,7 +293,7 @@ export function LandingPage() {
       </section>
 
       {/* ── Product showcase ── */}
-      <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-16 border-t border-bg-border grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-12 items-center">
+      <section id="showcase" className="max-w-[1400px] mx-auto px-6 md:px-10 py-16 border-t border-bg-border grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-12 items-center">
         <div className="rounded-2xl border border-bg-border bg-bg-card overflow-hidden shadow-2xl">
           <div className="flex">
             {/* mini sidebar */}

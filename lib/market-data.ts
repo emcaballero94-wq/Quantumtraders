@@ -52,6 +52,7 @@ export const MARKET_SYMBOL_MAP: Record<string, string> = {
   NAS100: '^IXIC',
   US30: '^DJI',
   VIX: '^VIX',
+  USOIL: 'CL=F',
   // US mega-cap tech — same tickers on Yahoo as on any US exchange, no suffix needed
   NVDA: 'NVDA',
   MSFT: 'MSFT',

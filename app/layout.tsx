@@ -5,13 +5,25 @@ import { LocaleProvider } from '@/lib/i18n/LocaleProvider'
 export const metadata: Metadata = {
   title: 'Quantum Traders',
   description: 'Trading terminal, market intelligence and structured trader education in one platform.',
+  manifest: '/manifest.webmanifest',
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Quantum Traders',
   },
 }
 
 export const viewport: Viewport = {
   themeColor: '#04050A',
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({

@@ -110,13 +110,13 @@ export function EconomicCalendar({ events, dailyPnl = [] }: EconomicCalendarProp
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-1.5">
+      <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
         {WEEKDAYS.map((w) => (
-          <div key={w} className="text-center text-[9px] font-mono text-ink-dim uppercase py-1">{w}</div>
+          <div key={w} className="text-center text-[8px] sm:text-[9px] font-mono text-ink-dim uppercase py-1">{w}</div>
         ))}
 
         {cells.map((day, i) => {
-          if (day === null) return <div key={i} className="min-h-[92px] rounded-lg bg-transparent" />
+          if (day === null) return <div key={i} className="min-h-[52px] sm:min-h-[92px] rounded-lg bg-transparent" />
 
           if (tab === 'events') {
             const dayEvents = eventsByDay.get(day) ?? []
@@ -125,23 +125,25 @@ export function EconomicCalendar({ events, dailyPnl = [] }: EconomicCalendarProp
             const border = counts.high > 0 ? IMPACT_BORDER.high : counts.medium > 0 ? IMPACT_BORDER.medium : counts.low > 0 ? IMPACT_BORDER.low : 'border-bg-border'
 
             return (
-              <div key={i} className={clsx('min-h-[92px] rounded-lg border bg-bg-elevated/20 p-2 space-y-1 overflow-hidden', border)}>
+              <div key={i} className={clsx('min-h-[52px] sm:min-h-[92px] rounded-lg border bg-bg-elevated/20 p-1 sm:p-2 space-y-1 overflow-hidden', border)}>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono font-bold text-ink-primary">{day}</span>
+                  <span className="text-[10px] sm:text-[11px] font-mono font-bold text-ink-primary">{day}</span>
                   <div className="flex gap-0.5">
                     {(['high', 'medium', 'low'] as EventImpact[]).map((impact) => counts[impact] > 0 && (
-                      <span key={impact} className={clsx('w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-mono font-bold text-bg-base', IMPACT_BG[impact])}>
+                      <span key={impact} className={clsx('w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full flex items-center justify-center text-[7px] sm:text-[8px] font-mono font-bold text-bg-base', IMPACT_BG[impact])}>
                         {counts[impact]}
                       </span>
                     ))}
                   </div>
                 </div>
-                {dayEvents.slice(0, 2).map((ev) => (
-                  <p key={ev.id} className="text-[8.5px] font-mono text-ink-muted truncate">{ev.currency}: {ev.title}</p>
-                ))}
-                {dayEvents.length > 2 && (
-                  <p className="text-[8px] font-mono text-ink-dim italic">+{dayEvents.length - 2} more</p>
-                )}
+                <div className="hidden sm:block space-y-1">
+                  {dayEvents.slice(0, 2).map((ev) => (
+                    <p key={ev.id} className="text-[8.5px] font-mono text-ink-muted truncate">{ev.currency}: {ev.title}</p>
+                  ))}
+                  {dayEvents.length > 2 && (
+                    <p className="text-[8px] font-mono text-ink-dim italic">+{dayEvents.length - 2} more</p>
+                  )}
+                </div>
               </div>
             )
           }
@@ -151,14 +153,14 @@ export function EconomicCalendar({ events, dailyPnl = [] }: EconomicCalendarProp
           const bg = !hasTrades ? 'bg-bg-elevated/10 border-bg-border' : dayPnl!.pnl >= 0 ? 'bg-atlas/8 border-atlas/30' : 'bg-bear/8 border-bear/30'
 
           return (
-            <div key={i} className={clsx('min-h-[92px] rounded-lg border p-2 flex flex-col justify-between', bg)}>
-              <span className="text-[11px] font-mono font-bold text-ink-primary">{day}</span>
+            <div key={i} className={clsx('min-h-[52px] sm:min-h-[92px] rounded-lg border p-1 sm:p-2 flex flex-col justify-between', bg)}>
+              <span className="text-[10px] sm:text-[11px] font-mono font-bold text-ink-primary">{day}</span>
               {hasTrades && (
                 <div>
-                  <p className={clsx('text-xs font-mono font-bold', dayPnl!.pnl >= 0 ? 'text-atlas' : 'text-bear')}>
+                  <p className={clsx('text-[10px] sm:text-xs font-mono font-bold', dayPnl!.pnl >= 0 ? 'text-atlas' : 'text-bear')}>
                     {dayPnl!.pnl >= 0 ? '+' : ''}${dayPnl!.pnl.toFixed(0)}
                   </p>
-                  <p className="text-[8px] font-mono text-ink-dim">{dayPnl!.trades} trade{dayPnl!.trades > 1 ? 's' : ''}</p>
+                  <p className="hidden sm:block text-[8px] font-mono text-ink-dim">{dayPnl!.trades} trade{dayPnl!.trades > 1 ? 's' : ''}</p>
                 </div>
               )}
             </div>

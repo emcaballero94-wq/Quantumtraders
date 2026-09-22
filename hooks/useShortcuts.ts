@@ -26,7 +26,7 @@ export function useShortcuts() {
           case 'n': router.push('/dashboard/nexus'); break;
           case 'm': router.push('/dashboard/mind'); break;
           case 't': router.push('/dashboard/tools'); break;
-          case 's': router.push('/settings'); break;
+          case 's': router.push('/dashboard/settings'); break;
           case 'd': router.push('/dashboard'); break;
         }
       }

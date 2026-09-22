@@ -193,10 +193,10 @@ export function Sidebar({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile
         </div>
 
         <Link
-          href="/settings"
+          href="/dashboard/settings"
           className={clsx(
             'flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[10px] font-mono tracking-wider uppercase transition-all',
-            pathname === '/settings'
+            pathname === '/dashboard/settings'
               ? 'bg-bg-elevated text-ink-secondary'
               : 'text-ink-dim hover:text-ink-muted hover:bg-bg-elevated/50'
           )}

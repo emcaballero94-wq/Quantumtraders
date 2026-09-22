@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'next/navigation'
-import Link from 'next/link'
+import { useParams, useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
 import type { CompanyProfile } from '@/lib/market-fundamentals'
 import { relatedSymbolsFor } from '@/lib/market-relationships'
@@ -65,6 +64,7 @@ function StatTile({ label, value }: { label: string; value: string }) {
 
 export default function StockDetailPage() {
   const params = useParams<{ symbol: string }>()
+  const router = useRouter()
   const symbol = (params?.symbol ?? '').toUpperCase()
 
   const [quote, setQuote] = useState<QuoteItem | null>(null)
@@ -169,9 +169,13 @@ export default function StockDetailPage() {
 
   return (
     <div className="space-y-5 animate-fade-in pb-20 max-w-[1200px]">
-      <Link href="/dashboard/scanner" className="text-[10px] font-mono text-ink-dim hover:text-ink-primary transition-colors uppercase tracking-wider">
-        ← Volver al Scanner
-      </Link>
+      <button
+        type="button"
+        onClick={() => router.back()}
+        className="text-[10px] font-mono text-ink-dim hover:text-ink-primary transition-colors uppercase tracking-wider"
+      >
+        ← Volver
+      </button>
 
       {/* Header — dense ticker-bar style */}
       <div className="rounded-xl border border-pulse/30 bg-black overflow-hidden">

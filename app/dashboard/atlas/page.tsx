@@ -59,6 +59,13 @@ export default function AtlasPage() {
   const [priceDir, setPriceDir] = useState<'up' | 'down' | 'neutral'>('neutral')
   const [alerts, setAlerts] = useState<OracleAlert[]>([])
 
+  // Seed the chart from a ?symbol= deep link (e.g. "Analizar" from the Scanner
+  // radar or Command's Key Instruments) instead of always defaulting to SPX500.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('symbol')?.toUpperCase()
+    if (requested && SYMBOLS.includes(requested)) setSelectedSymbol(requested)
+  }, [])
+
   // Fetch live quotes from market quote API (Yahoo Finance feed)
   const { quotes, loading: quoteLoading, error: quoteError } = useTVQuote(SYMBOLS, 3000)
 

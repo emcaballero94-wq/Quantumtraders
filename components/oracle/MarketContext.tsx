@@ -89,7 +89,7 @@ export function MarketContext({ sessions, killZones, alerts, calendar }: MarketC
       </div>
 
       {/* Alerts block */}
-      <div className="rounded-xl border border-bg-border bg-bg-card p-4 space-y-3">
+      <div id="alerts" className="rounded-xl border border-bg-border bg-bg-card p-4 space-y-3 scroll-mt-16">
         <SectionTitle
           label="Alertas"
           accent="pulse"

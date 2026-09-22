@@ -32,7 +32,7 @@ export default function LoginPage() {
       setError(signInError.message)
       setLoading(false)
     } else {
-      router.push('/dashboard')
+      router.push(new URLSearchParams(window.location.search).get('redirect') || '/dashboard')
     }
   }
 
@@ -41,10 +41,11 @@ export default function LoginPage() {
       setError('Autenticación no configurada. Contacta al administrador.')
       return
     }
+    const redirect = new URLSearchParams(window.location.search).get('redirect') || '/dashboard'
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
       },
     })
   }

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { getActiveSessions } from '@/lib/oracle/timing-engine'
 import type { SessionName } from '@/lib/oracle/types'
+import { LAND_POINTS as RAW_LAND_POINTS } from '@/lib/geo/land-points'
 
 interface CityMarker {
   name: SessionName
@@ -24,60 +25,10 @@ const ARCS: [string, string][] = [
   ['Sydney', 'Tokyo'],
 ]
 
-interface ContinentBox {
-  latMin: number
-  latMax: number
-  lngMin: number
-  lngMax: number
-  count: number
-}
-
-// Rough bounding ellipses per continent — a stylized, low-res dot map, not a
-// geographically precise coastline trace.
-const CONTINENTS: ContinentBox[] = [
-  { latMin: 15, latMax: 72, lngMin: -168, lngMax: -52, count: 42 }, // North America
-  { latMin: -56, latMax: 13, lngMin: -82, lngMax: -34, count: 26 }, // South America
-  { latMin: 36, latMax: 71, lngMin: -10, lngMax: 40, count: 16 }, // Europe
-  { latMin: -35, latMax: 37, lngMin: -18, lngMax: 52, count: 34 }, // Africa
-  { latMin: 5, latMax: 77, lngMin: 40, lngMax: 150, count: 48 }, // Asia
-  { latMin: -44, latMax: -10, lngMin: 112, lngMax: 154, count: 12 }, // Australia
-]
-
 const ROTATION_PERIOD_SECONDS = 90
 
-function mulberry32(seed: number) {
-  return function random() {
-    seed |= 0
-    seed = (seed + 0x6d2b79f5) | 0
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-function generateLandPoints(): { lat: number; lng: number }[] {
-  const rand = mulberry32(1337)
-  const points: { lat: number; lng: number }[] = []
-  for (const box of CONTINENTS) {
-    const latC = (box.latMin + box.latMax) / 2
-    const latR = (box.latMax - box.latMin) / 2
-    const lngC = (box.lngMin + box.lngMax) / 2
-    const lngR = (box.lngMax - box.lngMin) / 2
-    let added = 0
-    let guard = 0
-    while (added < box.count && guard < box.count * 30) {
-      guard++
-      const u = rand() * 2 - 1
-      const v = rand() * 2 - 1
-      if (u * u + v * v > 1) continue
-      points.push({ lat: latC + v * latR, lng: lngC + u * lngR })
-      added++
-    }
-  }
-  return points
-}
-
-const LAND_POINTS = generateLandPoints()
+// Real coastline data (Natural Earth 110m, see scripts/generate-land-points.mjs)
+const LAND_POINTS: { lat: number; lng: number }[] = RAW_LAND_POINTS.map(([lat, lng]) => ({ lat, lng }))
 
 function unitVector(latDeg: number, lngDeg: number) {
   const latRad = (latDeg * Math.PI) / 180
@@ -161,7 +112,7 @@ export function RotatingGlobe({ size = 380 }: { size?: number }) {
       ctx.stroke()
 
       // Latitude/longitude grid (faint)
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.08)'
+      ctx.strokeStyle = 'rgba(59, 130, 246, 0.12)'
       ctx.lineWidth = 0.5
       for (let lat = -60; lat <= 60; lat += 30) {
         ctx.beginPath()
@@ -200,18 +151,23 @@ export function RotatingGlobe({ size = 380 }: { size?: number }) {
         ctx.stroke()
       }
 
-      // Land points, shaded by real sun position (independent of decorative rotation)
+      // Land points, shaded by real sun position (independent of decorative rotation).
+      // Continents stay clearly visible on the night side too — day/night is a
+      // brightness modulation, not a visibility toggle.
       for (const point of LAND_POINTS) {
         const p = project(point.lat, point.lng, rotationRad)
         if (p.z < 0.02) continue
         const lit = dot3(unitVector(point.lat, point.lng), sunVec)
-        const brightness = smoothstep(-0.15, 0.25, lit)
-        const edgeFade = smoothstep(0, 0.15, p.z)
-        const alpha = (0.18 + brightness * 0.65) * edgeFade
-        const r = 1.1 + brightness * 0.5
+        const brightness = smoothstep(-0.35, 0.35, lit)
+        const edgeFade = smoothstep(0, 0.1, p.z)
+        const alpha = (0.5 + brightness * 0.45) * edgeFade
+        const r = (1.3 + brightness * 0.7) * edgeFade + 0.3
+        const cr = Math.round(80 + brightness * 70)
+        const cg = Math.round(130 + brightness * 75)
+        const cb = Math.round(195 + brightness * 40)
         ctx.beginPath()
         ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
-        ctx.fillStyle = brightness > 0.5 ? `rgba(96, 165, 250, ${alpha})` : `rgba(51, 65, 90, ${alpha})`
+        ctx.fillStyle = `rgba(${cr}, ${cg}, ${cb}, ${alpha})`
         ctx.fill()
       }
 
@@ -253,7 +209,8 @@ export function RotatingGlobe({ size = 380 }: { size?: number }) {
       }
 
       // City markers
-      ctx.font = '9px "IBM Plex Mono", monospace'
+      ctx.font = '600 10px "IBM Plex Mono", monospace'
+      ctx.textBaseline = 'middle'
       for (const city of CITIES) {
         const p = project(city.lat, city.lng, rotationRad)
         if (p.z < 0.05) continue

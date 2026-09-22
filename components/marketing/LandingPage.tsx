@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { clsx } from 'clsx'
 import { useLocale } from '@/lib/i18n/LocaleProvider'
 import { Sparkline } from '@/components/ui/Sparkline'
+import { RotatingGlobe } from '@/components/marketing/RotatingGlobe'
 
 interface QuoteItem {
   symbol: string
@@ -145,30 +146,6 @@ function BookIcon({ cls }: { cls: string }) {
 
 const FEATURE_ICONS = [GridIcon, ChartIcon, ShieldIcon, DocIcon, BookIcon]
 
-function WorldNetwork() {
-  const dots = [
-    { x: 22, y: 42 }, { x: 34, y: 30 }, { x: 46, y: 55 }, { x: 58, y: 25 },
-    { x: 66, y: 48 }, { x: 78, y: 35 }, { x: 30, y: 65 }, { x: 70, y: 68 },
-  ]
-  return (
-    <svg viewBox="0 0 100 100" className="w-full h-full opacity-70">
-      <circle cx="50" cy="50" r="42" fill="none" stroke="#1E3A5F" strokeWidth="0.5" />
-      {[16, 26, 36].map((ry) => (
-        <ellipse key={ry} cx="50" cy="50" rx="42" ry={ry} fill="none" stroke="#1E3A5F" strokeWidth="0.3" />
-      ))}
-      {[-25, 0, 25].map((dy) => (
-        <ellipse key={dy} cx="50" cy={50 + dy} rx={Math.sqrt(Math.max(42 * 42 - dy * dy, 0))} ry="2" fill="none" stroke="#1E3A5F" strokeWidth="0.3" />
-      ))}
-      {dots.map((d, i) => (
-        <g key={i}>
-          {i > 0 && <line x1={dots[0].x} y1={dots[0].y} x2={d.x} y2={d.y} stroke="#3B82F6" strokeWidth="0.25" opacity="0.4" />}
-          <circle cx={d.x} cy={d.y} r={i === 0 ? 1.6 : 1} fill="#3B82F6" opacity={i === 0 ? 1 : 0.8} />
-        </g>
-      ))}
-    </svg>
-  )
-}
-
 function HeroDataCard({ symbol, quote, history, unit }: { symbol: string; quote: QuoteItem | undefined; history: number[]; unit?: boolean }) {
   const up = (quote?.changePct ?? 0) >= 0
   return (
@@ -278,7 +255,7 @@ export function LandingPage() {
         <div className="relative h-[420px] hidden xl:block">
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-[380px] h-[380px]">
-              <WorldNetwork />
+              <RotatingGlobe size={380} />
             </div>
           </div>
           <div className="absolute top-2 right-4 flex items-center gap-2 px-3 py-1.5 rounded-lg border border-bg-border bg-bg-card/90 backdrop-blur-sm">

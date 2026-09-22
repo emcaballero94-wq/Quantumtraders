@@ -24,7 +24,11 @@ export function GaugeMeter({
 
   const startAngle = 180
   const endAngle = 0
-  const needleAngle = startAngle + (clamped / 100) * (endAngle - startAngle)
+  // The arc is drawn with sweep-flag=1 (clockwise in SVG's y-down space), which
+  // travels 180° → 270° (top) → 360°(=0°) — i.e. angle INCREASES through the top.
+  // The needle must follow the same direction, not decrease straight through the
+  // bottom (180° → 90° → 0°), or it points the opposite way from the visible arc.
+  const needleAngle = startAngle + (clamped / 100) * 180
 
   const arcStart = polarToCartesian(cx, cy, r, startAngle)
   const arcEnd = polarToCartesian(cx, cy, r, endAngle)

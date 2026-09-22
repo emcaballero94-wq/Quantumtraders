@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { clsx } from 'clsx'
 import type { ReactElement } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -11,14 +11,18 @@ import { useLocale } from '@/lib/i18n/LocaleProvider'
 
 // ─── Navigation Structure ──────────────────────────────────────
 // Organized around how a trader works, not around tool names:
-// COMMAND (the daily cockpit) → MARKETS (analysis tools) → RISK
-// (regime + calendar) → JOURNAL (post-trade review) → LEARN
-// (structured roadmap) → ACCOUNT (billing/settings). GEX stays a real
-// route but is intentionally left out of primary nav while it's a demo.
+// COMMAND (the daily cockpit) → MARKETS (analysis tools, with a lightweight
+// "advanced" tier for Correlations/Gamma once it's more than a demo) →
+// MARKET STATE (regime/bias/volatility/conditions/risk — "Pulse" survives
+// only as the internal engine name) → JOURNAL (post-trade review) → LEARN
+// (structured roadmap) → ACCOUNT (profile/billing/settings). GEX stays a
+// real route but is intentionally left out of primary nav while it's a
+// demo. Calculators has no nav slot for now (no section it cleanly fits —
+// still reachable from its own URL and from Trade Audit's pointer card).
 // Labels are resolved through i18n (messages/en|es.json) — English is
 // the source-of-truth language, Spanish a full translation.
 
-type NavItem = { href: string; labelKey: string; subKey: string; dot: string; icon: (p: { cls: string }) => ReactElement }
+type NavItem = { href: string; labelKey: string; subKey: string; dot: string; icon: (p: { cls: string }) => ReactElement; advanced?: boolean }
 
 const NAV: { sectionKey: string; items: NavItem[] }[] = [
   {
@@ -32,19 +36,13 @@ const NAV: { sectionKey: string; items: NavItem[] }[] = [
     items: [
       { href: '/dashboard/scanner', labelKey: 'scanner', subKey: 'scannerSub', dot: 'bg-oracle', icon: ScannerIcon },
       { href: '/dashboard/atlas',   labelKey: 'atlas',   subKey: 'atlasSub',   dot: 'bg-atlas',   icon: AtlasIcon   },
-      { href: '/dashboard/nexus',   labelKey: 'nexus',   subKey: 'nexusSub',   dot: 'bg-nexus',   icon: NexusIcon   },
+      { href: '/dashboard/nexus',   labelKey: 'nexus',   subKey: 'nexusSub',   dot: 'bg-nexus',   icon: NexusIcon,  advanced: true },
     ],
   },
   {
-    sectionKey: 'sectionRisk',
+    sectionKey: 'sectionMarketState',
     items: [
       { href: '/dashboard/pulse', labelKey: 'pulse', subKey: 'pulseSub', dot: 'bg-pulse', icon: PulseIcon },
-    ],
-  },
-  {
-    sectionKey: 'sectionTools',
-    items: [
-      { href: '/dashboard/calculators', labelKey: 'calculators', subKey: 'calculatorsSub', dot: 'bg-ink-muted', icon: CalculatorIcon },
     ],
   },
   {
@@ -63,7 +61,9 @@ const NAV: { sectionKey: string; items: NavItem[] }[] = [
   {
     sectionKey: 'sectionAccount',
     items: [
-      { href: '/dashboard/billing', labelKey: 'billing', subKey: 'billingSub', dot: 'bg-nexus', icon: BillingIcon },
+      { href: '/dashboard/profile',  labelKey: 'profile',  subKey: 'profileSub',  dot: 'bg-oracle', icon: ProfileIcon  },
+      { href: '/dashboard/billing',  labelKey: 'billing',  subKey: 'billingSub',  dot: 'bg-nexus',  icon: BillingIcon  },
+      { href: '/dashboard/settings', labelKey: 'settings', subKey: 'settingsSub', dot: 'bg-ink-muted', icon: SettingsIcon },
     ],
   },
 ]
@@ -125,10 +125,17 @@ export function Sidebar({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile
 
             {/* Items */}
             <ul className="space-y-0.5">
-              {items.map(({ href, labelKey, subKey, dot, icon: Icon }) => {
+              {items.map(({ href, labelKey, subKey, dot, icon: Icon, advanced }, i) => {
                 const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+                const showAdvancedDivider = advanced && !items[i - 1]?.advanced
                 return (
-                  <li key={href}>
+                  <Fragment key={href}>
+                    {showAdvancedDivider && (
+                      <li className="px-2.5 pt-2 pb-0.5">
+                        <span className="text-[7.5px] font-mono text-ink-dim/70 tracking-[0.25em] uppercase">Advanced</span>
+                      </li>
+                    )}
+                    <li>
                     <Link
                       href={href}
                       className={clsx(
@@ -162,7 +169,8 @@ export function Sidebar({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile
                         <span className={clsx('status-dot shrink-0', dot, 'animate-pulse-slow opacity-70')} style={{ width: 4, height: 4 }} />
                       )}
                     </Link>
-                  </li>
+                    </li>
+                  </Fragment>
                 )
               })}
             </ul>
@@ -192,21 +200,8 @@ export function Sidebar({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile
           ))}
         </div>
 
-        <Link
-          href="/dashboard/settings"
-          className={clsx(
-            'flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[10px] font-mono tracking-wider uppercase transition-all',
-            pathname === '/dashboard/settings'
-              ? 'bg-bg-elevated text-ink-secondary'
-              : 'text-ink-dim hover:text-ink-muted hover:bg-bg-elevated/50'
-          )}
-        >
-          <SettingsIcon cls="w-3.5 h-3.5 shrink-0" />
-          <span>{t('nav.settings')}</span>
-        </Link>
-
-        {/* User */}
-        <div className="flex items-center gap-2.5 px-2.5 py-2">
+        {/* User → Profile */}
+        <Link href="/dashboard/profile" className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-bg-elevated/50 transition-colors">
           <div className="w-5 h-5 rounded-full bg-oracle-dim border border-oracle/20 flex items-center justify-center shrink-0">
             <span className="text-[8px] text-oracle font-mono font-bold">{(userLabel ?? 'T')[0]?.toUpperCase()}</span>
           </div>
@@ -215,7 +210,7 @@ export function Sidebar({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile
             <p className="text-[8px] font-mono text-ink-dim">{userLabel ? 'Sesión activa' : 'Sin sesión'}</p>
           </div>
           <span className={clsx('status-dot animate-pulse-slow', userLabel ? 'bg-bull' : 'bg-ink-dim')} style={{ width: 5, height: 5 }} />
-        </div>
+        </Link>
       </div>
 
       {/* Bottom edge accent */}
@@ -330,11 +325,11 @@ function ToolsIcon({ cls }: { cls: string }) {
   )
 }
 
-function CalculatorIcon({ cls }: { cls: string }) {
+function ProfileIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <rect x="4.5" y="3" width="15" height="18" rx="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7.5h8M8 12h1.5m3 0h1.5m3 0h1.5M8 15.5h1.5m3 0h1.5m3 0h1.5M8 19h1.5" />
+      <circle cx="12" cy="8" r="3.25" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.75 19.25c0-3.45 3.24-6.25 7.25-6.25s7.25 2.8 7.25 6.25" />
     </svg>
   )
 }

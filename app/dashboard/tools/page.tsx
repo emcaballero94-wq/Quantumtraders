@@ -150,7 +150,7 @@ export default function ToolsPage() {
           <div className="rounded-xl border border-bg-border bg-bg-card p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-mono font-bold text-ink-primary">¿Buscás la calculadora?</p>
-              <p className="text-[10px] font-mono text-ink-dim mt-0.5">Position sizing y lot calculator ahora viven en Tools.</p>
+              <p className="text-[10px] font-mono text-ink-dim mt-0.5">Position sizing y lot calculator tienen su propia página.</p>
             </div>
             <Link href="/dashboard/calculators" className="shrink-0 px-3 py-1.5 rounded-lg border border-oracle/30 bg-oracle/10 text-oracle text-[10px] font-mono font-bold uppercase tracking-wider hover:bg-oracle/20 transition-colors">
               Abrir →

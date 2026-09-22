@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { LotCalculator } from '@/components/tools/LotCalculator'
+import Link from 'next/link'
 import { TradeJournal, Trade, TradeChecklist } from '@/components/tools/TradeJournal'
 import { AddTradeModal } from '@/components/tools/AddTradeModal'
 import { VoiceConsole } from '@/components/tools/VoiceConsole'
@@ -133,7 +133,7 @@ export default function ToolsPage() {
       <div className="flex items-center justify-between border-b border-bg-border pb-6">
         <div>
           <h1 className="text-xl font-mono font-bold text-ink-primary tracking-tight uppercase">Trade Audit</h1>
-          <p className="text-xs font-mono text-ink-muted mt-0.5 tracking-wider uppercase">Your trading history, turned into information — plus calculators &amp; voice command</p>
+          <p className="text-xs font-mono text-ink-muted mt-0.5 tracking-wider uppercase">Your trading history, turned into information — plus voice command</p>
         </div>
         <div className="flex items-center gap-2">
            <span className="text-[10px] font-mono text-oracle uppercase tracking-widest px-3 py-1 bg-oracle/5 border border-oracle/20 rounded-lg">Toolbox v1.3</span>
@@ -144,10 +144,18 @@ export default function ToolsPage() {
 
       <div className="grid grid-cols-12 gap-6">
 
-        {/* Left: Voice & Calc */}
+        {/* Left: Voice command */}
         <div className="col-span-12 lg:col-span-4 space-y-6">
           <VoiceConsole onTradeParsed={handleTradeParsed} />
-          <LotCalculator />
+          <div className="rounded-xl border border-bg-border bg-bg-card p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-mono font-bold text-ink-primary">¿Buscás la calculadora?</p>
+              <p className="text-[10px] font-mono text-ink-dim mt-0.5">Position sizing y lot calculator ahora viven en Tools.</p>
+            </div>
+            <Link href="/dashboard/calculators" className="shrink-0 px-3 py-1.5 rounded-lg border border-oracle/30 bg-oracle/10 text-oracle text-[10px] font-mono font-bold uppercase tracking-wider hover:bg-oracle/20 transition-colors">
+              Abrir →
+            </Link>
+          </div>
         </div>
 
         {/* Right: Journal */}

@@ -10,6 +10,7 @@ import { rankAssets } from '@/lib/oracle/score-engine'
 import { GaugeMeter } from '@/components/ui/GaugeMeter'
 import { RatingBadge, BiasBadge } from '@/components/ui/StatusBadge'
 import type { RadarAsset, EconomicEvent, SectorStrength, EventImpact } from '@/lib/oracle/types'
+import type { RelativeStrengthResult } from '@/lib/market-relative-strength'
 
 interface OracleStateResponse {
   success: boolean
@@ -47,6 +48,15 @@ interface PulseBriefResponse {
 
 const KEY_INSTRUMENTS = ['SPX500', 'NAS100', 'US30', 'XAUUSD', 'BTCUSD']
 
+// Same computation Market State (Pulse) uses — summarized here, not duplicated logic.
+const RS_BASE = 'XAUUSD'
+const RS_SYMBOLS = ['SPX500', 'NAS100', 'US30', 'BTCUSD', 'USOIL']
+
+interface RelativeStrengthResponse {
+  success: boolean
+  data?: RelativeStrengthResult
+}
+
 const IMPACT_DOT: Record<EventImpact, string> = { high: 'bg-bear', medium: 'bg-pulse', low: 'bg-oracle' }
 
 export default function CommandPage() {
@@ -57,6 +67,7 @@ export default function CommandPage() {
   const [quotes, setQuotes] = useState<Record<string, QuoteItem>>({})
   const [trades, setTrades] = useState<ApiTrade[]>([])
   const [sessions, setSessions] = useState(() => getActiveSessions())
+  const [rsResult, setRsResult] = useState<RelativeStrengthResult | null>(null)
   const [brief, setBrief] = useState<string | null>(null)
   const [briefError, setBriefError] = useState<string | null>(null)
   const [briefLoading, setBriefLoading] = useState(false)
@@ -97,12 +108,37 @@ export default function CommandPage() {
     }
   }, [])
 
+  // Market State summary — same endpoint/computation the Market State page uses
+  useEffect(() => {
+    let mounted = true
+    fetch(`/api/market/relative-strength?symbols=${RS_SYMBOLS.join(',')}&base=${RS_BASE}`)
+      .then((r) => r.json() as Promise<RelativeStrengthResponse>)
+      .then((payload) => {
+        if (!mounted) return
+        if (payload.success && payload.data) setRsResult(payload.data)
+      })
+      .catch(() => {})
+    return () => {
+      mounted = false
+    }
+  }, [])
+
   const vix = quotes.VIX?.price ?? null
   const riskRegime = riskRegimeFromVix(vix)
   const biasAgg = useMemo(() => computeAggregateBias(radar), [radar])
   const topOpportunities = useMemo(() => rankAssets(radar).slice(0, 4), [radar])
   const strongest = sectorStrength[0] ?? null
   const weakest = sectorStrength[sectorStrength.length - 1] ?? null
+
+  const topMover = useMemo(() => {
+    if (!rsResult) return null
+    return [...rsResult.relativeStrength].sort((a, b) => (b.change90d ?? -999) - (a.change90d ?? -999))[0] ?? null
+  }, [rsResult])
+
+  const worstDrawdown = useMemo(() => {
+    if (!rsResult) return null
+    return [...rsResult.drawdown].sort((a, b) => (a.maxDrawdownPct ?? 0) - (b.maxDrawdownPct ?? 0))[0] ?? null
+  }, [rsResult])
 
   const upcomingEvents = useMemo(() => {
     const now = Date.now()
@@ -180,7 +216,10 @@ export default function CommandPage() {
           <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Market Regime</p>
           <div className="flex items-center justify-between">
             <span className={clsx('text-xl font-mono font-bold', riskRegime.color)}>{riskRegime.label}</span>
-            <span className="text-xs font-mono text-ink-secondary">VIX <span className="text-ink-primary font-bold">{vix?.toFixed(1) ?? '—'}</span></span>
+            <div className="text-right">
+              <p className="text-[8px] font-mono text-ink-dim uppercase tracking-widest">Volatility</p>
+              <span className="text-xs font-mono text-ink-secondary">VIX <span className="text-ink-primary font-bold">{vix?.toFixed(1) ?? '—'}</span></span>
+            </div>
           </div>
           <div className="border-t border-bg-border pt-3 space-y-1.5">
             <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest mb-1.5">Sessions</p>
@@ -230,7 +269,7 @@ export default function CommandPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Scanner opportunities */}
         <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
           <div className="flex items-center justify-between">
@@ -251,6 +290,46 @@ export default function CommandPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Market State summary */}
+        <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Market State</p>
+            <Link href="/dashboard/pulse" className="text-[10px] font-mono text-oracle hover:underline uppercase">View full →</Link>
+          </div>
+          <div className="space-y-2">
+            {strongest && weakest ? (
+              <>
+                <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-bg-border bg-bg-elevated/20">
+                  <span className="text-[10px] font-mono text-ink-dim uppercase">Sector fuerte</span>
+                  <span className="text-xs font-mono font-bold text-atlas">{strongest.sector} ({strongest.score})</span>
+                </div>
+                <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-bg-border bg-bg-elevated/20">
+                  <span className="text-[10px] font-mono text-ink-dim uppercase">Sector débil</span>
+                  <span className="text-xs font-mono font-bold text-bear">{weakest.sector} ({weakest.score})</span>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs font-mono text-ink-dim">Cargando sectores...</p>
+            )}
+            {topMover && (
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-bg-border bg-bg-elevated/20">
+                <span className="text-[10px] font-mono text-ink-dim uppercase">Mejor RS (90d)</span>
+                <span className="text-xs font-mono font-bold text-atlas">
+                  {topMover.symbol} {topMover.change90d !== null ? `${topMover.change90d >= 0 ? '+' : ''}${topMover.change90d.toFixed(1)}%` : '—'}
+                </span>
+              </div>
+            )}
+            {worstDrawdown && (
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-bg-border bg-bg-elevated/20">
+                <span className="text-[10px] font-mono text-ink-dim uppercase">Mayor drawdown</span>
+                <span className="text-xs font-mono font-bold text-bear">
+                  {worstDrawdown.symbol} {worstDrawdown.maxDrawdownPct !== null ? `${worstDrawdown.maxDrawdownPct.toFixed(1)}%` : '—'}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

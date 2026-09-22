@@ -6,6 +6,7 @@ import { clsx } from 'clsx'
 import { useLocale } from '@/lib/i18n/LocaleProvider'
 import { Sparkline } from '@/components/ui/Sparkline'
 import { RotatingGlobe } from '@/components/marketing/RotatingGlobe'
+import { HeroSpaceBackground } from '@/components/marketing/HeroSpaceBackground'
 
 interface QuoteItem {
   symbol: string
@@ -228,50 +229,56 @@ export function LandingPage() {
       </header>
 
       {/* ── Hero ── */}
-      <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-16 grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-12 items-center">
-        <div>
-          <p className="text-[10px] font-mono text-ink-dim uppercase tracking-[0.25em]">{t.breadcrumb}</p>
-          <h1 className="font-sans text-4xl sm:text-5xl font-bold tracking-tight leading-[1.15] mt-5 text-ink-primary">
-            {t.h1a}
-            <br />
-            <span className="text-oracle">{t.h1b}</span>
-          </h1>
-          <p className="text-sm font-mono text-ink-muted mt-6 max-w-md leading-relaxed">{t.sub}</p>
-          <div className="flex flex-wrap items-center gap-6 mt-9">
-            <Link
-              href="/login"
-              className="px-6 py-3.5 rounded-lg bg-oracle text-white text-xs font-mono font-bold uppercase tracking-widest hover:bg-oracle/90 transition-colors inline-flex items-center gap-2"
-            >
-              {t.ctaPrimary} →
-            </Link>
-            <a href="#showcase" className="text-xs font-mono font-bold uppercase tracking-widest text-ink-secondary hover:text-ink-primary transition-colors inline-flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full border border-bg-border flex items-center justify-center">▶</span>
-              {t.ctaSecondary}
-            </a>
-          </div>
+      <section className="relative isolate py-16 overflow-hidden">
+        <div className="absolute inset-0 -z-10">
+          <HeroSpaceBackground />
         </div>
-
-        {/* Globe + floating live cards */}
-        <div className="relative h-[420px] hidden xl:block">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-[380px] h-[380px]">
-              <RotatingGlobe size={380} />
+        <div className="absolute inset-x-0 bottom-0 h-24 -z-10 bg-gradient-to-b from-transparent to-bg-base" />
+        <div className="max-w-[1400px] mx-auto px-6 md:px-10 w-full grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-12 items-center">
+          <div>
+            <p className="text-[10px] font-mono text-ink-dim uppercase tracking-[0.25em]">{t.breadcrumb}</p>
+            <h1 className="font-sans text-4xl sm:text-5xl font-bold tracking-tight leading-[1.15] mt-5 text-ink-primary">
+              {t.h1a}
+              <br />
+              <span className="text-oracle">{t.h1b}</span>
+            </h1>
+            <p className="text-sm font-mono text-ink-muted mt-6 max-w-md leading-relaxed">{t.sub}</p>
+            <div className="flex flex-wrap items-center gap-6 mt-9">
+              <Link
+                href="/login"
+                className="px-6 py-3.5 rounded-lg bg-oracle text-white text-xs font-mono font-bold uppercase tracking-widest hover:bg-oracle/90 transition-colors inline-flex items-center gap-2"
+              >
+                {t.ctaPrimary} →
+              </Link>
+              <a href="#showcase" className="text-xs font-mono font-bold uppercase tracking-widest text-ink-secondary hover:text-ink-primary transition-colors inline-flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full border border-bg-border flex items-center justify-center">▶</span>
+                {t.ctaSecondary}
+              </a>
             </div>
           </div>
-          <div className="absolute top-2 right-4 flex items-center gap-2 px-3 py-1.5 rounded-lg border border-bg-border bg-bg-card/90 backdrop-blur-sm">
-            <span className="text-[9px] font-mono text-ink-dim uppercase tracking-wider">{t.globalMarkets}</span>
-            <span className="flex items-center gap-1 text-[9px] font-mono text-atlas font-bold uppercase">
-              <span className="w-1.5 h-1.5 rounded-full bg-atlas animate-pulse-slow" /> {t.live}
-            </span>
-          </div>
-          <div className="absolute top-24 left-0">
-            <HeroDataCard symbol="SPX500" quote={quotes.SPX500} history={histories.SPX500 ?? []} />
-          </div>
-          <div className="absolute top-44 right-0">
-            <HeroDataCard symbol="XAUUSD" quote={quotes.XAUUSD} history={histories.XAUUSD ?? []} />
-          </div>
-          <div className="absolute bottom-6 left-10">
-            <HeroDataCard symbol="VIX" quote={quotes.VIX} history={histories.VIX ?? []} unit />
+
+          {/* Globe + floating live cards */}
+          <div className="relative h-[420px] hidden xl:block">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-[380px] h-[380px]">
+                <RotatingGlobe size={380} />
+              </div>
+            </div>
+            <div className="absolute top-2 right-4 flex items-center gap-2 px-3 py-1.5 rounded-lg border border-bg-border bg-bg-card/90 backdrop-blur-sm">
+              <span className="text-[9px] font-mono text-ink-dim uppercase tracking-wider">{t.globalMarkets}</span>
+              <span className="flex items-center gap-1 text-[9px] font-mono text-atlas font-bold uppercase">
+                <span className="w-1.5 h-1.5 rounded-full bg-atlas animate-pulse-slow" /> {t.live}
+              </span>
+            </div>
+            <div className="absolute top-24 left-0">
+              <HeroDataCard symbol="SPX500" quote={quotes.SPX500} history={histories.SPX500 ?? []} />
+            </div>
+            <div className="absolute top-44 right-0">
+              <HeroDataCard symbol="XAUUSD" quote={quotes.XAUUSD} history={histories.XAUUSD ?? []} />
+            </div>
+            <div className="absolute bottom-6 left-10">
+              <HeroDataCard symbol="VIX" quote={quotes.VIX} history={histories.VIX ?? []} unit />
+            </div>
           </div>
         </div>
       </section>

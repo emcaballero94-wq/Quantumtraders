@@ -40,7 +40,7 @@ export function MobileNav() {
           </svg>
         </button>
         <div className="h-full bg-bg-deep border-r border-bg-border">
-            <Sidebar />
+            <Sidebar variant="mobile" />
         </div>
       </div>
     </>

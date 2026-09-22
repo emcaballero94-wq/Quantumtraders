@@ -51,7 +51,7 @@ const NAV: { sectionKey: string; items: NavItem[] }[] = [
 ]
 
 // ─── Sidebar ────────────────────────────────────────────────────
-export function Sidebar() {
+export function Sidebar({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile' }) {
   const pathname = usePathname()
   const { t, locale, setLocale } = useLocale()
   const [userLabel, setUserLabel] = useState<string | null>(null)
@@ -66,7 +66,13 @@ export function Sidebar() {
   }, [])
 
   return (
-    <aside className="hidden md:flex fixed inset-y-0 left-0 z-30 w-[220px] flex-col bg-bg-deep overflow-hidden">
+    <aside
+      className={
+        variant === 'mobile'
+          ? 'relative flex w-full h-full flex-col bg-bg-deep overflow-hidden'
+          : 'hidden md:flex fixed inset-y-0 left-0 z-30 w-[220px] flex-col bg-bg-deep overflow-hidden'
+      }
+    >
       {/* Top edge accent */}
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-oracle/40 to-transparent" />
 

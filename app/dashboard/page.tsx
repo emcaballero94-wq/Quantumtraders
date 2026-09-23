@@ -7,7 +7,6 @@ import { useLocale } from '@/lib/i18n/LocaleProvider'
 import { getActiveSessions } from '@/lib/oracle/timing-engine'
 import { riskRegimeFromVix, computeAggregateBias } from '@/lib/oracle/risk-regime'
 import { rankAssets } from '@/lib/oracle/score-engine'
-import { GaugeMeter } from '@/components/ui/GaugeMeter'
 import { RatingBadge, BiasBadge } from '@/components/ui/StatusBadge'
 import type { RadarAsset, EconomicEvent, SectorStrength, EventImpact } from '@/lib/oracle/types'
 import type { RelativeStrengthResult } from '@/lib/market-relative-strength'
@@ -48,7 +47,6 @@ interface PulseBriefResponse {
 
 const KEY_INSTRUMENTS = ['SPX500', 'NAS100', 'US30', 'XAUUSD', 'BTCUSD']
 
-// Same computation Market State (Pulse) uses — summarized here, not duplicated logic.
 const RS_BASE = 'XAUUSD'
 const RS_SYMBOLS = ['SPX500', 'NAS100', 'US30', 'BTCUSD', 'USOIL']
 
@@ -59,6 +57,49 @@ interface RelativeStrengthResponse {
 
 const IMPACT_DOT: Record<EventImpact, string> = { high: 'bg-bear', medium: 'bg-pulse', low: 'bg-oracle' }
 
+const toMin = (hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + m
+}
+
+/** Session window as one or two [left%, width%] segments on a 24h UTC axis (wraps past midnight). */
+function sessionSegments(openUTC: string, closeUTC: string): Array<[number, number]> {
+  const o = toMin(openUTC)
+  const c = toMin(closeUTC)
+  const pct = (m: number) => (m / 1440) * 100
+  if (c > o) return [[pct(o), pct(c - o)]]
+  return [[0, pct(c)], [pct(o), 100 - pct(o)]]
+}
+
+function fmtCountdown(mins: number): string {
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return h > 0 ? `${h} h ${m} min` : `${m} min`
+}
+
+function intensityWord(avg: number): string {
+  if (avg >= 65) return 'fuerte'
+  if (avg >= 45) return 'moderado'
+  return 'débil'
+}
+
+function Eyebrow({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <p className={clsx('text-[11px] font-mono uppercase tracking-[0.16em]', className ?? 'text-ink-secondary')}>{children}</p>
+}
+
+function ColumnHeader({ title, href, cta }: { title: string; href?: string; cta?: string }) {
+  return (
+    <div className="flex items-center justify-between pb-2.5">
+      <Eyebrow>{title}</Eyebrow>
+      {href && cta && (
+        <Link href={href} className="text-xs font-sans text-pulse hover:text-pulse/80 transition-colors">
+          {cta} →
+        </Link>
+      )}
+    </div>
+  )
+}
+
 export default function CommandPage() {
   const { t } = useLocale()
   const [radar, setRadar] = useState<RadarAsset[]>([])
@@ -67,13 +108,17 @@ export default function CommandPage() {
   const [quotes, setQuotes] = useState<Record<string, QuoteItem>>({})
   const [trades, setTrades] = useState<ApiTrade[]>([])
   const [sessions, setSessions] = useState(() => getActiveSessions())
+  const [now, setNow] = useState(() => new Date())
   const [rsResult, setRsResult] = useState<RelativeStrengthResult | null>(null)
   const [brief, setBrief] = useState<string | null>(null)
   const [briefError, setBriefError] = useState<string | null>(null)
   const [briefLoading, setBriefLoading] = useState(false)
 
   useEffect(() => {
-    const id = setInterval(() => setSessions(getActiveSessions()), 60_000)
+    const id = setInterval(() => {
+      setSessions(getActiveSessions())
+      setNow(new Date())
+    }, 30_000)
     return () => clearInterval(id)
   }, [])
 
@@ -108,7 +153,6 @@ export default function CommandPage() {
     }
   }, [])
 
-  // Market State summary — same endpoint/computation the Market State page uses
   useEffect(() => {
     let mounted = true
     fetch(`/api/market/relative-strength?symbols=${RS_SYMBOLS.join(',')}&base=${RS_BASE}`)
@@ -141,12 +185,40 @@ export default function CommandPage() {
   }, [rsResult])
 
   const upcomingEvents = useMemo(() => {
-    const now = Date.now()
+    const ts = Date.now()
     return [...calendar]
-      .filter((e) => new Date(e.datetime).getTime() >= now)
+      .filter((e) => new Date(e.datetime).getTime() >= ts)
       .sort((a, b) => a.datetime.localeCompare(b.datetime))
       .slice(0, 4)
   }, [calendar])
+
+  const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes()
+  const nowPct = (nowMin / 1440) * 100
+
+  const nextOpen = useMemo(() => {
+    const closed = sessions.filter((s) => !s.isActive)
+    if (closed.length === 0) return null
+    return closed
+      .map((s) => ({ name: s.name, mins: (toMin(s.openUTC) - nowMin + 1440) % 1440 }))
+      .sort((a, b) => a.mins - b.mins)[0]
+  }, [sessions, nowMin])
+
+  const activeNames = sessions.filter((s) => s.isActive).map((s) => s.name)
+
+  const biasPhrase = biasAgg
+    ? biasAgg.label === 'Mixto'
+      ? 'con sesgo mixto'
+      : `con sesgo ${biasAgg.label.toLowerCase()} ${intensityWord(biasAgg.avgScore)}`
+    : null
+
+  const contextLine = [
+    vix !== null ? `VIX ${vix.toFixed(1)}` : null,
+    strongest && weakest ? `${strongest.sector} lidera y ${weakest.sector} es el sector más débil` : null,
+    activeNames.length > 0 ? `Abiertas: ${activeNames.join(', ')}` : 'Todas las sesiones cerradas',
+    nextOpen ? `${nextOpen.name} abre en ${fmtCountdown(nextOpen.mins)}` : null,
+  ]
+    .filter(Boolean)
+    .join('. ')
 
   useEffect(() => {
     if (!biasAgg) return
@@ -194,204 +266,232 @@ export default function CommandPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [biasAgg, vix])
 
+  const briefMissingKey = briefError?.includes('ANTHROPIC_API_KEY')
+  const biasPct = Math.max(0, Math.min(100, biasAgg?.avgScore ?? 50))
+
   return (
-    <div className="space-y-5 animate-fade-in pb-20">
-      <div>
-        <p className="text-[10px] font-mono text-oracle uppercase tracking-[0.2em] mb-1">{t('command.kicker')}</p>
-        <h1 className="text-lg font-mono font-bold text-ink-primary tracking-tight">{t('command.title')}</h1>
-        <p className="text-xs font-mono text-ink-muted mt-1 max-w-xl">{t('command.subtitle')}</p>
-      </div>
-
-      {/* AI brief */}
-      <div className="rounded-xl border border-oracle/30 bg-bg-card p-5 border-l-4 border-l-oracle space-y-2">
-        <p className="text-[10px] font-mono text-oracle uppercase tracking-widest font-bold">AI Market Brief</p>
-        {briefLoading && <p className="text-sm font-mono text-ink-dim">Generando resumen...</p>}
-        {!briefLoading && brief && <p className="text-sm font-mono text-ink-primary leading-relaxed">{brief}</p>}
-        {!briefLoading && !brief && <p className="text-xs font-mono text-ink-dim">{briefError ?? 'Esperando datos suficientes.'}</p>}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Market regime + sessions */}
-        <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-4">
-          <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Market Regime</p>
-          <div className="flex items-center justify-between">
-            <span className={clsx('text-xl font-mono font-bold', riskRegime.color)}>{riskRegime.label}</span>
-            <div className="text-right">
-              <p className="text-[8px] font-mono text-ink-dim uppercase tracking-widest">Volatility</p>
-              <span className="text-xs font-mono text-ink-secondary">VIX <span className="text-ink-primary font-bold">{vix?.toFixed(1) ?? '—'}</span></span>
-            </div>
-          </div>
-          <div className="border-t border-bg-border pt-3 space-y-1.5">
-            <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest mb-1.5">Sessions</p>
-            {sessions.map((s) => (
-              <div key={s.name} className="flex items-center justify-between text-xs font-mono">
-                <span className={clsx('flex items-center gap-2', s.isActive ? 'text-ink-primary font-bold' : 'text-ink-dim')}>
-                  <span className={clsx('w-1.5 h-1.5 rounded-full', s.isActive ? 'bg-atlas animate-pulse-slow' : 'bg-bg-elevated')} />
-                  {s.name}
-                </span>
-                <span className={s.isActive ? 'text-atlas' : 'text-ink-dim'}>{s.isActive ? 'Active' : 'Closed'}</span>
-              </div>
-            ))}
-          </div>
+    <div className="space-y-9 animate-fade-in pb-20 max-w-[1280px]">
+      {/* Hero: regime as a sentence + bias meter */}
+      <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-8 xl:gap-12 items-end">
+        <div className="space-y-3.5">
+          <Eyebrow className="text-pulse">{t('command.kicker')}</Eyebrow>
+          <h1 className="text-3xl md:text-[44px] font-sans font-medium leading-[1.15] tracking-tight text-ink-primary text-pretty">
+            El mercado está en <span className={riskRegime.color}>{riskRegime.label}</span>
+            {biasPhrase ? `, ${biasPhrase}.` : '.'}
+          </h1>
+          {contextLine && <p className="text-[15px] font-sans leading-relaxed text-ink-secondary max-w-2xl text-pretty">{contextLine}.</p>}
         </div>
 
-        {/* Bias agregado */}
-        <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
-          <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Bias</p>
-          <div className="flex items-center justify-center">
-            <GaugeMeter value={biasAgg?.avgScore ?? 0} />
+        <div className="rounded-xl border border-bg-border bg-bg-card px-6 py-5 space-y-3.5">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[13px] font-sans text-ink-secondary">Sesgo agregado</span>
+            <span className="text-[28px] font-mono font-medium text-ink-primary tabular-nums">{biasAgg ? biasAgg.avgScore.toFixed(1) : '—'}</span>
+          </div>
+          <div className="relative h-2 rounded bg-gradient-to-r from-bear via-ink-muted to-atlas">
+            <div className="absolute -top-[5px] h-[18px] w-[3px] rounded-sm bg-ink-primary -translate-x-1/2 transition-all" style={{ left: `${biasPct}%` }} />
+          </div>
+          <div className="flex justify-between text-[11px] font-mono text-ink-secondary">
+            <span>Débil</span>
+            <span>Moderado</span>
+            <span>Fuerte</span>
           </div>
           {biasAgg && (
-            <div className="flex items-center justify-center gap-3 text-[10px] font-mono">
-              <span className="text-atlas font-bold">{biasAgg.bullish} ↑</span>
-              <span className="text-bear font-bold">{biasAgg.bearish} ↓</span>
-              <span className="text-ink-secondary font-bold">{biasAgg.neutral} →</span>
+            <div className="flex gap-5 pt-2.5 border-t border-bg-border text-xs font-mono">
+              <span className="text-atlas">{biasAgg.bullish} alcistas</span>
+              <span className="text-bear">{biasAgg.bearish} bajistas</span>
+              <span className="text-ink-secondary">{biasAgg.neutral} neutrales</span>
             </div>
           )}
         </div>
+      </section>
 
-        {/* Key instruments */}
-        <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-2.5">
-          <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest mb-1">Key Instruments</p>
-          {KEY_INSTRUMENTS.map((symbol) => {
-            const q = quotes[symbol]
-            const up = (q?.changePct ?? 0) >= 0
-            return (
-              <Link key={symbol} href={`/dashboard/stock/${symbol}`} className="flex items-center justify-between hover:bg-bg-elevated/30 -mx-1 px-1 py-0.5 rounded transition-colors">
-                <span className="text-xs font-mono font-bold text-ink-primary">{symbol}</span>
-                <span className="flex items-center gap-2 text-xs font-mono">
-                  <span className="text-ink-secondary">{q?.price?.toLocaleString('en-US', { maximumFractionDigits: symbol === 'BTCUSD' ? 0 : 2 }) ?? '—'}</span>
-                  <span className={up ? 'text-atlas' : 'text-bear'}>{q?.changePct !== null && q?.changePct !== undefined ? `${up ? '+' : ''}${q.changePct.toFixed(2)}%` : '—'}</span>
+      {/* Sessions timeline (UTC) */}
+      <section className="space-y-2.5">
+        <div className="flex justify-between text-[11px] font-mono text-ink-secondary">
+          <span>SESIONES · UTC</span>
+          <span className="text-ink-primary tabular-nums">
+            {String(now.getUTCHours()).padStart(2, '0')}:{String(now.getUTCMinutes()).padStart(2, '0')} UTC
+          </span>
+        </div>
+        <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-1.5 items-center">
+          {sessions.map((s) => (
+            <div key={s.name} className="contents">
+              <span className={clsx('text-xs font-sans', s.isActive ? 'text-ink-primary' : 'text-ink-secondary')}>{s.name}</span>
+              <div className="relative h-3.5 rounded-[3px] bg-bg-card">
+                {sessionSegments(s.openUTC, s.closeUTC).map(([l, w]) => (
+                  <div
+                    key={l}
+                    className={clsx('absolute inset-y-0 rounded-[3px]', s.isActive ? 'bg-atlas' : 'bg-ink-dim')}
+                    style={{ left: `${l}%`, width: `${w}%` }}
+                  />
+                ))}
+                <div className="absolute -inset-y-1 w-0.5 bg-pulse" style={{ left: `${nowPct}%` }} />
+              </div>
+            </div>
+          ))}
+          <span />
+          <div className="flex justify-between text-[10px] font-mono text-ink-muted">
+            <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Key instruments strip */}
+      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 rounded-xl border border-bg-border overflow-hidden gap-px bg-bg-border">
+        {KEY_INSTRUMENTS.map((symbol) => {
+          const q = quotes[symbol]
+          const up = (q?.changePct ?? 0) >= 0
+          return (
+            <Link key={symbol} href={`/dashboard/stock/${symbol}`} className="bg-bg-card hover:bg-bg-elevated transition-colors px-[18px] py-4 space-y-2">
+              <div className="flex items-baseline justify-between font-mono text-xs">
+                <span className="font-semibold text-ink-primary">{symbol}</span>
+                <span className={clsx('tabular-nums', up ? 'text-atlas' : 'text-bear')}>
+                  {q?.changePct != null ? `${up ? '+' : ''}${q.changePct.toFixed(2)}%` : '—'}
                 </span>
-              </Link>
+              </div>
+              <p className="text-xl font-mono text-ink-primary tabular-nums">
+                {q?.price?.toLocaleString('en-US', {
+                  minimumFractionDigits: symbol === 'BTCUSD' ? 0 : 2,
+                  maximumFractionDigits: symbol === 'BTCUSD' ? 0 : 2,
+                }) ?? '—'}
+              </p>
+            </Link>
+          )
+        })}
+      </section>
+
+      {/* Opportunities · Market state · Agenda */}
+      <section className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr_1fr] gap-8 lg:gap-10">
+        <div>
+          <ColumnHeader title="Oportunidades" href="/dashboard/scanner" cta="Ver scanner" />
+          {topOpportunities.length === 0 && <p className="py-3 border-t border-bg-border text-sm font-sans text-ink-secondary">Cargando radar…</p>}
+          {topOpportunities.map((asset) => (
+            <Link
+              key={asset.symbol}
+              href={`/dashboard/stock/${asset.symbol}`}
+              className="grid grid-cols-[76px_minmax(0,1fr)_40px] items-center gap-3.5 py-3 border-t border-bg-border hover:bg-bg-card/60 transition-colors"
+            >
+              <span className="text-sm font-mono font-semibold text-ink-primary">{asset.symbol}</span>
+              <span className="flex items-center gap-2 min-w-0">
+                <BiasBadge bias={asset.bias} size="sm" />
+                <RatingBadge rating={asset.rating} />
+              </span>
+              <span className="text-base font-mono text-ink-primary text-right tabular-nums">{asset.totalScore}</span>
+            </Link>
+          ))}
+        </div>
+
+        <div>
+          <ColumnHeader title="Estado del mercado" href="/dashboard/pulse" cta="Ver todo" />
+          {!strongest && !topMover && <p className="py-3 border-t border-bg-border text-sm font-sans text-ink-secondary">Cargando…</p>}
+          {strongest && (
+            <StateRow label="Sector fuerte" value={`${strongest.sector} (${strongest.score})`} tone="up" />
+          )}
+          {weakest && <StateRow label="Sector débil" value={`${weakest.sector} (${weakest.score})`} tone="down" />}
+          {topMover && (
+            <StateRow
+              label="Mejor RS (90D)"
+              value={`${topMover.symbol} ${topMover.change90d != null ? `${topMover.change90d >= 0 ? '+' : ''}${topMover.change90d.toFixed(1)}%` : '—'}`}
+              tone="up"
+            />
+          )}
+          {worstDrawdown && (
+            <StateRow
+              label="Mayor drawdown"
+              value={`${worstDrawdown.symbol} ${worstDrawdown.maxDrawdownPct != null ? `${worstDrawdown.maxDrawdownPct.toFixed(1)}%` : '—'}`}
+              tone="down"
+            />
+          )}
+        </div>
+
+        <div>
+          <ColumnHeader title="Agenda" href="/dashboard/pulse" cta="Calendario" />
+          {upcomingEvents.length === 0 && <p className="py-3 border-t border-bg-border text-sm font-sans text-ink-secondary">Sin eventos próximos.</p>}
+          {upcomingEvents.map((ev) => {
+            const d = new Date(ev.datetime)
+            return (
+              <div key={ev.id} className="grid grid-cols-[52px_minmax(0,1fr)] gap-3 py-3 border-t border-bg-border">
+                <span className="text-xs font-mono text-ink-secondary tabular-nums">
+                  {d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', IMPACT_DOT[ev.impact])} />
+                  <span className="text-[13px] font-sans text-ink-primary truncate">{ev.title}</span>
+                  <span className="text-[11px] font-mono text-ink-secondary shrink-0">{ev.currency}</span>
+                </span>
+              </div>
             )
           })}
         </div>
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Scanner opportunities */}
-        <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Scanner Opportunities</p>
-            <Link href="/dashboard/scanner" className="text-[10px] font-mono text-oracle hover:underline uppercase">View all →</Link>
-          </div>
-          <div className="space-y-2">
-            {topOpportunities.length === 0 && <p className="text-xs font-mono text-ink-dim">Cargando radar...</p>}
-            {topOpportunities.map((asset) => (
-              <div key={asset.symbol} className="flex items-center justify-between px-3 py-2 rounded-lg border border-bg-border bg-bg-elevated/20">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono font-bold text-ink-primary">{asset.symbol}</span>
-                  <BiasBadge bias={asset.bias} size="sm" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <RatingBadge rating={asset.rating} />
-                  <span className="text-xs font-mono font-bold text-ink-primary tabular-nums w-8 text-right">{asset.totalScore}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* AI brief + trade audit */}
+      <section className={clsx('grid grid-cols-1 gap-5', trades.length === 0 && 'md:grid-cols-2')}>
+        <div className="rounded-xl border border-bg-border px-[22px] py-5 space-y-2">
+          <Eyebrow className="text-oracle">Brief de IA</Eyebrow>
+          {briefLoading && <p className="text-sm font-sans text-ink-secondary">Generando resumen…</p>}
+          {!briefLoading && brief && <p className="text-[15px] font-sans leading-relaxed text-ink-primary text-pretty">{brief}</p>}
+          {!briefLoading && !brief && (
+            <>
+              <p className="text-sm font-sans text-ink-primary">
+                {briefMissingKey ? 'Desactivado — falta la clave de Anthropic.' : 'Sin resumen disponible todavía.'}
+              </p>
+              <p className="text-xs font-sans text-ink-secondary">
+                {briefMissingKey ? 'Añade ANTHROPIC_API_KEY en las variables de entorno para recibir el resumen diario.' : briefError ?? 'Esperando datos suficientes.'}
+              </p>
+            </>
+          )}
         </div>
 
-        {/* Market State summary */}
-        <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
+        <div className="rounded-xl border border-bg-border px-[22px] py-5 space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Market State</p>
-            <Link href="/dashboard/pulse" className="text-[10px] font-mono text-oracle hover:underline uppercase">View full →</Link>
-          </div>
-          <div className="space-y-2">
-            {strongest && weakest ? (
-              <>
-                <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-bg-border bg-bg-elevated/20">
-                  <span className="text-[10px] font-mono text-ink-dim uppercase">Sector fuerte</span>
-                  <span className="text-xs font-mono font-bold text-atlas">{strongest.sector} ({strongest.score})</span>
-                </div>
-                <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-bg-border bg-bg-elevated/20">
-                  <span className="text-[10px] font-mono text-ink-dim uppercase">Sector débil</span>
-                  <span className="text-xs font-mono font-bold text-bear">{weakest.sector} ({weakest.score})</span>
-                </div>
-              </>
-            ) : (
-              <p className="text-xs font-mono text-ink-dim">Cargando sectores...</p>
-            )}
-            {topMover && (
-              <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-bg-border bg-bg-elevated/20">
-                <span className="text-[10px] font-mono text-ink-dim uppercase">Mejor RS (90d)</span>
-                <span className="text-xs font-mono font-bold text-atlas">
-                  {topMover.symbol} {topMover.change90d !== null ? `${topMover.change90d >= 0 ? '+' : ''}${topMover.change90d.toFixed(1)}%` : '—'}
-                </span>
-              </div>
-            )}
-            {worstDrawdown && (
-              <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-bg-border bg-bg-elevated/20">
-                <span className="text-[10px] font-mono text-ink-dim uppercase">Mayor drawdown</span>
-                <span className="text-xs font-mono font-bold text-bear">
-                  {worstDrawdown.symbol} {worstDrawdown.maxDrawdownPct !== null ? `${worstDrawdown.maxDrawdownPct.toFixed(1)}%` : '—'}
-                </span>
-              </div>
+            <Eyebrow>Trade audit</Eyebrow>
+            {trades.length > 0 && (
+              <Link href="/dashboard/tools" className="text-xs font-sans text-pulse hover:text-pulse/80">Abrir →</Link>
             )}
           </div>
-        </div>
-
-        {/* Economic calendar */}
-        <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Economic Calendar</p>
-            <Link href="/dashboard/pulse" className="text-[10px] font-mono text-oracle hover:underline uppercase">View full calendar →</Link>
-          </div>
-          <div className="space-y-1.5">
-            {upcomingEvents.length === 0 && <p className="text-xs font-mono text-ink-dim">Sin eventos próximos.</p>}
-            {upcomingEvents.map((ev) => (
-              <div key={ev.id} className="flex items-center justify-between px-3 py-2 rounded-lg border border-bg-border bg-bg-elevated/20">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', IMPACT_DOT[ev.impact])} />
-                  <span className="text-[10px] font-mono text-ink-dim shrink-0">{ev.currency}</span>
-                  <span className="text-xs font-mono text-ink-secondary truncate">{ev.title}</span>
-                </div>
-                <span className="text-[10px] font-mono text-ink-dim shrink-0 ml-2">
-                  {new Date(ev.datetime).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Recent trade audit */}
-      <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Recent Trade Audit</p>
-          <Link href="/dashboard/tools" className="text-[10px] font-mono text-oracle hover:underline uppercase">Open trade audit →</Link>
-        </div>
-        {trades.length === 0 ? (
-          <p className="text-xs font-mono text-ink-dim">Aún no hay operaciones registradas.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs font-mono">
-              <thead>
-                <tr className="text-[9px] text-ink-dim uppercase tracking-wider border-b border-bg-border">
-                  <th className="text-left py-2">Time</th>
-                  <th className="text-left py-2">Symbol</th>
-                  <th className="text-left py-2">Side</th>
-                  <th className="text-right py-2">Result</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trades.map((trade) => (
-                  <tr key={trade.id} className="border-b border-bg-border/50">
-                    <td className="py-2 text-ink-dim">{new Date(trade.createdAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</td>
-                    <td className="py-2 text-ink-primary font-bold">{trade.symbol}</td>
-                    <td className="py-2 text-ink-secondary">{trade.side}</td>
-                    <td className={clsx('py-2 text-right font-bold', trade.profit >= 0 ? 'text-atlas' : 'text-bear')}>
-                      {trade.result === 'OPEN' ? 'Open' : `${trade.profit >= 0 ? '+' : ''}$${trade.profit.toFixed(0)}`}
-                    </td>
+          {trades.length === 0 ? (
+            <>
+              <p className="text-sm font-sans text-ink-primary">Aún no hay operaciones registradas.</p>
+              <Link href="/dashboard/tools" className="text-xs font-sans text-pulse hover:text-pulse/80">Registrar primera operación →</Link>
+            </>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm font-mono tabular-nums">
+                <thead>
+                  <tr className="text-xs font-sans text-ink-secondary border-b border-bg-border">
+                    <th className="text-left font-normal py-2.5">Hora</th>
+                    <th className="text-left font-normal py-2.5">Símbolo</th>
+                    <th className="text-left font-normal py-2.5">Lado</th>
+                    <th className="text-right font-normal py-2.5">Resultado</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                </thead>
+                <tbody>
+                  {trades.map((trade) => (
+                    <tr key={trade.id} className="border-b border-bg-border/50">
+                      <td className="py-2.5 text-ink-secondary">{new Date(trade.createdAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</td>
+                      <td className="py-2.5 text-ink-primary font-semibold">{trade.symbol}</td>
+                      <td className="py-2.5 text-ink-secondary">{trade.side}</td>
+                      <td className={clsx('py-2.5 text-right', trade.profit >= 0 ? 'text-atlas' : 'text-bear')}>
+                        {trade.result === 'OPEN' ? 'Abierta' : `${trade.profit >= 0 ? '+' : ''}$${trade.profit.toFixed(0)}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function StateRow({ label, value, tone }: { label: string; value: string; tone: 'up' | 'down' }) {
+  return (
+    <div className="py-2.5 border-t border-bg-border space-y-0.5">
+      <p className="text-xs font-sans text-ink-secondary">{label}</p>
+      <p className={clsx('text-sm font-mono', tone === 'up' ? 'text-atlas' : 'text-bear')}>{value}</p>
     </div>
   )
 }

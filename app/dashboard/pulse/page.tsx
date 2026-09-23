@@ -2,32 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { clsx } from 'clsx'
-import { NumberedSection } from '@/components/ui/NumberedSection'
-import { GaugeMeter } from '@/components/ui/GaugeMeter'
-import { Sparkline } from '@/components/ui/Sparkline'
-import { MultiLineChart, type ChartSeries } from '@/components/pulse/MultiLineChart'
-import { EconomicCalendar, type DayPnl } from '@/components/pulse/EconomicCalendar'
-import type { SectorStrength, EconomicEvent, RadarAsset } from '@/lib/oracle/types'
-import type { RelativeStrengthResult } from '@/lib/market-relative-strength'
 import { riskRegimeFromVix, computeAggregateBias } from '@/lib/oracle/risk-regime'
+import type { RadarAsset, SectorStrength, EconomicEvent, EventImpact } from '@/lib/oracle/types'
+import type { RelativeStrengthResult } from '@/lib/market-relative-strength'
+import { EconomicCalendar, type DayPnl } from '@/components/pulse/EconomicCalendar'
 
 interface OracleStateResponse {
   success: boolean
-  data?: {
-    sectorStrength: SectorStrength[]
-    calendar: EconomicEvent[]
-    radar: RadarAsset[]
-  }
+  data?: { radar: RadarAsset[]; sectorStrength: SectorStrength[]; calendar: EconomicEvent[] }
 }
-
-interface JournalTrade {
-  createdAt: string
-  profit: number
-  commission: number
-  swap: number
-  result: string
-}
-
 interface QuoteItem {
   symbol: string
   price: number | null
@@ -35,133 +18,166 @@ interface QuoteItem {
   high: number | null
   low: number | null
 }
-
+interface JournalTrade {
+  createdAt: string
+  profit: number
+  commission: number
+  swap: number
+  result: string
+}
 interface QuoteResponse {
   quotes: QuoteItem[]
 }
-
-interface HistoryResponseItem {
+interface HistoryPoint {
   close: number
 }
-
 interface RelativeStrengthResponse {
   success: boolean
   data?: RelativeStrengthResult
 }
-
 interface PulseBriefResponse {
   success: boolean
   data?: { brief: string }
   error?: string
 }
 
-const INSTRUMENTS = [
-  { symbol: 'SPX500', label: 'S&P 500' },
-  { symbol: 'NAS100', label: 'Nasdaq 100' },
-  { symbol: 'US30', label: 'Dow Jones' },
-  { symbol: 'USOIL', label: 'WTI Crude' },
-  { symbol: 'XAUUSD', label: 'Oro' },
-  { symbol: 'BTCUSD', label: 'Bitcoin' },
-]
-
+const INSTRUMENTS = ['SPX500', 'NAS100', 'US30', 'USOIL', 'XAUUSD', 'BTCUSD']
+const LABELS: Record<string, string> = { SPX500: 'S&P 500', NAS100: 'Nasdaq 100', US30: 'Dow Jones', USOIL: 'WTI Crude', XAUUSD: 'Oro', BTCUSD: 'Bitcoin' }
 const RS_BASE = 'XAUUSD'
 const RS_SYMBOLS = ['SPX500', 'NAS100', 'US30', 'BTCUSD', 'USOIL']
-const RS_COLORS: Record<string, string> = {
+const SERIES_COLOR: Record<string, string> = {
   SPX500: '#7C3AED',
-  NAS100: '#E8B44C',
+  NAS100: '#F5B83D',
   US30: '#10B981',
   BTCUSD: '#F97316',
   USOIL: '#EF4444',
+  XAUUSD: '#FFD166',
+}
+const UP = '#10B981'
+const DOWN = '#EF4444'
+const IMPACT_DOT: Record<EventImpact, string> = { high: 'bg-bear', medium: 'bg-pulse', low: 'bg-oracle' }
+
+const RS_W = 740
+const RS_H = 250
+const DD_W = 200
+const DD_H = 64
+const DD_FLOOR = -40
+
+function linePath(values: number[], w: number, h: number, lo: number, hi: number, pad = 2) {
+  if (values.length < 2) return ''
+  return values
+    .map((v, i) => `${i ? 'L' : 'M'}${((i / (values.length - 1)) * w).toFixed(1)},${(pad + (1 - (v - lo) / (hi - lo || 1)) * (h - pad * 2)).toFixed(1)}`)
+    .join('')
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value))
+function fmtPct(v: number | null | undefined, digits = 1) {
+  if (v == null || !Number.isFinite(v)) return '—'
+  return `${v > 0 ? '+' : ''}${v.toFixed(digits)}%`
 }
 
-function fmtPct(value: number | null): string {
-  if (value === null) return '—'
-  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
+function fmtPrice(symbol: string, v: number | null | undefined) {
+  if (v == null) return '—'
+  const d = symbol === 'BTCUSD' ? 0 : 2
+  return v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
+}
+
+function heat(v: number | null | undefined, max: number): React.CSSProperties {
+  if (v == null || !Number.isFinite(v)) return { background: '#161310', color: '#7A6F5C' }
+  const a = 0.12 + Math.min(Math.abs(v) / max, 1) * 0.6
+  return { background: v >= 0 ? `rgba(16,185,129,${a.toFixed(2)})` : `rgba(239,68,68,${a.toFixed(2)})`, color: '#F3EFE7' }
+}
+
+function intensityWord(avg: number) {
+  if (avg >= 65) return 'fuerte'
+  if (avg >= 45) return 'moderado'
+  return 'débil'
+}
+
+function Eyebrow({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+  return (
+    <div className="flex justify-between items-baseline gap-4">
+      <p className="text-[11px] font-mono uppercase tracking-[0.16em] text-ink-secondary">{children}</p>
+      {right && <p className="text-[11px] font-mono text-ink-muted">{right}</p>}
+    </div>
+  )
+}
+
+function Sparkline({ values, up }: { values: number[]; up: boolean }) {
+  if (values.length < 2) return <div className="h-9" />
+  const lo = Math.min(...values)
+  const hi = Math.max(...values)
+  const d = linePath(values, 180, 36, lo, hi)
+  return (
+    <svg viewBox="0 0 180 36" preserveAspectRatio="none" className="block w-full h-9" aria-hidden>
+      <path d={`${d}L180,36L0,36Z`} fill={up ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.1)'} />
+      <path d={d} fill="none" stroke={up ? UP : DOWN} strokeWidth={1.4} vectorEffect="non-scaling-stroke" />
+    </svg>
+  )
 }
 
 export default function PulsePage() {
+  const [radar, setRadar] = useState<RadarAsset[]>([])
   const [sectorStrength, setSectorStrength] = useState<SectorStrength[]>([])
   const [calendar, setCalendar] = useState<EconomicEvent[]>([])
-  const [radar, setRadar] = useState<RadarAsset[]>([])
   const [trades, setTrades] = useState<JournalTrade[]>([])
   const [quotes, setQuotes] = useState<Record<string, QuoteItem>>({})
-  const [sparklines, setSparklines] = useState<Record<string, number[]>>({})
-  const [rsResult, setRsResult] = useState<RelativeStrengthResult | null>(null)
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+  const [histories, setHistories] = useState<Record<string, number[]>>({})
+  const [rs, setRs] = useState<RelativeStrengthResult | null>(null)
   const [brief, setBrief] = useState<string | null>(null)
   const [briefError, setBriefError] = useState<string | null>(null)
-  const [briefLoading, setBriefLoading] = useState(false)
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [agendaView, setAgendaView] = useState<'week' | 'month'>('week')
 
   useEffect(() => {
     let mounted = true
-    const fetchData = async () => {
+    const load = async () => {
       try {
-        const instrumentSymbols = INSTRUMENTS.map((i) => i.symbol).join(',')
-        const [statePayload, quotePayload, tradesPayload, ...sparklinePayloads] = await Promise.all([
+        const [statePayload, quotePayload, tradesPayload, ...historyPayloads] = await Promise.all([
           fetch('/api/oracle/state').then((r) => r.json() as Promise<OracleStateResponse>),
-          fetch(`/api/market/quote?symbols=VIX,${instrumentSymbols}`).then((r) => r.json() as Promise<QuoteResponse>),
-          fetch('/api/journal/trades').then((r) => r.json()),
-          ...INSTRUMENTS.map((i) =>
-            fetch(`/api/market/history?symbol=${i.symbol}&interval=1h&outputsize=48`).then((r) => r.json() as Promise<HistoryResponseItem[]>),
+          fetch(`/api/market/quote?symbols=VIX,${INSTRUMENTS.join(',')}`).then((r) => r.json() as Promise<QuoteResponse>),
+          fetch('/api/journal/trades').then((r) => r.json()).catch(() => ({ data: [] })),
+          ...INSTRUMENTS.map((s) =>
+            fetch(`/api/market/history?symbol=${s}&interval=1h&outputsize=48`).then((r) => r.json() as Promise<HistoryPoint[]>).catch(() => []),
           ),
         ])
         if (!mounted) return
-
+        setRadar(statePayload?.data?.radar ?? [])
         setSectorStrength(statePayload?.data?.sectorStrength ?? [])
         setCalendar(statePayload?.data?.calendar ?? [])
-        setRadar(statePayload?.data?.radar ?? [])
         setTrades((tradesPayload?.data ?? []) as JournalTrade[])
-
-        const quoteMap: Record<string, QuoteItem> = {}
-        for (const item of quotePayload?.quotes ?? []) quoteMap[item.symbol] = item
-        setQuotes(quoteMap)
-
-        const sparkMap: Record<string, number[]> = {}
-        INSTRUMENTS.forEach((instrument, idx) => {
-          const history = sparklinePayloads[idx]
-          sparkMap[instrument.symbol] = (Array.isArray(history) ? history : [])
-            .map((c) => c.close)
-            .filter((v): v is number => Number.isFinite(v))
+        const qMap: Record<string, QuoteItem> = {}
+        for (const q of quotePayload?.quotes ?? []) qMap[q.symbol] = q
+        setQuotes(qMap)
+        const hMap: Record<string, number[]> = {}
+        INSTRUMENTS.forEach((s, i) => {
+          const rows = Array.isArray(historyPayloads[i]) ? historyPayloads[i] : []
+          hMap[s] = rows.map((c) => c.close).filter((v): v is number => Number.isFinite(v))
         })
-        setSparklines(sparkMap)
-
-        setLastUpdated(new Date().toISOString())
+        setHistories(hMap)
+        setUpdatedAt(new Date())
       } catch {
-        if (!mounted) return
+        // keep last good state
       }
     }
-
-    fetchData()
-    const timer = setInterval(fetchData, 60_000)
+    load()
+    const timer = setInterval(load, 60_000)
     return () => {
       mounted = false
       clearInterval(timer)
     }
   }, [])
 
-  // Relative strength / drawdown — daily history, fetched once (server-cached 5min)
   useEffect(() => {
     let mounted = true
     fetch(`/api/market/relative-strength?symbols=${RS_SYMBOLS.join(',')}&base=${RS_BASE}`)
       .then((r) => r.json() as Promise<RelativeStrengthResponse>)
-      .then((payload) => {
-        if (!mounted) return
-        if (payload.success && payload.data) setRsResult(payload.data)
-      })
+      .then((p) => mounted && p.success && p.data && setRs(p.data))
       .catch(() => {})
     return () => {
       mounted = false
     }
   }, [])
-
-  const strongest = sectorStrength[0] ?? null
-  const weakest = sectorStrength[sectorStrength.length - 1] ?? null
-  const vix = quotes.VIX?.price ?? null
-  const riskRegime = riskRegimeFromVix(vix)
 
   const dailyPnl: DayPnl[] = useMemo(() => {
     const byDay = new Map<string, { pnl: number; trades: number }>()
@@ -176,43 +192,14 @@ export default function PulsePage() {
     return [...byDay.entries()].map(([date, v]) => ({ date, pnl: v.pnl, trades: v.trades }))
   }, [trades])
 
-  // ── 01 Bias agregado — derivado del motor de scoring real (radar), no de order flow ──
+  const vix = quotes.VIX?.price ?? null
+  const regime = riskRegimeFromVix(vix)
   const biasAgg = useMemo(() => computeAggregateBias(radar), [radar])
+  const biasBySymbol = useMemo(() => Object.fromEntries(radar.map((a) => [a.symbol, a.bias])), [radar])
 
-  // ── 05/06 Relative strength & drawdown chart series ──
-  const rsChartSeries: ChartSeries[] = useMemo(() => {
-    if (!rsResult) return []
-    return rsResult.relativeStrength.map((row) => ({
-      symbol: row.symbol,
-      color: RS_COLORS[row.symbol] ?? '#94A3B8',
-      points: row.series,
-    }))
-  }, [rsResult])
-
-  const drawdownChartSeries: ChartSeries[] = useMemo(() => {
-    if (!rsResult) return []
-    return rsResult.drawdown.map((row) => ({
-      symbol: row.symbol,
-      color: RS_COLORS[row.symbol] ?? '#94A3B8',
-      points: row.series,
-    }))
-  }, [rsResult])
-
-  const rsTopRanked = useMemo(
-    () => (rsResult ? [...rsResult.relativeStrength].sort((a, b) => (b.change90d ?? -999) - (a.change90d ?? -999)) : []),
-    [rsResult],
-  )
-
-  const drawdownWorst = useMemo(
-    () => (rsResult ? [...rsResult.drawdown].sort((a, b) => (a.maxDrawdownPct ?? 0) - (b.maxDrawdownPct ?? 0)) : []),
-    [rsResult],
-  )
-
-  // ── 07 AI live summary — real Claude call over the real computed metrics above ──
   useEffect(() => {
-    if (!biasAgg || !rsResult || sectorStrength.length === 0) return
+    if (!biasAgg) return
     let mounted = true
-    setBriefLoading(true)
     fetch('/api/market/pulse-brief', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -222,255 +209,421 @@ export default function PulsePage() {
         bullishCount: biasAgg.bullish,
         bearishCount: biasAgg.bearish,
         neutralCount: biasAgg.neutral,
-        vixLabel: riskRegime.label,
+        vixLabel: regime.label,
         vix,
-        strongestSector: strongest?.sector ?? null,
-        weakestSector: weakest?.sector ?? null,
-        relativeStrengthTop: rsTopRanked.slice(0, 2).map((r) => ({ symbol: r.symbol, change90d: r.change90d })),
-        drawdownWorst: drawdownWorst.slice(0, 2).map((d) => ({ symbol: d.symbol, maxDrawdownPct: d.maxDrawdownPct })),
+        strongestSector: sectorStrength[0]?.sector ?? null,
+        weakestSector: sectorStrength[sectorStrength.length - 1]?.sector ?? null,
+        relativeStrengthTop: [],
+        drawdownWorst: [],
       }),
     })
       .then((r) => r.json() as Promise<PulseBriefResponse>)
-      .then((payload) => {
+      .then((p) => {
         if (!mounted) return
-        if (payload.success && payload.data) {
-          setBrief(payload.data.brief)
+        if (p.success && p.data) {
+          setBrief(p.data.brief)
           setBriefError(null)
         } else {
           setBrief(null)
-          setBriefError(payload.error ?? 'Resumen de IA no disponible')
+          setBriefError(p.error ?? null)
         }
       })
-      .catch(() => {
-        if (!mounted) return
-        setBrief(null)
-        setBriefError('Resumen de IA no disponible')
-      })
-      .finally(() => {
-        if (mounted) setBriefLoading(false)
-      })
+      .catch(() => mounted && setBrief(null))
     return () => {
       mounted = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [biasAgg, rsResult, sectorStrength.length])
+  }, [biasAgg, vix])
+
+  // ── Relative strength chart geometry ──
+  const rsRows = rs?.relativeStrength ?? []
+  const rsChart = useMemo(() => {
+    const series = rsRows
+      .map((row) => ({ symbol: row.symbol, values: (row.series ?? []).map((p) => p.value).filter(Number.isFinite) }))
+      .filter((s) => s.values.length > 1)
+    if (series.length === 0) return null
+    const all = series.flatMap((s) => s.values)
+    const lo = Math.min(...all, 100) - 2
+    const hi = Math.max(...all, 100) + 2
+    const y = (v: number) => 2 + (1 - (v - lo) / (hi - lo)) * (RS_H - 4)
+    const ends = series.map((s) => ({ symbol: s.symbol, y: y(s.values[s.values.length - 1]) })).sort((a, b) => a.y - b.y)
+    for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 16) ends[k].y = ends[k - 1].y + 16
+    return {
+      baseY: y(100),
+      lines: series.map((s) => ({
+        symbol: s.symbol,
+        d: linePath(s.values, RS_W, RS_H, lo, hi),
+        labelY: ends.find((e) => e.symbol === s.symbol)!.y,
+      })),
+    }
+  }, [rsRows])
+
+  const rsBySymbol = useMemo(() => Object.fromEntries(rsRows.map((r) => [r.symbol, r])), [rsRows])
+  const ddRows = rs?.drawdown ?? []
+  const ddBySymbol = useMemo(() => Object.fromEntries(ddRows.map((r) => [r.symbol, r])), [ddRows])
+  const rsSorted = useMemo(() => [...rsRows].sort((a, b) => (b.change90d ?? -999) - (a.change90d ?? -999)), [rsRows])
+  const ddSorted = useMemo(() => [...ddRows].sort((a, b) => (a.maxDrawdownPct ?? 0) - (b.maxDrawdownPct ?? 0)), [ddRows])
+
+  const highlight = selected && rsBySymbol[selected] ? selected : null
+
+  // ── Agenda (next 7 days) ──
+  const agenda = useMemo(() => {
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)
+    return Array.from({ length: 7 }, (_, k) => {
+      const day = new Date(start)
+      day.setDate(start.getDate() + k)
+      const key = day.toDateString()
+      const items = calendar
+        .filter((e) => new Date(e.datetime).toDateString() === key)
+        .sort((a, b) => a.datetime.localeCompare(b.datetime))
+      return { day, items, isToday: k === 0 }
+    }).filter((g) => g.isToday || g.items.length > 0)
+  }, [calendar])
+
+  const biasPct = Math.max(0, Math.min(100, biasAgg?.avgScore ?? 50))
+  const vixPos = vix != null ? Math.max(0, Math.min(100, ((vix - 10) / 30) * 100)) : null
+  const briefMissingKey = briefError?.includes('ANTHROPIC_API_KEY')
 
   return (
-    <div className="space-y-6 animate-fade-in pb-20">
-      <div className="flex items-center justify-between border border-bg-border bg-bg-card rounded-xl px-5 py-3 flex-wrap gap-2">
-        <div className="flex items-center gap-4">
-          <span className="font-mono font-bold text-ink-primary text-xs tracking-wider">PULSE · Live Regime</span>
-          <span className="text-ink-secondary text-xs font-mono">
-            {lastUpdated ? `Actualizado ${new Date(lastUpdated).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}` : 'Inicializando feed'}
-          </span>
+    <div className="space-y-10 animate-fade-in pb-20 max-w-[1280px]">
+      {/* Headline + bias */}
+      <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-8 xl:gap-12 items-end">
+        <div className="space-y-3.5">
+          <p className="text-[11px] font-mono uppercase tracking-[0.16em] text-pulse">
+            Pulse · Estado del mercado
+            {updatedAt && ` · ${updatedAt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`}
+          </p>
+          <h1 className="text-3xl md:text-[42px] font-sans font-medium leading-[1.15] tracking-tight text-ink-primary text-pretty">
+            <span className={regime.color}>{regime.label}</span>
+            {biasAgg && (biasAgg.label === 'Mixto' ? ' con sesgo mixto. ' : ` con sesgo ${biasAgg.label.toLowerCase()} ${intensityWord(biasAgg.avgScore)}. `)}
+            <span className="text-ink-secondary">
+              {biasAgg && `${biasAgg.bullish} de ${biasAgg.bullish + biasAgg.bearish + biasAgg.neutral} activos al alza`}
+              {vix != null && `, VIX en ${vix.toFixed(1)}`}.
+            </span>
+          </h1>
+          {brief ? (
+            <p className="text-[15px] font-sans leading-relaxed text-ink-primary/85 max-w-3xl text-pretty">{brief}</p>
+          ) : (
+            <p className="flex items-center gap-2 text-[13px] font-sans text-ink-secondary">
+              <span className="text-[10px] font-mono tracking-[0.12em] text-oracle border border-oracle/35 px-1.5 py-0.5 rounded-[3px]">IA</span>
+              {briefMissingKey ? 'Resumen en vivo desactivado — falta ANTHROPIC_API_KEY.' : 'Resumen en vivo no disponible todavía.'}
+            </p>
+          )}
         </div>
-        <div className={`text-xs font-bold font-mono ${riskRegime.color}`}>{riskRegime.label} ({riskRegime.score})</div>
-      </div>
-
-      {/* 07 — AI live summary */}
-      <div className="rounded-xl border border-oracle/30 bg-bg-card p-5 border-l-4 border-l-oracle space-y-2">
-        <NumberedSection number="07" title="Resumen en vivo · generado por IA" accent="oracle" />
-        {briefLoading && <p className="text-sm font-mono text-ink-dim">Generando resumen...</p>}
-        {!briefLoading && brief && <p className="text-sm font-mono text-ink-primary leading-relaxed">{brief}</p>}
-        {!briefLoading && !brief && <p className="text-xs font-mono text-ink-dim">{briefError ?? 'Esperando datos suficientes para generar el resumen.'}</p>}
-      </div>
-
-      {/* 01 — Bias agregado */}
-      <div className="rounded-xl border border-bg-border bg-bg-card p-5">
-        <NumberedSection
-          number="01"
-          title="Bias agregado"
-          subtitle="Derivado del motor de scoring (macro + técnico + timing) — no de order flow"
-          accent="pulse"
-          className="mb-4"
-        />
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-center">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <span className={clsx(
-                'text-2xl font-mono font-bold',
-                biasAgg ? (biasAgg.label === 'Alcista' ? 'text-atlas' : biasAgg.label === 'Bajista' ? 'text-bear' : 'text-pulse') : 'text-ink-dim',
-              )}>
-                {biasAgg ? (biasAgg.label === 'Alcista' ? '↑ Alcista' : biasAgg.label === 'Bajista' ? '↓ Bajista' : '→ Mixto') : 'Cargando...'}
-              </span>
-              {biasAgg && (
-                <span className={clsx(
-                  'text-[10px] font-mono uppercase px-2 py-0.5 rounded-full border',
-                  biasAgg.aligned ? 'text-atlas border-atlas/30 bg-atlas/10' : 'text-pulse border-pulse/30 bg-pulse/10',
-                )}>
-                  {biasAgg.aligned ? 'Alineado' : 'Mixto'}
-                </span>
-              )}
-            </div>
-            {biasAgg && (
-              <div className="flex items-center gap-4 text-xs font-mono">
-                <span className="text-atlas font-bold">{biasAgg.bullish} alcistas</span>
-                <span className="text-bear font-bold">{biasAgg.bearish} bajistas</span>
-                <span className="text-ink-secondary font-bold">{biasAgg.neutral} neutrales</span>
-              </div>
-            )}
-            <p className="text-[10px] font-mono text-ink-dim">de {radar.length} activos analizados por el radar del Scanner</p>
+        <div className="rounded-xl border border-bg-border bg-bg-card px-6 py-5 space-y-3.5">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[13px] font-sans text-ink-secondary">Bias agregado</span>
+            <span className="text-[28px] font-mono text-ink-primary tabular-nums">{biasAgg ? biasAgg.avgScore.toFixed(1) : '—'}</span>
           </div>
-          <GaugeMeter value={biasAgg?.avgScore ?? 0} />
+          <div className="relative h-2 rounded bg-gradient-to-r from-bear via-ink-muted to-atlas">
+            <div className="absolute -top-[5px] h-[18px] w-[3px] rounded-sm bg-ink-primary -translate-x-1/2 transition-all" style={{ left: `${biasPct}%` }} />
+          </div>
+          <div className="flex justify-between text-[11px] font-mono text-ink-secondary">
+            <span>Débil</span><span>Moderado</span><span>Fuerte</span>
+          </div>
+          {biasAgg && (
+            <div className="flex gap-[18px] pt-2.5 border-t border-bg-border text-xs font-mono">
+              <span className="text-atlas">{biasAgg.bullish} alcistas</span>
+              <span className="text-bear">{biasAgg.bearish} bajistas</span>
+              <span className="text-ink-secondary">{biasAgg.neutral} neutrales</span>
+            </div>
+          )}
         </div>
-      </div>
+      </section>
 
-      {/* 02 — Instrumentos */}
-      <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-4">
-        <NumberedSection number="02" title="Instrumentos" subtitle="Precio en vivo · posición en el rango del día" accent="pulse" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {INSTRUMENTS.map((instrument) => {
-            const q = quotes[instrument.symbol]
-            const up = (q?.changePct ?? 0) >= 0
-            const rangePct = q?.high !== null && q?.high !== undefined && q?.low !== null && q?.low !== undefined && q.high > q.low && q?.price !== null && q?.price !== undefined
-              ? clamp(((q.price - q.low) / (q.high - q.low)) * 100, 0, 100)
-              : null
-            return (
-              <div key={instrument.symbol} className="rounded-lg border border-bg-border bg-bg-elevated/20 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-mono font-bold text-ink-primary">{instrument.symbol}</p>
-                    <p className="text-[9px] font-mono text-ink-dim">{instrument.label}</p>
-                  </div>
-                  <span className={clsx('text-[9px] font-mono uppercase px-2 py-0.5 rounded-full border', up ? 'text-atlas border-atlas/30 bg-atlas/10' : 'text-bear border-bear/30 bg-bear/10')}>
-                    {up ? 'Alcista' : 'Bajista'}
-                  </span>
+      {/* Instruments strip */}
+      <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 rounded-xl border border-bg-border overflow-hidden gap-px bg-bg-border">
+        {INSTRUMENTS.map((symbol) => {
+          const q = quotes[symbol]
+          const hist = histories[symbol] ?? []
+          const up = hist.length > 1 ? hist[hist.length - 1] >= hist[0] : (q?.changePct ?? 0) >= 0
+          const range = q?.high != null && q?.low != null && q?.price != null && q.high > q.low ? ((q.price - q.low) / (q.high - q.low)) * 100 : null
+          return (
+            <div key={symbol} className="bg-bg-card px-[18px] py-4 space-y-2">
+              <div className="flex justify-between items-baseline font-mono text-xs">
+                <span className="font-semibold text-ink-primary">{symbol}</span>
+                <span className={clsx('tabular-nums', (q?.changePct ?? 0) >= 0 ? 'text-atlas' : 'text-bear')}>{fmtPct(q?.changePct, 2)}</span>
+              </div>
+              <p className="text-[19px] font-mono text-ink-primary tabular-nums">{fmtPrice(symbol, q?.price)}</p>
+              <Sparkline values={hist} up={up} />
+              <div className="space-y-1">
+                <div className="relative h-[3px] rounded-full bg-bg-border">
+                  {range != null && <div className="absolute -top-[3px] w-0.5 h-[9px] bg-ink-primary -translate-x-1/2" style={{ left: `${range}%` }} />}
                 </div>
-                <p className="text-lg font-mono font-bold text-ink-primary tabular-nums">
-                  {q?.price !== null && q?.price !== undefined ? q.price.toLocaleString('en-US', { maximumFractionDigits: instrument.symbol === 'BTCUSD' ? 0 : 2 }) : '—'}
-                  <span className={clsx('text-xs ml-2', up ? 'text-atlas' : 'text-bear')}>
-                    {q?.changePct !== null && q?.changePct !== undefined ? `${up ? '+' : ''}${q.changePct.toFixed(2)}%` : ''}
-                  </span>
-                </p>
-                <Sparkline values={sparklines[instrument.symbol] ?? []} up={up} />
-                {rangePct !== null && (
-                  <div className="space-y-1">
-                    <div className="w-full h-1.5 bg-bg-deep rounded-full overflow-hidden relative">
-                      <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-bear via-pulse to-atlas w-full opacity-30" />
-                      <div className="absolute h-full w-0.5 bg-ink-primary" style={{ left: `${rangePct}%` }} />
-                    </div>
-                    <div className="flex justify-between text-[8px] font-mono text-ink-dim">
-                      <span>Mín {q?.low?.toFixed(2) ?? '—'}</span>
-                      <span>Máx {q?.high?.toFixed(2) ?? '—'}</span>
-                    </div>
-                  </div>
-                )}
+                <p className="text-[9px] font-mono text-ink-muted">RANGO DEL DÍA</p>
+              </div>
+            </div>
+          )
+        })}
+      </section>
+
+      {/* Sectors + VIX */}
+      <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-10">
+        <div className="space-y-3">
+          <Eyebrow right="ETFs sectoriales · -100 a +100">Ranking sectorial</Eyebrow>
+          {sectorStrength.map((s, i) => {
+            const v = Math.max(-100, Math.min(100, s.score))
+            const up = v >= 0
+            return (
+              <div key={s.sector} className="grid grid-cols-[28px_170px_minmax(0,1fr)_44px] gap-3 items-center text-[13px]">
+                <span className="text-[11px] font-mono text-ink-muted">#{i + 1}</span>
+                <span className="font-sans text-ink-primary/80 truncate capitalize">{s.sector.toLowerCase()}</span>
+                <div className="relative h-2.5">
+                  <div className="absolute left-1/2 -top-[3px] -bottom-[3px] w-px bg-bg-border" />
+                  <div
+                    className={clsx('absolute top-0 h-2.5 rounded-sm', up ? 'bg-atlas' : 'bg-bear')}
+                    style={{ left: up ? '50%' : `${50 - Math.abs(v) / 2}%`, width: `${Math.abs(v) / 2}%` }}
+                  />
+                </div>
+                <span className={clsx('text-xs font-mono text-right tabular-nums', up ? 'text-atlas' : 'text-bear')}>{up ? '+' : ''}{v}</span>
               </div>
             )
           })}
         </div>
-      </div>
-
-      {/* Risk meter + Sector ranking */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="rounded-xl border border-bg-border bg-bg-card p-6 flex flex-col space-y-4">
-          <div className="flex items-center justify-between">
-            <NumberedSection number="03" title="Risk meter (VIX)" accent="pulse" />
-            <span className="text-[10px] font-mono text-ink-dim">Fuente: Yahoo Finance</span>
+        <div className="space-y-4">
+          <Eyebrow>Medidor de riesgo · VIX</Eyebrow>
+          <div className="flex items-baseline gap-3">
+            <span className="text-5xl font-mono leading-none text-ink-primary tabular-nums">{vix != null ? vix.toFixed(2) : '—'}</span>
+            <span className={clsx('text-sm font-sans', regime.color)}>{regime.label}</span>
           </div>
-          <div className="space-y-3">
-            <div className="w-full h-3 bg-bg-elevated rounded-full overflow-hidden">
-              <div className={`h-full ${riskRegime.score >= 70 ? 'bg-atlas' : riskRegime.score <= 35 ? 'bg-bear' : 'bg-oracle'}`} style={{ width: `${riskRegime.score}%` }} />
+          <div className="space-y-1.5">
+            <div className="relative grid grid-cols-[5fr_5fr_10fr_10fr] gap-0.5 h-2.5">
+              <div className="bg-atlas rounded-l-sm" />
+              <div className="bg-[#6fae7a]" />
+              <div className="bg-pulse" />
+              <div className="bg-bear rounded-r-sm" />
+              {vixPos != null && <div className="absolute -top-[5px] w-[3px] h-5 rounded-sm bg-ink-primary -translate-x-1/2" style={{ left: `${vixPos}%` }} />}
             </div>
-            <p className="text-xs font-mono text-ink-secondary">
-              VIX: <span className="text-ink-primary font-bold">{vix?.toFixed(2) ?? '--'}</span> · Régimen: <span className={riskRegime.color}>{riskRegime.label}</span>
-            </p>
+            <div className="grid grid-cols-[5fr_5fr_10fr_10fr] text-[10px] font-mono text-ink-secondary">
+              <span>10</span><span>15</span><span>20</span><span>30 →</span>
+            </div>
           </div>
+          <p className="text-[13px] font-sans leading-relaxed text-ink-secondary text-pretty">
+            Por debajo de 15 el entorno favorece activos de riesgo. Por encima de 20 el régimen pasa a cautela.
+          </p>
         </div>
+      </section>
 
-        <div className="rounded-xl border border-bg-border bg-bg-card p-6 space-y-4">
-          <NumberedSection number="04" title="Ranking sectorial" subtitle="Derivado de sector ETFs en tiempo real" accent="pulse" />
-          <div className="space-y-3 pt-1">
-            {sectorStrength.map((item, index) => {
-              const normalized = clamp(Math.round(((item.score + 100) / 200) * 100), 0, 100)
+      {/* Asset matrix (click to highlight in RS chart) */}
+      <section className="space-y-3.5">
+        <Eyebrow right="Clic en una fila para destacarla en el gráfico">Matriz de activos</Eyebrow>
+        <div className="overflow-x-auto">
+          <div className="min-w-[860px]">
+            <div className="grid grid-cols-[150px_110px_repeat(5,minmax(0,1fr))_90px] gap-1 pb-2 text-[10px] font-mono tracking-[0.1em] text-ink-muted">
+              <span className="pl-2">ACTIVO</span>
+              <span className="text-right pr-2.5">PRECIO</span>
+              <span className="text-center">HOY</span>
+              <span className="text-center">RS 20D</span>
+              <span className="text-center">RS 60D</span>
+              <span className="text-center">RS 90D</span>
+              <span className="text-center">DRAWDOWN</span>
+              <span className="text-right pr-2">BIAS</span>
+            </div>
+            {INSTRUMENTS.map((symbol) => {
+              const q = quotes[symbol]
+              const r = rsBySymbol[symbol]
+              const dd = ddBySymbol[symbol]
+              const isBase = symbol === RS_BASE
+              const bias = biasBySymbol[symbol]
+              const isSel = highlight === symbol
+              const dimmed = highlight != null && !isSel
               return (
-                <div key={item.sector} className="flex items-center gap-3 text-xs font-mono">
-                  <span className="text-ink-secondary font-bold w-4">#{index + 1}</span>
-                  <span className="text-ink-primary font-bold w-32 truncate">{item.sector}</span>
-                  <div className="flex-1 bg-bg-elevated h-2 rounded-full overflow-hidden">
-                    <div className={`h-full ${item.score >= 0 ? 'bg-atlas' : 'bg-bear'}`} style={{ width: `${normalized}%` }} />
-                  </div>
-                  <span className={`w-10 text-right font-bold ${item.score >= 0 ? 'text-atlas' : 'text-bear'}`}>{item.score}</span>
-                </div>
+                <button
+                  key={symbol}
+                  type="button"
+                  onClick={() => setSelected((cur) => (cur === symbol ? null : symbol))}
+                  aria-pressed={isSel}
+                  className={clsx(
+                    'w-full text-left grid grid-cols-[150px_110px_repeat(5,minmax(0,1fr))_90px] gap-1 items-center py-[3px] rounded-md transition-opacity',
+                    isSel && 'ring-1 ring-inset ring-pulse',
+                    dimmed ? 'opacity-70 hover:opacity-100' : 'opacity-100',
+                  )}
+                >
+                  <span className="flex items-center gap-2.5 pl-2 min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: SERIES_COLOR[symbol] }} />
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-mono font-semibold text-ink-primary">{symbol}</span>
+                      <span className="block text-[11px] font-sans text-ink-secondary truncate">{LABELS[symbol]}</span>
+                    </span>
+                  </span>
+                  <span className="text-[13px] font-mono text-right pr-2.5 tabular-nums text-ink-primary">{fmtPrice(symbol, q?.price)}</span>
+                  {[
+                    [q?.changePct, 0.5, fmtPct(q?.changePct, 2)],
+                    [r?.change20d, 20, isBase ? 'base' : fmtPct(r?.change20d)],
+                    [r?.change60d, 30, isBase ? 'base' : fmtPct(r?.change60d)],
+                    [r?.change90d, 15, isBase ? 'base' : fmtPct(r?.change90d)],
+                    [dd?.maxDrawdownPct, 40, dd?.maxDrawdownPct != null ? `${dd.maxDrawdownPct.toFixed(1)}%` : '—'],
+                  ].map(([v, max, txt], k) => (
+                    <span
+                      key={k}
+                      className="h-[38px] rounded flex items-center justify-center text-xs font-mono tabular-nums"
+                      style={heat(isBase && k > 0 && k < 4 ? null : (v as number | null | undefined), max as number)}
+                    >
+                      {txt as string}
+                    </span>
+                  ))}
+                  <span
+                    className={clsx(
+                      'text-xs font-sans text-right pr-2',
+                      bias === 'long' ? 'text-atlas' : bias === 'short' ? 'text-bear' : 'text-ink-secondary',
+                    )}
+                  >
+                    {bias === 'long' ? '▲ Alcista' : bias === 'short' ? '▼ Bajista' : bias ? '● Neutral' : '—'}
+                  </span>
+                </button>
               )
             })}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* 05 — Relative strength */}
-      <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-4">
-        <NumberedSection number="05" title="Relative strength" subtitle={`vs ${RS_BASE} (oro) · normalizado a 100`} accent="pulse" />
-        {rsChartSeries.length > 0 ? (
-          <>
-            <MultiLineChart series={rsChartSeries} />
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs font-mono">
-                <thead>
-                  <tr className="text-[9px] text-ink-dim uppercase tracking-wider border-b border-bg-border">
-                    <th className="text-left py-2">Símbolo</th>
-                    <th className="text-right py-2">20d</th>
-                    <th className="text-right py-2">60d</th>
-                    <th className="text-right py-2">90d</th>
-                    <th className="text-right py-2">Score</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rsTopRanked.map((row) => (
-                    <tr key={row.symbol} className="border-b border-bg-border/50">
-                      <td className="py-2 text-ink-primary font-bold" style={{ color: RS_COLORS[row.symbol] }}>{row.symbol}</td>
-                      <td className={clsx('py-2 text-right font-bold', (row.change20d ?? 0) >= 0 ? 'text-atlas' : 'text-bear')}>{fmtPct(row.change20d)}</td>
-                      <td className={clsx('py-2 text-right font-bold', (row.change60d ?? 0) >= 0 ? 'text-atlas' : 'text-bear')}>{fmtPct(row.change60d)}</td>
-                      <td className={clsx('py-2 text-right font-bold', (row.change90d ?? 0) >= 0 ? 'text-atlas' : 'text-bear')}>{fmtPct(row.change90d)}</td>
-                      <td className="py-2 text-right text-ink-primary font-bold">{row.score}/3</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {/* Relative strength */}
+      {rsChart && (
+        <section className="space-y-3.5">
+          <Eyebrow right="20D · 60D · 90D">Fuerza relativa vs oro · base 100 · 6 meses</Eyebrow>
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_330px] gap-7 items-start">
+            <div className="relative w-full aspect-[820/250]">
+              <svg viewBox={`0 0 ${RS_W + 80} ${RS_H}`} className="absolute inset-0 w-full h-full" aria-label="Fuerza relativa">
+                <line x1={0} y1={rsChart.baseY} x2={RS_W} y2={rsChart.baseY} stroke="#3A342A" strokeDasharray="3 4" />
+                {rsChart.lines.map((l) => {
+                  const on = !highlight || highlight === l.symbol
+                  return (
+                    <path
+                      key={l.symbol}
+                      d={l.d}
+                      fill="none"
+                      stroke={SERIES_COLOR[l.symbol] ?? '#B8AD98'}
+                      strokeOpacity={on ? 1 : 0.15}
+                      strokeWidth={highlight === l.symbol ? 2.6 : 1.6}
+                      className="transition-[stroke-opacity] duration-200"
+                    />
+                  )
+                })}
+                {rsChart.lines.map((l) => (
+                  <text
+                    key={`lbl-${l.symbol}`}
+                    x={RS_W + 8}
+                    y={l.labelY + 4}
+                    fontSize={11}
+                    fontWeight={600}
+                    fontFamily="IBM Plex Mono, monospace"
+                    fill={SERIES_COLOR[l.symbol] ?? '#B8AD98'}
+                    opacity={!highlight || highlight === l.symbol ? 1 : 0.35}
+                    className="cursor-pointer"
+                    onClick={() => setSelected((cur) => (cur === l.symbol ? null : l.symbol))}
+                  >
+                    {l.symbol}
+                  </text>
+                ))}
+              </svg>
             </div>
-          </>
-        ) : (
-          <p className="text-xs font-mono text-ink-dim">Cargando fuerza relativa...</p>
-        )}
-      </div>
+            <div>
+              <div className="grid grid-cols-[78px_repeat(3,minmax(0,1fr))_40px] gap-2 pb-2 text-[10px] font-mono text-ink-muted border-b border-bg-border">
+                <span />
+                <span className="text-right">20D</span>
+                <span className="text-right">60D</span>
+                <span className="text-right">90D</span>
+                <span className="text-right">SCORE</span>
+              </div>
+              {rsSorted.map((r) => {
+                const pos = [r.change20d, r.change60d, r.change90d].filter((v) => v != null && v > 0).length
+                return (
+                  <button
+                    key={r.symbol}
+                    type="button"
+                    onClick={() => setSelected((cur) => (cur === r.symbol ? null : r.symbol))}
+                    className={clsx(
+                      'w-full grid grid-cols-[78px_repeat(3,minmax(0,1fr))_40px] gap-2 items-center py-2.5 border-b border-bg-elevated text-xs font-mono tabular-nums transition-opacity',
+                      highlight && highlight !== r.symbol ? 'opacity-40' : 'opacity-100',
+                    )}
+                  >
+                    <span className="text-left font-semibold" style={{ color: SERIES_COLOR[r.symbol] }}>{r.symbol}</span>
+                    {[r.change20d, r.change60d, r.change90d].map((v, k) => (
+                      <span key={k} className={clsx('text-right', v == null ? 'text-ink-muted' : v >= 0 ? 'text-atlas' : 'text-bear')}>{fmtPct(v)}</span>
+                    ))}
+                    <span className="text-right text-ink-primary">{pos}/3</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
-      {/* 06 — Drawdown / Risk regime */}
-      <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-4">
-        <NumberedSection number="06" title="Drawdown / Risk regime" subtitle="Caída acumulada desde el máximo (6 meses)" accent="pulse" />
-        {drawdownChartSeries.length > 0 ? (
-          <>
-            <MultiLineChart series={drawdownChartSeries} />
-            <div className="flex flex-wrap gap-3 pt-1">
-              {drawdownWorst.map((row) => (
-                <div key={row.symbol} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-bg-border bg-bg-elevated/20">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: RS_COLORS[row.symbol] ?? '#94A3B8' }} />
-                  <span className="text-xs font-mono font-bold text-ink-primary">{row.symbol}</span>
-                  <span className="text-xs font-mono text-bear font-bold">{fmtPct(row.maxDrawdownPct)}</span>
+      {/* Drawdown small multiples */}
+      {ddSorted.length > 0 && (
+        <section className="space-y-3.5">
+          <Eyebrow right={`misma escala 0 a ${DD_FLOOR}%`}>Drawdown · caída desde máximo · 6 meses</Eyebrow>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+            {ddSorted.map((row) => {
+              const values = (row.series ?? []).map((p) => Math.max(DD_FLOOR, p.value)).filter(Number.isFinite)
+              const d = linePath(values, DD_W, DD_H, DD_FLOOR, 0, 1)
+              return (
+                <div key={row.symbol} className="rounded-[10px] border border-bg-border bg-bg-card px-4 py-3.5 space-y-2">
+                  <div className="flex justify-between items-baseline font-mono">
+                    <span className="text-xs font-semibold text-ink-primary">{row.symbol}</span>
+                    <span className="text-[15px] text-bear tabular-nums">{row.maxDrawdownPct != null ? `${row.maxDrawdownPct.toFixed(1)}%` : '—'}</span>
+                  </div>
+                  <svg viewBox={`0 0 ${DD_W} ${DD_H}`} preserveAspectRatio="none" className="block w-full h-16" aria-hidden>
+                    {d && <path d={`${d}L${DD_W},0L0,0Z`} fill="rgba(239,68,68,.16)" />}
+                    {d && <path d={d} fill="none" stroke={DOWN} strokeWidth={1.2} vectorEffect="non-scaling-stroke" />}
+                  </svg>
                 </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <p className="text-xs font-mono text-ink-dim">Cargando drawdown...</p>
-        )}
-      </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
-      <EconomicCalendar events={calendar} dailyPnl={dailyPnl} />
-
-      <div className="rounded-xl border border-oracle/30 bg-bg-card p-6 border-l-4 border-l-oracle space-y-4">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-oracle uppercase font-bold tracking-widest">Lectura del Oráculo</span>
+      {/* Agenda */}
+      <section className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-10 pt-7 border-t border-bg-border">
+        <div className="space-y-3">
+          <Eyebrow>Agenda</Eyebrow>
+          <p className="text-[22px] font-sans font-medium text-ink-primary">Próximos 7 días</p>
+          <div className="inline-flex gap-1 p-[3px] border border-bg-border rounded-lg text-xs font-sans">
+            {([['week', 'Semana'], ['month', 'Mes']] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setAgendaView(id)}
+                className={clsx('px-2.5 py-1.5 rounded-md transition-colors', agendaView === id ? 'bg-bg-border text-ink-primary' : 'text-ink-secondary hover:text-ink-primary')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
-        <p className="text-sm font-mono text-ink-primary leading-relaxed">
-          {strongest && weakest
-            ? `${strongest.sector} es el sector más fuerte (${strongest.score}) y ${weakest.sector} el más débil (${weakest.score}). La divergencia de ${Math.abs(strongest.score - weakest.score)} puntos sugiere vigilar rotación sectorial.`
-            : 'Esperando datos de fuerza sectorial para generar lectura contextual.'}
-        </p>
-      </div>
-
-      <p className="text-[10px] font-mono text-ink-dim text-center">
-        Flujo de órdenes y profundidad de mercado (nivel 2) no disponibles — requieren un feed institucional que esta plataforma no tiene conectado.
-      </p>
+        {agendaView === 'month' ? (
+          <EconomicCalendar events={calendar} dailyPnl={dailyPnl} />
+        ) : (
+          <div>
+            {agenda.map((g) => (
+              <div key={g.day.toISOString()} className="grid grid-cols-[90px_minmax(0,1fr)] gap-5 py-3.5 border-t border-bg-border">
+                <div className="space-y-0.5">
+                  <p className={clsx('text-[13px] font-sans capitalize', g.isToday ? 'text-pulse' : 'text-ink-secondary')}>
+                    {g.isToday ? 'Hoy' : g.day.toLocaleDateString('es-ES', { weekday: 'long' })}
+                  </p>
+                  <p className="text-[11px] font-mono text-ink-muted">{g.day.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</p>
+                </div>
+                <div className="space-y-2">
+                  {g.items.length === 0 && <p className="text-[13px] font-sans text-ink-muted">Sin eventos de alto impacto.</p>}
+                  {g.items.map((e) => (
+                    <div key={e.id} className="grid grid-cols-[52px_10px_minmax(0,1fr)_auto] gap-2.5 items-center text-[13px]">
+                      <span className="text-xs font-mono text-ink-secondary tabular-nums">
+                        {new Date(e.datetime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <span className={clsx('w-[7px] h-[7px] rounded-full', IMPACT_DOT[e.impact])} />
+                      <span className="font-sans text-ink-primary truncate">{e.title}</span>
+                      <span className="text-[11px] font-mono text-ink-secondary">{e.currency}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }

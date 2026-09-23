@@ -43,6 +43,7 @@ const config: Config = {
         sans: ['IBM Plex Sans', 'system-ui', 'sans-serif'],
         mono: ['IBM Plex Mono', 'Fira Code', 'monospace'],
         display: ['Fraunces', 'Georgia', 'serif'],
+        serif: ['IBM Plex Serif', 'Georgia', 'serif'],
       },
       fontSize: {
         '2xs': ['0.625rem', { lineHeight: '0.875rem' }],

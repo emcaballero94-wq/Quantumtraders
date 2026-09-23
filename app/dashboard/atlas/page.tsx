@@ -1,44 +1,39 @@
 'use client'
-// Chart height = full viewport minus: topbar(48px) + padding(40px) + toolbar(44px) + headerRow(~80px) + symbolBar(~44px) + spacing(24px)
-const CHART_HEIGHT = 'calc(100vh - 280px)'
 
 import dynamic from 'next/dynamic'
-import { SectionTitle } from '@/components/ui/SectionTitle'
-import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useEffect, useMemo, useState } from 'react'
+import { clsx } from 'clsx'
 import { useTVQuote } from '@/hooks/useTVQuote'
 import { MarketNewsPanel } from '@/components/pulse/MarketNewsPanel'
-import type { OracleAlert } from '@/lib/oracle/types'
+import type { OracleAlert, RadarAsset } from '@/lib/oracle/types'
 
-// Dynamically import to prevent SSR issues with TradingView scripts
-const TradingViewChart = dynamic(
-  () => import('@/components/atlas/TradingViewChart').then(m => m.TradingViewChart),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="w-full h-full flex items-center justify-center bg-[#161310]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-atlas border-t-transparent rounded-full animate-spin" />
-          <span className="text-[10px] font-mono text-atlas uppercase tracking-[0.2em]">Conectando con TradingView...</span>
-        </div>
+const TradingViewChart = dynamic(() => import('@/components/atlas/TradingViewChart').then((m) => m.TradingViewChart), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center bg-bg-deep">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-7 h-7 border-2 border-atlas border-t-transparent rounded-full animate-spin" />
+        <span className="text-[10px] font-mono text-atlas uppercase tracking-[0.2em]">Conectando con TradingView…</span>
       </div>
-    )
-  }
-)
+    </div>
+  ),
+})
 
 const SYMBOLS = ['SPX500', 'NAS100', 'US30', 'NVDA', 'MSFT', 'GOOGL', 'AMZN', 'META', 'AVGO', 'TSM', 'AMD', 'MU', 'TSLA', 'PLTR', 'BTCUSD', 'XAUUSD']
 
-const TIMEFRAMES: { label: string; value: string }[] = [
-  { label: 'M1',  value: '1'   },
-  { label: 'M5',  value: '5'   },
-  { label: 'M15', value: '15'  },
-  { label: 'M30', value: '30'  },
-  { label: 'H1',  value: '60'  },
-  { label: 'H4',  value: '240' },
-  { label: 'D1',  value: 'D'   },
-  { label: 'W1',  value: 'W'   },
+const TIMEFRAMES = [
+  { label: 'M1', value: '1' },
+  { label: 'M5', value: '5' },
+  { label: 'M15', value: '15' },
+  { label: 'M30', value: '30' },
+  { label: 'H1', value: '60' },
+  { label: 'H4', value: '240' },
+  { label: 'D1', value: 'D' },
+  { label: 'W1', value: 'W' },
 ]
 
-const TV_DISPLAY_MAP: Record<string, string> = {
+const DISPLAY_NAME: Record<string, string> = {
   SPX500: 'S&P 500',
   NAS100: 'Nasdaq 100',
   US30: 'Dow 30',
@@ -46,290 +41,251 @@ const TV_DISPLAY_MAP: Record<string, string> = {
   XAUUSD: 'XAU/USD',
 }
 
-function formatPrice(price: number | null, symbol: string): string {
-  if (price === null) return '—'
-  const decimals = symbol === 'BTCUSD' ? 1 : 2
-  return price.toFixed(decimals)
+const RATING_LABEL: Record<string, string> = { strong: 'Fuerte', operable: 'Operable', mixed: 'Mixto', avoid: 'Evitar' }
+const BIAS_LABEL: Record<string, string> = { bullish: '▲ alcista', bearish: '▼ bajista', neutral: '● neutral' }
+
+function fmt(price: number | null | undefined, symbol: string) {
+  if (price == null) return '—'
+  const d = symbol === 'BTCUSD' ? 0 : 2
+  return price.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
 }
 
-export default function AtlasPage() {
-  const [selectedSymbol, setSelectedSymbol] = useState('SPX500')
-  const [selectedInterval, setSelectedInterval] = useState('60')
-  const [prevPrice, setPrevPrice] = useState<number | null>(null)
-  const [priceDir, setPriceDir] = useState<'up' | 'down' | 'neutral'>('neutral')
-  const [alerts, setAlerts] = useState<OracleAlert[]>([])
+function fmtPct(v: number | null | undefined) {
+  if (v == null) return '—'
+  return `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`
+}
 
-  // Seed the chart from a ?symbol= deep link (e.g. "Analizar" from the Scanner
-  // radar or Command's Key Instruments) instead of always defaulting to SPX500.
+const scoreText = (v: number) => (v >= 70 ? 'text-atlas' : v >= 50 ? 'text-oracle' : v >= 30 ? 'text-pulse' : 'text-bear')
+
+export default function AtlasPage() {
+  const [symbol, setSymbol] = useState('SPX500')
+  const [interval, setInterval_] = useState('60')
+  const [alerts, setAlerts] = useState<OracleAlert[]>([])
+  const [radar, setRadar] = useState<RadarAsset[]>([])
+  const [prevPrice, setPrevPrice] = useState<number | null>(null)
+  const [flash, setFlash] = useState<'up' | 'down' | null>(null)
+
+  // Deep link: ?symbol=NVDA from Scanner / Command
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get('symbol')?.toUpperCase()
-    if (requested && SYMBOLS.includes(requested)) setSelectedSymbol(requested)
+    if (requested && SYMBOLS.includes(requested)) setSymbol(requested)
   }, [])
 
-  // Fetch live quotes from market quote API (Yahoo Finance feed)
   const { quotes, loading: quoteLoading, error: quoteError } = useTVQuote(SYMBOLS, 3000)
+  const quote = quotes[symbol] ?? null
 
-  const quote = quotes[selectedSymbol] ?? null
-
-  // Detect price direction for color flash
   useEffect(() => {
     if (!quote?.price) return
-    if (prevPrice !== null && quote.price !== prevPrice) {
-      setPriceDir(quote.price > prevPrice ? 'up' : 'down')
-      const t = setTimeout(() => setPriceDir('neutral'), 600)
+    if (prevPrice != null && quote.price !== prevPrice) {
+      setFlash(quote.price > prevPrice ? 'up' : 'down')
+      const t = setTimeout(() => setFlash(null), 600)
+      setPrevPrice(quote.price)
       return () => clearTimeout(t)
     }
     setPrevPrice(quote.price)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quote?.price])
 
-  useEffect(() => {
-    if (quote?.price) setPrevPrice(quote.price)
-  }, [selectedSymbol])
+  useEffect(() => setPrevPrice(null), [symbol])
 
   useEffect(() => {
     let mounted = true
-    const fetchAlerts = async () => {
+    const load = async () => {
       try {
-        const res = await fetch('/api/oracle/alerts')
-        const payload = await res.json()
+        const [alertsPayload, statePayload] = await Promise.all([
+          fetch('/api/oracle/alerts').then((r) => r.json()),
+          fetch('/api/oracle/state').then((r) => r.json()),
+        ])
         if (!mounted) return
-        setAlerts(payload?.data ?? [])
+        setAlerts(alertsPayload?.data ?? [])
+        setRadar(statePayload?.data?.radar ?? [])
       } catch {
         if (!mounted) return
         setAlerts([])
       }
     }
-
-    fetchAlerts()
-    const timer = setInterval(fetchAlerts, 60_000)
+    load()
+    const timer = setInterval(load, 60_000)
     return () => {
       mounted = false
       clearInterval(timer)
     }
   }, [])
 
-  const alertZones = alerts
-    .filter(a => a.symbol === selectedSymbol && a.priceZone)
-    .map(a => ({
-      ...a.priceZone!,
-      color: a.severity === 'critical' ? '#ef4444' : '#25f2fd'
-    }))
-
-  const priceColor = priceDir === 'up' ? 'text-green-400' : priceDir === 'down' ? 'text-red-400' : 'text-ink-primary'
-  const changeColor = (quote?.changePct ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'
+  const zones = useMemo(
+    () => alerts.filter((a) => a.symbol === symbol && a.priceZone).map((a) => ({ ...a.priceZone!, critical: a.severity === 'critical' })),
+    [alerts, symbol],
+  )
+  const asset = radar.find((a) => a.symbol === symbol) ?? null
+  const up = (quote?.changePct ?? 0) >= 0
+  const rangePct =
+    quote?.high != null && quote?.low != null && quote?.price != null && quote.high > quote.low
+      ? Math.max(0, Math.min(100, ((quote.price - quote.low) / (quote.high - quote.low)) * 100))
+      : null
+  const maxAbsPct = Math.max(0.5, ...SYMBOLS.map((s) => Math.abs(quotes[s]?.changePct ?? 0)))
+  const sum = asset ? asset.macroScore + asset.technicalScore + asset.timingScore || 1 : 1
 
   return (
-    <div className="space-y-4 animate-fade-in">
-
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-bg-border pb-4">
-        <div>
-          <h1 className="text-base font-mono font-bold text-ink-primary tracking-tight uppercase">ATLAS · Market Structure</h1>
-          <p className="text-[10px] font-mono text-ink-muted mt-0.5 tracking-wider uppercase">
-            Live Feed · Institutional Price Action &amp; Volume Analysis
-          </p>
-        </div>
-
-        {/* Live Price Badge */}
-        {quote?.price && (
-          <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-bg-card border border-bg-border glass-card">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-[9px] font-mono text-ink-dim uppercase">Live</span>
-            <span className={`text-sm font-mono font-bold tabular-nums transition-colors duration-300 ${priceColor}`}>
-              {formatPrice(quote.price, selectedSymbol)}
-            </span>
-            {quote.changePct !== null && (
-              <span className={`text-[10px] font-mono font-semibold tabular-nums ${changeColor}`}>
-                {quote.changePct >= 0 ? '+' : ''}{quote.changePct.toFixed(2)}%
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Symbol Selector */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {SYMBOLS.map(s => {
-          const q = quotes[s]
-          const pct = q?.changePct ?? null
-          return (
-            <button
-              key={s}
-              onClick={() => setSelectedSymbol(s)}
-              className={`px-3 py-1.5 rounded-lg font-mono text-[9px] uppercase tracking-widest border transition-all flex flex-col items-center ${
-                selectedSymbol === s
-                  ? 'bg-atlas border-atlas text-bg-base shadow-[0_0_12px_rgba(37,242,253,0.3)]'
-                  : 'bg-bg-deep border-bg-border text-ink-muted hover:border-atlas/50 hover:text-atlas'
-              }`}
-            >
-              <span>{s}</span>
-              {pct !== null && (
-                <span className={`text-[8px] tabular-nums font-normal ${
-                  selectedSymbol === s ? 'text-bg-base/80' : pct >= 0 ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Main Chart Container */}
-      <div className="bg-bg-card border border-bg-border rounded-2xl overflow-hidden glass-card flex flex-col" style={{ height: `calc(${CHART_HEIGHT} + 44px)` }}>
-
-        {/* Chart Toolbar */}
-        <div className="px-5 py-3 border-b border-bg-border flex items-center justify-between flex-wrap gap-3 shrink-0">
-          <div className="flex items-center gap-4">
-            <span className="text-xs font-mono font-bold text-ink-primary uppercase">
-              {TV_DISPLAY_MAP[selectedSymbol] ?? selectedSymbol}
-            </span>
-            {/* Inline live price */}
-            {quote?.price && (
-              <span className={`text-sm font-mono font-bold tabular-nums transition-colors duration-300 ${priceColor}`}>
-                {formatPrice(quote.price, selectedSymbol)}
-              </span>
-            )}
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-green-500/10 border border-green-500/20">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-[9px] font-mono text-green-400 uppercase tracking-wider">Live feed</span>
-            </div>
-          </div>
-
-          {/* Timeframe Selector */}
-          <div className="flex items-center gap-1">
-            {TIMEFRAMES.map(tf => (
-              <button
-                key={tf.value}
-                onClick={() => setSelectedInterval(tf.value)}
-                className={`px-2.5 py-1 rounded text-[9px] font-mono uppercase tracking-wider transition-all border ${
-                  selectedInterval === tf.value
-                    ? 'bg-atlas/20 border-atlas/40 text-atlas'
-                    : 'bg-transparent border-transparent text-ink-dim hover:text-ink-muted hover:border-bg-border'
-                }`}
-              >
-                {tf.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* TradingView Chart */}
-        <div className="flex-1 min-h-0">
-          <TradingViewChart
-            symbol={selectedSymbol}
-            interval={selectedInterval}
-          />
-        </div>
-      </div>
-
-      {/* Bottom Info Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-10">
-
-        {/* OHLC live */}
-        <div className="bg-bg-card border border-bg-border rounded-xl p-5 space-y-4">
-          <SectionTitle label={`Cotización Live · ${TV_DISPLAY_MAP[selectedSymbol] ?? selectedSymbol}`} accent="atlas" />
-          <div className="space-y-1">
-            <PriceRow label="Precio"    value={formatPrice(quote?.price    ?? null, selectedSymbol)} color={priceColor} large />
-            <PriceRow label="Apertura"  value={formatPrice(quote?.open     ?? null, selectedSymbol)} />
-            <PriceRow label="Máximo"    value={formatPrice(quote?.high     ?? null, selectedSymbol)} color="text-green-400" />
-            <PriceRow label="Mínimo"    value={formatPrice(quote?.low     ?? null, selectedSymbol)}  color="text-red-400" />
-            <PriceRow label="Cierre ant." value={formatPrice(quote?.prevClose ?? null, selectedSymbol)} />
-            <PriceRow
-              label="Cambio"
-              value={quote?.changePct !== null && quote?.changePct !== undefined
-                ? `${quote.changePct >= 0 ? '+' : ''}${quote.changePct.toFixed(2)}%`
-                : '—'}
-              color={changeColor}
-            />
-            <div className="pt-2 flex items-center gap-1.5">
-              {quoteLoading && !quote && <div className="w-2 h-2 border border-atlas border-t-transparent rounded-full animate-spin" />}
-              {quoteError && <span className="text-[9px] font-mono text-bear uppercase">Error: {quoteError}</span>}
-              {quote && !quoteError && (
-                <>
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                  <span className="text-[9px] font-mono text-green-400 uppercase">Fuente: Yahoo Finance · 3s poll</span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Zonas Activas */}
-        <div className="bg-bg-card border border-bg-border rounded-xl p-5 space-y-4">
-          <SectionTitle label="Zonas Activas (JARVIS)" accent="oracle" />
-          <div className="space-y-3">
-            {alertZones.length > 0 ? alertZones.map((z, i) => (
-              <div key={i} className="flex justify-between items-center bg-oracle/5 border border-oracle/20 p-2 rounded">
-                <span className="text-[10px] font-mono text-oracle uppercase font-bold">{z.label}</span>
-                <span className="text-[10px] font-mono text-ink-primary">@{z.top}</span>
-              </div>
-            )) : (
-              <p className="text-[10px] font-mono text-ink-dim uppercase italic text-center py-2">Buscando setups zonales...</p>
-            )}
-          </div>
-        </div>
-
-        {/* Todos los símbolos en mini-tabla */}
-        <div className="bg-bg-card border border-bg-border rounded-xl p-5 space-y-3">
-          <SectionTitle label="Radar Multi-Par · Live" accent="oracle" />
-          <div className="space-y-1">
-            {SYMBOLS.map(s => {
+    <div className="animate-fade-in">
+      <div
+        className="rounded-xl border border-bg-border bg-bg-deep overflow-hidden grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_290px] font-mono"
+        style={{ height: 'calc(100vh - 110px)', minHeight: 620 }}
+      >
+        {/* Watchlist */}
+        <nav className="hidden lg:flex flex-col min-h-0 border-r border-bg-border" aria-label="Watchlist">
+          <p className="px-4 py-3.5 text-[10px] tracking-[0.14em] text-ink-secondary border-b border-bg-border">WATCHLIST</p>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+            {SYMBOLS.map((s) => {
               const q = quotes[s]
               const pct = q?.changePct ?? null
-              const isActive = s === selectedSymbol
+              const active = s === symbol
+              const pUp = (pct ?? 0) >= 0
               return (
                 <button
                   key={s}
-                  onClick={() => setSelectedSymbol(s)}
-                  className={`w-full flex items-center justify-between py-1.5 px-2 rounded transition-all ${
-                    isActive ? 'bg-atlas/10 border border-atlas/20' : 'hover:bg-bg-elevated border border-transparent'
-                  }`}
+                  type="button"
+                  onClick={() => setSymbol(s)}
+                  aria-pressed={active}
+                  className={clsx(
+                    'w-full grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-1 items-center pl-4 pr-3 py-2.5 text-left transition-colors',
+                    active ? 'bg-bg-card shadow-[inset_2px_0_0_#10B981]' : 'hover:bg-bg-card/60',
+                  )}
                 >
-                  <span className={`text-[10px] font-mono font-bold uppercase ${isActive ? 'text-atlas' : 'text-ink-secondary'}`}>{s}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-mono text-ink-primary tabular-nums">
-                      {formatPrice(q?.price ?? null, s)}
-                    </span>
-                    {pct !== null && (
-                      <span className={`text-[9px] font-mono tabular-nums w-14 text-right ${pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
-                      </span>
+                  <span className={clsx('text-xs font-semibold truncate', active ? 'text-ink-primary' : 'text-ink-primary/80')}>{s}</span>
+                  <span className="text-[11px] text-ink-primary/80 tabular-nums text-right">{fmt(q?.price, s)}</span>
+                  <span className={clsx('text-[10px] tabular-nums', pct == null ? 'text-ink-muted' : pUp ? 'text-atlas' : 'text-bear')}>{fmtPct(pct)}</span>
+                  <span className="relative h-[3px] w-12 justify-self-end bg-bg-border rounded-full" aria-hidden>
+                    {pct != null && (
+                      <span
+                        className={clsx('absolute top-0 h-full rounded-full', pUp ? 'left-1/2 bg-atlas' : 'right-1/2 bg-bear')}
+                        style={{ width: `${(Math.abs(pct) / maxAbsPct) * 50}%` }}
+                      />
                     )}
-                  </div>
+                  </span>
                 </button>
               )
             })}
           </div>
-        </div>
+        </nav>
 
+        {/* Chart */}
+        <section className="flex flex-col min-w-0 min-h-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-b border-bg-border">
+            <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
+              <select
+                value={symbol}
+                onChange={(e) => setSymbol(e.target.value)}
+                className="lg:hidden bg-bg-card border border-bg-border rounded-md px-2 py-1 text-sm text-ink-primary"
+                aria-label="Activo"
+              >
+                {SYMBOLS.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <h1 className="hidden lg:block text-xl font-bold text-ink-primary">{symbol}</h1>
+              <span className="font-sans text-xs text-ink-secondary">{DISPLAY_NAME[symbol] ?? symbol}</span>
+              <span
+                className={clsx(
+                  'text-xl tabular-nums transition-colors duration-300',
+                  flash === 'up' ? 'text-atlas' : flash === 'down' ? 'text-bear' : 'text-ink-primary',
+                )}
+              >
+                {fmt(quote?.price, symbol)}
+              </span>
+              <span className={clsx('text-[13px] tabular-nums', up ? 'text-atlas' : 'text-bear')}>{fmtPct(quote?.changePct)}</span>
+              {quote && !quoteError && (
+                <span className="flex items-center gap-1.5 text-[10px] text-atlas">
+                  <span className="w-1.5 h-1.5 rounded-full bg-atlas animate-pulse" />
+                  LIVE
+                </span>
+              )}
+            </div>
+            <div className="flex gap-0.5 text-[11px]" role="group" aria-label="Temporalidad">
+              {TIMEFRAMES.map((tf) => (
+                <button
+                  key={tf.value}
+                  type="button"
+                  onClick={() => setInterval_(tf.value)}
+                  aria-pressed={interval === tf.value}
+                  className={clsx(
+                    'px-2.5 py-1.5 rounded-md transition-colors',
+                    interval === tf.value ? 'bg-atlas/15 text-atlas' : 'text-ink-secondary hover:text-ink-primary',
+                  )}
+                >
+                  {tf.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex-1 min-h-0">
+            <TradingViewChart symbol={symbol} interval={interval} />
+          </div>
+        </section>
+
+        {/* Context */}
+        <aside className="hidden xl:flex flex-col min-h-0 border-l border-bg-border overflow-y-auto">
+          <div className="px-[18px] py-4 border-b border-bg-border">
+            <p className="text-[10px] tracking-[0.14em] text-ink-secondary pb-1.5">SESIÓN</p>
+            {[
+              ['Apertura', fmt(quote?.open, symbol), 'text-ink-primary'],
+              ['Máximo', fmt(quote?.high, symbol), 'text-atlas'],
+              ['Mínimo', fmt(quote?.low, symbol), 'text-bear'],
+              ['Cierre ant.', fmt(quote?.prevClose, symbol), 'text-ink-primary'],
+              ['Cambio', fmtPct(quote?.changePct), up ? 'text-atlas' : 'text-bear'],
+            ].map(([k, v, c]) => (
+              <div key={k} className="flex justify-between py-[5px] text-xs">
+                <span className="font-sans text-ink-secondary">{k}</span>
+                <span className={clsx('tabular-nums', c)}>{v}</span>
+              </div>
+            ))}
+            <div className="pt-2 space-y-1">
+              <div className="relative h-1 rounded-full bg-bg-border">
+                {rangePct != null && <div className="absolute -top-[3px] w-0.5 h-2.5 bg-ink-primary -translate-x-1/2" style={{ left: `${rangePct}%` }} />}
+              </div>
+              <p className="text-[9px] text-ink-muted">RANGO DEL DÍA</p>
+            </div>
+            {quoteLoading && !quote && <p className="pt-2 text-[10px] text-ink-muted">Cargando cotización…</p>}
+            {quoteError && <p className="pt-2 text-[10px] text-bear">Error de feed: {quoteError}</p>}
+          </div>
+
+          <div className="px-[18px] py-4 border-b border-bg-border space-y-2">
+            <div className="flex justify-between items-baseline">
+              <p className="text-[10px] tracking-[0.14em] text-ink-secondary">SCANNER</p>
+              <Link href="/dashboard/scanner" className="font-sans text-[11px] text-atlas hover:text-atlas/80">Ver →</Link>
+            </div>
+            {asset ? (
+              <>
+                <div className="flex items-baseline gap-2.5">
+                  <span className={clsx('text-[30px] leading-none tabular-nums', scoreText(asset.totalScore))}>{asset.totalScore}</span>
+                  <span className="font-sans text-xs text-ink-secondary">
+                    {RATING_LABEL[asset.rating] ?? asset.rating} · {BIAS_LABEL[asset.bias] ?? asset.bias}
+                  </span>
+                </div>
+                <div className="flex h-1.5 gap-0.5 rounded-sm overflow-hidden bg-bg-elevated" title={`Macro ${asset.macroScore} · Técnico ${asset.technicalScore} · Timing ${asset.timingScore}`}>
+                  <div className="bg-oracle" style={{ width: `${(asset.macroScore / sum) * asset.totalScore}%` }} />
+                  <div className="bg-atlas" style={{ width: `${(asset.technicalScore / sum) * asset.totalScore}%` }} />
+                  <div className="bg-pulse" style={{ width: `${(asset.timingScore / sum) * asset.totalScore}%` }} />
+                </div>
+              </>
+            ) : (
+              <p className="font-sans text-xs text-ink-muted">Este activo no está en el radar.</p>
+            )}
+          </div>
+
+          <div className="px-[18px] py-4 border-b border-bg-border space-y-2">
+            <p className="text-[10px] tracking-[0.14em] text-ink-secondary">ZONAS JARVIS</p>
+            {zones.length === 0 && <p className="font-sans text-xs text-ink-muted">Sin zonas activas para {symbol}.</p>}
+            {zones.map((z, i) => (
+              <div key={i} className="flex justify-between text-xs">
+                <span className={z.critical ? 'text-bear' : 'text-oracle'}>{z.label}</span>
+                <span className="tabular-nums text-ink-primary">{z.top}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex-1 min-h-[360px]">
+            <MarketNewsPanel filterSymbols={[symbol]} />
+          </div>
+        </aside>
       </div>
-
-      {/* News Panel */}
-      <div style={{ height: '520px' }}>
-        <MarketNewsPanel filterSymbols={[selectedSymbol]} />
-      </div>
-
-    </div>
-  )
-}
-
-function StatusItem({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div className="flex justify-between items-center py-2 border-b border-bg-border last:border-0">
-      <span className="text-[10px] font-mono text-ink-dim uppercase">{label}</span>
-      <span className={`text-[11px] font-mono font-bold ${color}`}>{value}</span>
-    </div>
-  )
-}
-
-function PriceRow({ label, value, color = 'text-ink-secondary', large = false }: {
-  label: string; value: string; color?: string; large?: boolean
-}) {
-  return (
-    <div className="flex justify-between items-center py-1.5 border-b border-bg-border/50 last:border-0">
-      <span className="text-[9px] font-mono text-ink-dim uppercase tracking-wider">{label}</span>
-      <span className={`font-mono font-bold tabular-nums ${large ? 'text-sm' : 'text-[11px]'} ${color}`}>{value}</span>
     </div>
   )
 }

@@ -16,9 +16,9 @@ interface NewsItem {
 
 const CATEGORY_STYLES: Record<string, string> = {
   forex:       'bg-atlas/10 border-atlas/30 text-atlas',
-  commodities: 'bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#f59e0b]',
+  commodities: 'bg-[#f97316]/10 border-[#f97316]/30 text-[#f97316]',
   macro:       'bg-oracle/10 border-oracle/30 text-oracle',
-  crypto:      'bg-[#8b5cf6]/10 border-[#8b5cf6]/30 text-[#8b5cf6]',
+  crypto:      'bg-[#7c3aed]/10 border-[#7c3aed]/30 text-[#7c3aed]',
   general:     'bg-bg-elevated border-bg-border text-ink-muted',
 }
 

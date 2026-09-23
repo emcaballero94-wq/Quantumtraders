@@ -3,8 +3,60 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  :root,
+  :root[data-theme='gold'] {
     color-scheme: dark;
+
+    /* Wall Street Gold — warm charcoal / gold / emerald (default) */
+    --c-bg-deep: 10 9 8;
+    --c-bg-base: 15 13 10;
+    --c-bg-card: 22 19 16;
+    --c-bg-elevated: 28 24 21;
+    --c-bg-border: 46 42 34;
+
+    --c-ink-primary: 243 239 231;
+    --c-ink-secondary: 184 173 152;
+    --c-ink-muted: 122 111 92;
+    --c-ink-dim: 58 52 42;
+
+    --c-atlas: 16 185 129;
+    --c-nexus: 124 58 237;
+    --c-oracle: 232 180 76;
+    --c-pulse: 249 115 22;
+    --c-bear: 239 68 68;
+    --c-neutral: 166 156 136;
+  }
+
+  :root[data-theme='blue'] {
+    color-scheme: dark;
+
+    /* Oracle Blue — original cool charcoal / blue / teal palette */
+    --c-bg-deep: 4 5 10;
+    --c-bg-base: 8 11 18;
+    --c-bg-card: 13 16 23;
+    --c-bg-elevated: 18 22 31;
+    --c-bg-border: 26 31 46;
+
+    --c-ink-primary: 238 240 245;
+    --c-ink-secondary: 136 146 164;
+    --c-ink-muted: 77 85 102;
+    --c-ink-dim: 42 48 61;
+
+    --c-atlas: 0 201 167;
+    --c-nexus: 124 58 237;
+    --c-oracle: 59 130 246;
+    --c-pulse: 245 158 11;
+    --c-bear: 239 68 68;
+    --c-neutral: 136 146 164;
+  }
+
+  :root,
+  :root[data-typeface='display'] {
+    --font-display: 'Fraunces', Georgia, serif;
+  }
+
+  :root[data-typeface='sans'] {
+    --font-display: 'IBM Plex Sans', system-ui, sans-serif;
   }
 
   * {
@@ -17,8 +69,8 @@
   body {
     max-width: 100vw;
     overflow-x: hidden;
-    background-color: #0F0D0A;
-    color: #F3EFE7;
+    background-color: rgb(var(--c-bg-base));
+    color: rgb(var(--c-ink-primary));
   }
 
   /* Scrollbar */
@@ -28,22 +80,22 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: #0F0D0A;
+    background: rgb(var(--c-bg-base));
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #2E2A22;
+    background: rgb(var(--c-bg-border));
     border-radius: 2px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #3A342A;
+    background: rgb(var(--c-ink-dim));
   }
 
   /* Selection */
   ::selection {
-    background: #E8B44C20;
-    color: #F3EFE7;
+    background: rgb(var(--c-oracle) / 0.125);
+    color: rgb(var(--c-ink-primary));
   }
 }
 
@@ -59,14 +111,14 @@
 
   /* Gradient text */
   .text-gradient-atlas {
-    background: linear-gradient(135deg, #10B981, #34D399);
+    background: linear-gradient(135deg, rgb(var(--c-atlas)), rgb(var(--c-atlas) / 0.7));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .text-gradient-oracle {
-    background: linear-gradient(135deg, #E8B44C, #F5CD7E);
+    background: linear-gradient(135deg, rgb(var(--c-oracle)), rgb(var(--c-oracle) / 0.7));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -74,11 +126,11 @@
 
   /* Card glow variants */
   .glow-atlas {
-    box-shadow: 0 0 30px 0 #10B98115;
+    box-shadow: 0 0 30px 0 rgb(var(--c-atlas) / 0.08);
   }
 
   .glow-oracle {
-    box-shadow: 0 0 30px 0 #E8B44C15;
+    box-shadow: 0 0 30px 0 rgb(var(--c-oracle) / 0.08);
   }
 
   /* Premium glass surface — cinematic depth recipe, shared platform-wide.
@@ -90,9 +142,9 @@
     -webkit-backdrop-filter: blur(20px) saturate(1.25);
     box-shadow:
       0 1px 0 0 rgba(255, 255, 255, 0.07) inset,
-      0 -18px 36px -30px rgba(232, 180, 76, 0.14) inset,
+      0 -18px 36px -30px rgb(var(--c-oracle) / 0.14) inset,
       0 24px 48px -24px rgba(0, 0, 0, 0.85),
-      0 0 32px -16px rgba(232, 180, 76, 0.10);
+      0 0 32px -16px rgb(var(--c-oracle) / 0.1);
   }
 
   .status-dot {
@@ -105,16 +157,16 @@
      Tailwind chain on every field. */
   .qt-input {
     width: 100%;
-    background-color: #161310;
-    border: 1px solid #2E2A22;
+    background-color: rgb(var(--c-bg-card));
+    border: 1px solid rgb(var(--c-bg-border));
     border-radius: 0.5rem;
     padding: 0.5rem 0.75rem;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.75rem;
-    color: #F3EFE7;
+    color: rgb(var(--c-ink-primary));
   }
   .qt-input:focus {
     outline: none;
-    border-color: #E8B44C80;
+    border-color: rgb(var(--c-oracle) / 0.5);
   }
 }

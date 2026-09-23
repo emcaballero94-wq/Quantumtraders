@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTheme, type Palette, type Typeface } from '@/lib/theme/ThemeProvider'
 
 const STORAGE_KEY = 'qt-settings'
 
@@ -22,11 +23,32 @@ const DEFAULTS: Settings = {
   voiceConfirm: true,
 }
 
+const PALETTES: { id: Palette; label: string; description: string; swatches: string[] }[] = [
+  {
+    id: 'gold',
+    label: 'Wall Street Gold',
+    description: 'Carbón cálido, dorado y esmeralda.',
+    swatches: ['#0F0D0A', '#E8B44C', '#10B981'],
+  },
+  {
+    id: 'blue',
+    label: 'Oracle Blue',
+    description: 'Carbón frío, azul y teal — la paleta original.',
+    swatches: ['#080B12', '#3B82F6', '#00C9A7'],
+  },
+]
+
+const TYPEFACES: { id: Typeface; label: string; description: string; sample: string }[] = [
+  { id: 'display', label: 'Serif elegante', description: 'Fraunces — el tratamiento editorial actual.', sample: 'font-display' },
+  { id: 'sans', label: 'Sans neutra', description: 'IBM Plex Sans — más técnico y compacto.', sample: 'font-sans' },
+]
+
 function isValidPhone(value: string): boolean {
   return /^\+\d{8,15}$/.test(value.replace(/\s/g, ''))
 }
 
 export default function SettingsPage() {
+  const { palette, typeface, setPalette, setTypeface } = useTheme()
   const [settings, setSettings] = useState<Settings>(DEFAULTS)
   const [phoneStatus, setPhoneStatus] = useState<'idle' | 'valid' | 'invalid'>('idle')
   const [saved, setSaved] = useState(false)
@@ -65,6 +87,66 @@ export default function SettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Appearance Section */}
+        <div className="rounded-xl border border-bg-border bg-bg-card p-6 glass-card space-y-6">
+          <div className="space-y-1">
+            <h3 className="text-sm font-mono font-bold text-ink-primary uppercase italic">Apariencia</h3>
+            <p className="text-xs font-mono text-ink-muted leading-tight max-w-[400px]">
+              Elige la paleta y la tipografía de titulares. Se guarda en este navegador.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-[10px] font-mono text-ink-muted uppercase tracking-wider">Paleta</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {PALETTES.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={palette === p.id}
+                  onClick={() => setPalette(p.id)}
+                  className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-all ${
+                    palette === p.id ? 'border-oracle/60 bg-bg-elevated' : 'border-bg-border hover:border-bg-border/80 hover:bg-bg-elevated/50'
+                  }`}
+                >
+                  <span className="flex shrink-0 -space-x-1.5">
+                    {p.swatches.map((c, i) => (
+                      <span key={i} className="w-5 h-5 rounded-full border-2 border-bg-card" style={{ backgroundColor: c }} />
+                    ))}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-xs font-mono font-bold text-ink-primary">{p.label}</span>
+                    <span className="block text-[10px] font-mono text-ink-muted leading-tight truncate">{p.description}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-[10px] font-mono text-ink-muted uppercase tracking-wider">Tipografía de titulares</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {TYPEFACES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={typeface === t.id}
+                  onClick={() => setTypeface(t.id)}
+                  className={`rounded-lg border p-3 text-left transition-all ${
+                    typeface === t.id ? 'border-oracle/60 bg-bg-elevated' : 'border-bg-border hover:border-bg-border/80 hover:bg-bg-elevated/50'
+                  }`}
+                >
+                  <span className={`block text-lg text-ink-primary leading-none ${t.sample}`}>Aa</span>
+                  <span className="block text-xs font-mono font-bold text-ink-primary mt-1.5">{t.label}</span>
+                  <span className="block text-[10px] font-mono text-ink-muted leading-tight">{t.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* WhatsApp Section */}
         <div className="rounded-xl border border-bg-border bg-bg-card p-6 glass-card space-y-6">
           <div className="flex items-center justify-between">

@@ -17,7 +17,7 @@ export function Sparkline({ values, up }: { values: number[]; up: boolean }) {
     return `${x},${y}`
   })
 
-  const color = up ? '#00C9A7' : '#EF4444'
+  const color = up ? '#10B981' : '#EF4444'
   const areaPoints = `0,${h} ${points.join(' ')} ${w},${h}`
 
   return (

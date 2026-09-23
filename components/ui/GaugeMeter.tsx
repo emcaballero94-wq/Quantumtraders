@@ -39,9 +39,9 @@ export function GaugeMeter({
       <svg viewBox="0 0 200 110" className="w-full max-w-[220px]">
         <defs>
           <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#3B82F6" />
-            <stop offset="50%" stopColor="#F59E0B" />
-            <stop offset="100%" stopColor="#00C9A7" />
+            <stop offset="0%" stopColor="#E8B44C" />
+            <stop offset="50%" stopColor="#F97316" />
+            <stop offset="100%" stopColor="#10B981" />
           </linearGradient>
         </defs>
         <path

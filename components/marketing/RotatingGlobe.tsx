@@ -101,18 +101,18 @@ export function RotatingGlobe({ size = 380 }: { size?: number }) {
 
       // Sphere base
       const sphereGradient = ctx.createRadialGradient(cx - radius * 0.3, cy - radius * 0.3, radius * 0.1, cx, cy, radius)
-      sphereGradient.addColorStop(0, 'rgba(20, 35, 60, 0.55)')
-      sphereGradient.addColorStop(1, 'rgba(4, 8, 16, 0.75)')
+      sphereGradient.addColorStop(0, 'rgba(45, 35, 20, 0.55)')
+      sphereGradient.addColorStop(1, 'rgba(10, 9, 8, 0.75)')
       ctx.beginPath()
       ctx.arc(cx, cy, radius, 0, Math.PI * 2)
       ctx.fillStyle = sphereGradient
       ctx.fill()
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.18)'
+      ctx.strokeStyle = 'rgba(232, 180, 76, 0.18)'
       ctx.lineWidth = 1
       ctx.stroke()
 
       // Latitude/longitude grid (faint)
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.12)'
+      ctx.strokeStyle = 'rgba(232, 180, 76, 0.12)'
       ctx.lineWidth = 0.5
       for (let lat = -60; lat <= 60; lat += 30) {
         ctx.beginPath()
@@ -162,9 +162,9 @@ export function RotatingGlobe({ size = 380 }: { size?: number }) {
         const edgeFade = smoothstep(0, 0.1, p.z)
         const alpha = (0.5 + brightness * 0.45) * edgeFade
         const r = (1.3 + brightness * 0.7) * edgeFade + 0.3
-        const cr = Math.round(80 + brightness * 70)
-        const cg = Math.round(130 + brightness * 75)
-        const cb = Math.round(195 + brightness * 40)
+        const cr = Math.round(120 + brightness * 112)
+        const cg = Math.round(100 + brightness * 80)
+        const cb = Math.round(60 + brightness * 16)
         ctx.beginPath()
         ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
         ctx.fillStyle = `rgba(${cr}, ${cg}, ${cb}, ${alpha})`
@@ -203,7 +203,7 @@ export function RotatingGlobe({ size = 380 }: { size?: number }) {
             ctx.lineTo(px, py)
           }
         }
-        ctx.strokeStyle = 'rgba(0, 201, 167, 0.25)'
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.25)'
         ctx.lineWidth = 0.75
         ctx.stroke()
       }
@@ -215,7 +215,7 @@ export function RotatingGlobe({ size = 380 }: { size?: number }) {
         const p = project(city.lat, city.lng, rotationRad)
         if (p.z < 0.05) continue
         const isActive = activeSessions.has(city.name)
-        const glowColor = isActive ? '0, 201, 167' : '59, 130, 246'
+        const glowColor = isActive ? '16, 185, 129' : '232, 180, 76'
 
         const pulse = isActive && !reduceMotion ? 0.6 + 0.4 * Math.sin(performance.now() / 400) : 1
         ctx.beginPath()
@@ -224,13 +224,13 @@ export function RotatingGlobe({ size = 380 }: { size?: number }) {
         ctx.fill()
         ctx.beginPath()
         ctx.arc(p.x, p.y, 2, 0, Math.PI * 2)
-        ctx.fillStyle = isActive ? '#00C9A7' : '#3B82F6'
+        ctx.fillStyle = isActive ? '#10B981' : '#E8B44C'
         ctx.fill()
 
-        ctx.fillStyle = isActive ? 'rgba(0, 201, 167, 0.95)' : 'rgba(148, 163, 184, 0.85)'
+        ctx.fillStyle = isActive ? 'rgba(16, 185, 129, 0.95)' : 'rgba(184, 173, 152, 0.85)'
         ctx.fillText(city.label, p.x + 7, p.y + 3)
         if (isActive) {
-          ctx.fillStyle = 'rgba(0, 201, 167, 0.7)'
+          ctx.fillStyle = 'rgba(16, 185, 129, 0.7)'
           ctx.fillText('● LIVE', p.x + 7, p.y + 13)
         }
       }

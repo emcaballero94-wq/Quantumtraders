@@ -47,10 +47,10 @@ const ALL_SYMBOLS = [
 ]
 
 function heatStyle(changePct: number | null): CSSProperties {
-  if (changePct === null) return { backgroundColor: 'rgba(148, 163, 184, 0.08)' }
+  if (changePct === null) return { backgroundColor: 'rgba(184, 173, 152, 0.08)' }
   const intensity = Math.min(Math.abs(changePct) / 3, 1)
   const alpha = 0.1 + intensity * 0.55
-  const rgb = changePct >= 0 ? '0, 201, 167' : '239, 68, 68'
+  const rgb = changePct >= 0 ? '16, 185, 129' : '239, 68, 68'
   return { backgroundColor: `rgba(${rgb}, ${alpha})` }
 }
 

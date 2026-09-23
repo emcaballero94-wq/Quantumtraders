@@ -50,10 +50,10 @@ export function RelationshipMap({ center, centerPrice, nodes }: { center: string
 
       <div className="relative w-full aspect-[16/10] min-h-[320px]">
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
-          <ellipse cx={50} cy={50} rx={RX * 0.62} ry={RY * 0.62} fill="none" stroke="#1A1F2E" vectorEffect="non-scaling-stroke" />
-          <ellipse cx={50} cy={50} rx={RX} ry={RY} fill="none" stroke="#12161F" vectorEffect="non-scaling-stroke" />
+          <ellipse cx={50} cy={50} rx={RX * 0.62} ry={RY * 0.62} fill="none" stroke="#2E2A22" vectorEffect="non-scaling-stroke" />
+          <ellipse cx={50} cy={50} rx={RX} ry={RY} fill="none" stroke="#1C1815" vectorEffect="non-scaling-stroke" />
           {points.map(({ node, xPct, yPct }) => (
-            <line key={`line-${node.symbol}`} x1={50} y1={50} x2={xPct} y2={yPct} stroke="#2A303D" vectorEffect="non-scaling-stroke" />
+            <line key={`line-${node.symbol}`} x1={50} y1={50} x2={xPct} y2={yPct} stroke="#3A342A" vectorEffect="non-scaling-stroke" />
           ))}
         </svg>
 

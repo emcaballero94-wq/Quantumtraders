@@ -68,9 +68,9 @@ const RS_BASE = 'XAUUSD'
 const RS_SYMBOLS = ['SPX500', 'NAS100', 'US30', 'BTCUSD', 'USOIL']
 const RS_COLORS: Record<string, string> = {
   SPX500: '#7C3AED',
-  NAS100: '#3B82F6',
-  US30: '#00C9A7',
-  BTCUSD: '#F59E0B',
+  NAS100: '#E8B44C',
+  US30: '#10B981',
+  BTCUSD: '#F97316',
   USOIL: '#EF4444',
 }
 

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { LocaleProvider } from '@/lib/i18n/LocaleProvider'
+import { ThemeProvider, THEME_NO_FLASH_SCRIPT } from '@/lib/theme/ThemeProvider'
 
 export const metadata: Metadata = {
   title: 'Quantum Traders',
@@ -40,11 +41,15 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
           rel="stylesheet"
         />
+        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_NO_FLASH_SCRIPT }} />
       </head>
       <body className="bg-bg-base text-ink-primary antialiased">
-        <LocaleProvider>
-          {children}
-        </LocaleProvider>
+        <ThemeProvider>
+          <LocaleProvider>
+            {children}
+          </LocaleProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

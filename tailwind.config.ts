@@ -9,55 +9,55 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Institutional dark backgrounds — warm charcoal (Wall Street Gold)
+        // Institutional dark backgrounds — theme-able via CSS vars (see globals.css)
         bg: {
-          deep:    '#0A0908',
-          base:    '#0F0D0A',
-          card:    '#161310',
-          elevated:'#1C1815',
-          border:  '#2E2A22',
+          deep:    'rgb(var(--c-bg-deep) / <alpha-value>)',
+          base:    'rgb(var(--c-bg-base) / <alpha-value>)',
+          card:    'rgb(var(--c-bg-card) / <alpha-value>)',
+          elevated:'rgb(var(--c-bg-elevated) / <alpha-value>)',
+          border:  'rgb(var(--c-bg-border) / <alpha-value>)',
         },
-        // Text hierarchy — warm off-white / tan
+        // Text hierarchy — theme-able via CSS vars
         ink: {
-          primary:   '#F3EFE7',
-          secondary: '#B8AD98',
-          muted:     '#7A6F5C',
-          dim:       '#3A342A',
+          primary:   'rgb(var(--c-ink-primary) / <alpha-value>)',
+          secondary: 'rgb(var(--c-ink-secondary) / <alpha-value>)',
+          muted:     'rgb(var(--c-ink-muted) / <alpha-value>)',
+          dim:       'rgb(var(--c-ink-dim) / <alpha-value>)',
         },
-        // Agent / semantic colors
-        atlas:  { DEFAULT: '#10B981', dim: '#10B98120', glow: '#10B98140' },
-        nexus:  { DEFAULT: '#7C3AED', dim: '#7C3AED20', glow: '#7C3AED40' },
-        pulse:  { DEFAULT: '#F97316', dim: '#F9731620', glow: '#F9731640' },
-        oracle: { DEFAULT: '#E8B44C', dim: '#E8B44C20', glow: '#E8B44C40' },
+        // Agent / semantic colors — theme-able via CSS vars
+        atlas:  { DEFAULT: 'rgb(var(--c-atlas) / <alpha-value>)',  dim: 'rgb(var(--c-atlas) / 0.125)',  glow: 'rgb(var(--c-atlas) / 0.25)' },
+        nexus:  { DEFAULT: 'rgb(var(--c-nexus) / <alpha-value>)',  dim: 'rgb(var(--c-nexus) / 0.125)',  glow: 'rgb(var(--c-nexus) / 0.25)' },
+        pulse:  { DEFAULT: 'rgb(var(--c-pulse) / <alpha-value>)',  dim: 'rgb(var(--c-pulse) / 0.125)',  glow: 'rgb(var(--c-pulse) / 0.25)' },
+        oracle: { DEFAULT: 'rgb(var(--c-oracle) / <alpha-value>)', dim: 'rgb(var(--c-oracle) / 0.125)', glow: 'rgb(var(--c-oracle) / 0.25)' },
 
-        // Semantic states
-        bull:  '#10B981',
-        bear:  '#EF4444',
-        neutral: '#A69C88',
-        strong: '#10B981',
-        operable: '#E8B44C',
-        mixed: '#F97316',
-        avoid: '#EF4444',
+        // Semantic states — mapped onto the agent colors above so they follow the theme too
+        bull:  'rgb(var(--c-atlas) / <alpha-value>)',
+        bear:  'rgb(var(--c-bear) / <alpha-value>)',
+        neutral: 'rgb(var(--c-neutral) / <alpha-value>)',
+        strong: 'rgb(var(--c-atlas) / <alpha-value>)',
+        operable: 'rgb(var(--c-oracle) / <alpha-value>)',
+        mixed: 'rgb(var(--c-pulse) / <alpha-value>)',
+        avoid: 'rgb(var(--c-bear) / <alpha-value>)',
       },
       fontFamily: {
         sans: ['IBM Plex Sans', 'system-ui', 'sans-serif'],
         mono: ['IBM Plex Mono', 'Fira Code', 'monospace'],
-        display: ['Fraunces', 'Georgia', 'serif'],
+        display: ['var(--font-display)'],
         serif: ['IBM Plex Serif', 'Georgia', 'serif'],
       },
       fontSize: {
         '2xs': ['0.625rem', { lineHeight: '0.875rem' }],
       },
       boxShadow: {
-        'atlas': '0 0 24px 0 #10B98120',
-        'nexus': '0 0 24px 0 #7C3AED20',
-        'pulse': '0 0 24px 0 #F9731620',
-        'oracle': '0 0 24px 0 #E8B44C20',
+        'atlas': '0 0 24px 0 rgb(var(--c-atlas) / 0.125)',
+        'nexus': '0 0 24px 0 rgb(var(--c-nexus) / 0.125)',
+        'pulse': '0 0 24px 0 rgb(var(--c-pulse) / 0.125)',
+        'oracle': '0 0 24px 0 rgb(var(--c-oracle) / 0.125)',
         'card': '0 1px 3px 0 #00000060, 0 1px 2px -1px #00000040',
       },
       backgroundImage: {
         'grid-subtle': "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%232E2A22' fill-opacity='0.4'%3E%3Cpath fill-rule='evenodd' d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E\")",
-        'oracle-gradient': 'linear-gradient(135deg, #0A0908 0%, #0F0D0A 50%, #161310 100%)',
+        'oracle-gradient': 'linear-gradient(135deg, rgb(var(--c-bg-deep)) 0%, rgb(var(--c-bg-base)) 50%, rgb(var(--c-bg-card)) 100%)',
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',

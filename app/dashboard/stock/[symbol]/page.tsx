@@ -45,7 +45,7 @@ function fmtMoney(value: number | null): string {
 
 function fmtNum(value: number | null, digits = 2): string {
   if (value === null || value === undefined) return '—'
-  return value.toLocaleString('en-US', { maximumFractionDigits: digits })
+  return value.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
 
 function fmtPct(value: number | null): string {
@@ -53,13 +53,21 @@ function fmtPct(value: number | null): string {
   return `${(value * 100).toFixed(1)}%`
 }
 
-function StatTile({ label, value }: { label: string; value: string }) {
+function StatCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-bg-border bg-bg-elevated/30 px-3 py-2.5">
-      <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest">{label}</p>
-      <p className="text-sm font-mono font-bold text-ink-primary mt-1 tabular-nums">{value}</p>
+    <div className="border-l border-bg-border pl-3.5 space-y-1.5 min-w-0">
+      <p className="text-xs font-sans text-ink-secondary">{label}</p>
+      <p className="text-[17px] font-mono text-ink-primary tabular-nums truncate">{value}</p>
     </div>
   )
+}
+
+function Eyebrow({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <p className={clsx('text-[11px] font-mono uppercase tracking-[0.16em]', className ?? 'text-ink-secondary')}>{children}</p>
+}
+
+function Card({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={clsx('rounded-xl border border-bg-border p-6 space-y-2.5', className)}>{children}</div>
 }
 
 export default function StockDetailPage() {
@@ -150,198 +158,212 @@ export default function StockDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, symbol])
 
-  const changeColor = (quote?.changePct ?? 0) >= 0 ? 'text-atlas' : 'text-bear'
+  const up = (quote?.changePct ?? 0) >= 0
+  const changeAbs = quote?.price != null && quote?.prevClose != null ? quote.price - quote.prevClose : null
 
   const hasFinancials = useMemo(
     () => Boolean(profile?.annualFinancials?.length || profile?.quarterlyFinancials?.length),
     [profile],
   )
 
+  const eyebrow = [symbol, profile?.exchange].filter(Boolean).join(' · ')
+
   if (loading) {
     return (
-      <div className="p-5 space-y-4 animate-fade-in">
-        <div className="h-6 w-40 bg-bg-elevated rounded animate-pulse" />
-        <div className="h-24 bg-bg-elevated rounded-xl animate-pulse" />
-        <div className="h-64 bg-bg-elevated rounded-xl animate-pulse" />
+      <div className="p-5 space-y-6 animate-fade-in max-w-[1200px]">
+        <div className="h-4 w-32 bg-bg-elevated rounded animate-pulse" />
+        <div className="flex justify-between gap-6">
+          <div className="h-16 w-72 bg-bg-elevated rounded animate-pulse" />
+          <div className="h-16 w-64 bg-bg-elevated rounded animate-pulse" />
+        </div>
+        <div className="h-14 bg-bg-elevated rounded animate-pulse" />
+        <div className="h-80 bg-bg-elevated rounded-xl animate-pulse" />
       </div>
     )
   }
 
   return (
-    <div className="space-y-5 animate-fade-in pb-20 max-w-[1200px]">
+    <div className="space-y-9 animate-fade-in pb-20 max-w-[1200px]">
       <button
         type="button"
         onClick={() => router.back()}
-        className="text-[10px] font-mono text-ink-dim hover:text-ink-primary transition-colors uppercase tracking-wider"
+        className="text-[11px] font-mono text-ink-secondary hover:text-ink-primary transition-colors uppercase tracking-wider"
       >
         ← Volver
       </button>
 
-      {/* Header — dense ticker-bar style */}
-      <div className="rounded-xl border border-pulse/30 bg-black overflow-hidden">
-        <div className="px-5 pt-4 pb-3 flex items-start justify-between flex-wrap gap-4">
-          <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-mono font-bold text-pulse tracking-tight">{symbol}</h1>
-              {profile?.exchange && <span className="text-[10px] font-mono text-ink-dim uppercase px-2 py-0.5 rounded border border-bg-border">{profile.exchange}</span>}
-            </div>
-            <p className="text-sm font-mono text-ink-secondary mt-1">{profile?.name ?? quote?.description ?? symbol}</p>
-            {(profile?.sector || profile?.industry) && (
-              <p className="text-[10px] font-mono text-ink-dim mt-1">{[profile?.sector, profile?.industry].filter(Boolean).join(' · ')}</p>
+      {/* Header — editorial: name left, large price right */}
+      <header className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] items-end gap-6 pb-7 border-b border-bg-border">
+        <div className="space-y-2.5 min-w-0">
+          {eyebrow && <Eyebrow className="text-pulse">{eyebrow}</Eyebrow>}
+          <h1 className="text-4xl font-sans font-semibold text-ink-primary tracking-tight truncate">
+            {profile?.name ?? quote?.description ?? symbol}
+          </h1>
+          <p className="text-[13px] font-mono text-ink-secondary">
+            {symbol}
+            {quote?.prevClose != null && <> · Cierre previo {fmtNum(quote.prevClose)}</>}
+            {(profile?.sector || profile?.industry) && <> · {[profile?.sector, profile?.industry].filter(Boolean).join(' · ')}</>}
+          </p>
+        </div>
+        <div className="flex flex-col md:items-end gap-2">
+          <p className="text-5xl md:text-6xl font-mono font-medium text-pulse tracking-tighter leading-none tabular-nums">
+            {fmtNum(quote?.price ?? null)}
+          </p>
+          <p className={clsx('text-[15px] font-mono tabular-nums', up ? 'text-atlas' : 'text-bear')}>
+            {quote?.changePct != null ? (
+              <>
+                {up ? '▲' : '▼'} {changeAbs != null && `${changeAbs >= 0 ? '+' : ''}${fmtNum(changeAbs)} · `}
+                {`${up ? '+' : ''}${quote.changePct.toFixed(2)}%`} hoy
+              </>
+            ) : (
+              '—'
             )}
-          </div>
-          <div className="text-right">
-            <p className="text-3xl font-mono font-bold text-pulse tabular-nums">{fmtNum(quote?.price ?? null)}</p>
-            <p className={clsx('text-sm font-mono font-bold', changeColor)}>
-              {quote?.changePct !== null && quote?.changePct !== undefined ? `${quote.changePct >= 0 ? '+' : ''}${quote.changePct.toFixed(2)}%` : '—'}
-            </p>
-          </div>
+          </p>
         </div>
+      </header>
 
-        {/* Dense stat strip */}
-        <div className="border-t border-pulse/20 bg-pulse/5 px-5 py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[10.5px] font-mono">
-          <span className="text-ink-dim">O <span className="text-pulse font-bold">{fmtNum(quote?.open ?? null)}</span></span>
-          <span className="text-ink-dim">H <span className="text-pulse font-bold">{fmtNum(quote?.high ?? null)}</span></span>
-          <span className="text-ink-dim">L <span className="text-pulse font-bold">{fmtNum(quote?.low ?? null)}</span></span>
-          <span className="text-ink-dim">Prev Close <span className="text-pulse font-bold">{fmtNum(quote?.prevClose ?? null)}</span></span>
-          <span className="text-ink-dim">Vol <span className="text-pulse font-bold">{quote?.volume ? quote.volume.toLocaleString('en-US') : '—'}</span></span>
-          {profile && (
-            <span className="text-ink-dim">52W <span className="text-pulse font-bold">{fmtNum(profile.fiftyTwoWeekLow)} - {fmtNum(profile.fiftyTwoWeekHigh)}</span></span>
-          )}
-        </div>
+      {/* Session stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
+        <StatCell label="Apertura" value={fmtNum(quote?.open ?? null)} />
+        <StatCell label="Máximo" value={fmtNum(quote?.high ?? null)} />
+        <StatCell label="Mínimo" value={fmtNum(quote?.low ?? null)} />
+        <StatCell label="Cierre previo" value={fmtNum(quote?.prevClose ?? null)} />
+        <StatCell
+          label="Rango 52 sem."
+          value={profile ? `${fmtNum(profile.fiftyTwoWeekLow, 0)}–${fmtNum(profile.fiftyTwoWeekHigh, 0)}` : '—'}
+        />
+        <StatCell label="Volumen" value={quote?.volume ? quote.volume.toLocaleString('en-US') : '—'} />
       </div>
 
-      {/* Relationship map */}
-      {relatedNodes.length > 0 && <RelationshipMap center={symbol} nodes={relatedNodes} />}
+      {relatedNodes.length > 0 && (
+        <RelationshipMap center={symbol} centerPrice={fmtNum(quote?.price ?? null)} nodes={relatedNodes} />
+      )}
 
-      {/* AI Brief */}
-      <div className="rounded-xl border border-oracle/30 bg-bg-card p-5 border-l-4 border-l-oracle space-y-2">
-        <p className="text-[10px] font-mono text-oracle uppercase tracking-widest font-bold">Brief de IA</p>
-        {briefLoading && <p className="text-xs font-mono text-ink-dim">Generando análisis...</p>}
-        {!briefLoading && brief && <p className="text-sm font-mono text-ink-primary leading-relaxed">{brief}</p>}
-        {!briefLoading && !brief && (
-          <p className="text-xs font-mono text-ink-dim">{briefError ?? 'Brief de IA no disponible para este activo.'}</p>
+      {/* AI brief + fundamentals status */}
+      <div className={clsx('grid grid-cols-1 gap-5', !profile && 'md:grid-cols-2')}>
+        <Card>
+          <Eyebrow className="text-oracle">Brief de IA</Eyebrow>
+          {briefLoading && <p className="text-[15px] font-sans text-ink-secondary">Generando análisis…</p>}
+          {!briefLoading && brief && <p className="text-[15px] font-sans text-ink-primary leading-relaxed text-pretty">{brief}</p>}
+          {!briefLoading && !brief && (
+            <>
+              <p className="text-[15px] font-sans text-ink-primary">Sin brief disponible todavía.</p>
+              <p className="text-[13px] font-sans text-ink-secondary">{briefError ?? 'Se genera cuando hay información fundamental del activo.'}</p>
+            </>
+          )}
+        </Card>
+
+        {profileError && !profile && (
+          <Card>
+            <Eyebrow>Fundamentales</Eyebrow>
+            <p className="text-[15px] font-sans text-ink-primary">No disponibles para este símbolo.</p>
+            <p className="text-[13px] font-sans text-ink-secondary">{profileError}</p>
+          </Card>
         )}
       </div>
 
-      {profileError && !profile && (
-        <div className="rounded-xl border border-bg-border bg-bg-card p-5 text-xs font-mono text-ink-dim">{profileError}</div>
-      )}
-
       {profile && (
         <>
-          {/* Key stats */}
-          <div>
-            <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest mb-2">Estadísticas clave</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-              <StatTile label="Market Cap" value={fmtMoney(profile.marketCap)} />
-              <StatTile label="P/E (TTM)" value={fmtNum(profile.peTrailing)} />
-              <StatTile label="P/E Forward" value={fmtNum(profile.peForward)} />
-              <StatTile label="EPS" value={fmtNum(profile.eps)} />
-              <StatTile label="Beta" value={fmtNum(profile.beta)} />
-              <StatTile label="Dividend Yield" value={fmtPct(profile.dividendYield)} />
-              <StatTile label="Rango 52S" value={`${fmtNum(profile.fiftyTwoWeekLow)} - ${fmtNum(profile.fiftyTwoWeekHigh)}`} />
-              <StatTile label="Vol. Promedio" value={profile.avgVolume ? profile.avgVolume.toLocaleString('en-US') : '—'} />
-              <StatTile label="Ingresos (TTM)" value={fmtMoney(profile.revenueTtm)} />
-              <StatTile label="Crec. Ingresos YoY" value={fmtPct(profile.revenueGrowthYoy)} />
-              <StatTile label="Margen Bruto" value={fmtPct(profile.grossMargins)} />
-              <StatTile label="Margen Neto" value={fmtPct(profile.profitMargins)} />
+          <section className="space-y-4">
+            <Eyebrow>Estadísticas clave</Eyebrow>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-5">
+              <StatCell label="Market Cap" value={fmtMoney(profile.marketCap)} />
+              <StatCell label="P/E (TTM)" value={fmtNum(profile.peTrailing)} />
+              <StatCell label="P/E Forward" value={fmtNum(profile.peForward)} />
+              <StatCell label="EPS" value={fmtNum(profile.eps)} />
+              <StatCell label="Beta" value={fmtNum(profile.beta)} />
+              <StatCell label="Dividend Yield" value={fmtPct(profile.dividendYield)} />
+              <StatCell label="Vol. promedio" value={profile.avgVolume ? profile.avgVolume.toLocaleString('en-US') : '—'} />
+              <StatCell label="Ingresos (TTM)" value={fmtMoney(profile.revenueTtm)} />
+              <StatCell label="Crec. ingresos YoY" value={fmtPct(profile.revenueGrowthYoy)} />
+              <StatCell label="Margen bruto" value={fmtPct(profile.grossMargins)} />
+              <StatCell label="Margen neto" value={fmtPct(profile.profitMargins)} />
             </div>
-          </div>
+          </section>
 
           {profile.recommendationKey && (
-            <div className="rounded-xl border border-bg-border bg-bg-card p-4 flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest">Consenso de analistas</p>
-                <p className="text-sm font-mono font-bold text-atlas uppercase mt-1">{profile.recommendationKey.replace('_', ' ')}</p>
+            <Card className="!space-y-0 grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="space-y-1.5">
+                <Eyebrow>Consenso de analistas</Eyebrow>
+                <p className="text-xl font-sans font-medium text-atlas capitalize">{profile.recommendationKey.replace('_', ' ')}</p>
               </div>
-              <div className="text-right">
-                <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest">Precio objetivo promedio</p>
-                <p className="text-sm font-mono font-bold text-ink-primary mt-1">{fmtNum(profile.targetMeanPrice)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[9px] font-mono text-ink-dim uppercase tracking-widest">Analistas</p>
-                <p className="text-sm font-mono font-bold text-ink-primary mt-1">{profile.analystCount ?? '—'}</p>
-              </div>
-            </div>
+              <StatCell label="Precio objetivo promedio" value={fmtNum(profile.targetMeanPrice)} />
+              <StatCell label="Analistas" value={profile.analystCount != null ? String(profile.analystCount) : '—'} />
+            </Card>
           )}
 
-          {/* Financials */}
           {hasFinancials && (
-            <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
-              <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Financieros anuales</p>
+            <Card className="!space-y-4">
+              <Eyebrow>Financieros anuales</Eyebrow>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs font-mono">
+                <table className="w-full text-sm font-mono tabular-nums">
                   <thead>
-                    <tr className="text-[9px] text-ink-dim uppercase tracking-wider border-b border-bg-border">
-                      <th className="text-left py-2">Período</th>
-                      <th className="text-right py-2">Ingresos</th>
-                      <th className="text-right py-2">Utilidad neta</th>
+                    <tr className="text-xs font-sans text-ink-secondary border-b border-bg-border">
+                      <th className="text-left font-normal py-2.5">Período</th>
+                      <th className="text-right font-normal py-2.5">Ingresos</th>
+                      <th className="text-right font-normal py-2.5">Utilidad neta</th>
                     </tr>
                   </thead>
                   <tbody>
                     {profile.annualFinancials.map((row) => (
                       <tr key={row.period} className="border-b border-bg-border/50">
-                        <td className="py-2 text-ink-secondary">{row.period}</td>
-                        <td className="py-2 text-right text-ink-primary">{fmtMoney(row.revenue)}</td>
-                        <td className={clsx('py-2 text-right font-bold', (row.earnings ?? 0) >= 0 ? 'text-atlas' : 'text-bear')}>{fmtMoney(row.earnings)}</td>
+                        <td className="py-2.5 text-ink-secondary">{row.period}</td>
+                        <td className="py-2.5 text-right text-ink-primary">{fmtMoney(row.revenue)}</td>
+                        <td className={clsx('py-2.5 text-right', (row.earnings ?? 0) >= 0 ? 'text-atlas' : 'text-bear')}>{fmtMoney(row.earnings)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
+            </Card>
           )}
 
-          {/* Company profile */}
           {profile.description && (
-            <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
+            <Card className="!space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Perfil de la empresa</p>
-                <div className="flex items-center gap-3 text-[10px] font-mono text-ink-dim">
+                <Eyebrow>Perfil de la empresa</Eyebrow>
+                <div className="flex items-center gap-4 text-xs font-mono text-ink-secondary">
                   {profile.employees && <span>{profile.employees.toLocaleString('en-US')} empleados</span>}
                   {profile.website && (
-                    <a href={profile.website} target="_blank" rel="noopener noreferrer" className="text-oracle hover:underline">
+                    <a href={profile.website} target="_blank" rel="noopener noreferrer" className="text-pulse hover:underline">
                       Sitio web →
                     </a>
                   )}
                 </div>
               </div>
-              <p className="text-xs font-mono text-ink-secondary leading-relaxed">{profile.description}</p>
-            </div>
+              <p className="text-sm font-sans text-ink-secondary leading-relaxed text-pretty">{profile.description}</p>
+            </Card>
           )}
 
-          {/* Leadership */}
           {profile.officers.length > 0 && (
-            <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-3">
-              <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Directivos</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            <Card className="!space-y-4">
+              <Eyebrow>Directivos</Eyebrow>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
                 {profile.officers.map((officer) => (
-                  <div key={`${officer.name}-${officer.title}`} className="rounded-lg border border-bg-border bg-bg-elevated/20 px-3 py-2.5 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-mono font-bold text-ink-primary">{officer.name}</p>
-                      <p className="text-[10px] font-mono text-ink-dim">{officer.title}</p>
+                  <div key={`${officer.name}-${officer.title}`} className="py-3 border-b border-bg-border/60 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-sans font-medium text-ink-primary truncate">{officer.name}</p>
+                      <p className="text-xs font-sans text-ink-secondary truncate">{officer.title}</p>
                     </div>
-                    <div className="text-right">
-                      {officer.age !== null && <p className="text-[10px] font-mono text-ink-dim">{officer.age} años</p>}
-                      {officer.totalPay !== null && <p className="text-[10px] font-mono text-ink-secondary">{fmtMoney(officer.totalPay)}/año</p>}
+                    <div className="text-right shrink-0 text-xs font-mono text-ink-secondary">
+                      {officer.age !== null && <p>{officer.age} años</p>}
+                      {officer.totalPay !== null && <p>{fmtMoney(officer.totalPay)}/año</p>}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
           )}
         </>
       )}
 
-      {/* X / Social sentiment */}
-      <div className="rounded-xl border border-bg-border bg-bg-card p-5 space-y-2">
-        <p className="text-[10px] font-mono text-ink-dim uppercase tracking-widest">Sentimiento en X (Twitter)</p>
-        <p className="text-xs font-mono text-ink-dim leading-relaxed">
-          Esta sección requiere credenciales de la API de X (bearer token de desarrollador) para escanear tweets relevantes del sector en tiempo real.
-          Aún no está conectada — no se muestran datos simulados. Si tienes un token de la API de X, puedo integrarlo aquí.
+      <Card>
+        <Eyebrow>Sentimiento en X</Eyebrow>
+        <p className="text-[15px] font-sans text-ink-primary">Sin conectar.</p>
+        <p className="text-[13px] font-sans text-ink-secondary leading-relaxed text-pretty">
+          Requiere un bearer token de la API de X para escanear tweets relevantes del sector en tiempo real. No se muestran datos simulados.
         </p>
-      </div>
+      </Card>
     </div>
   )
 }

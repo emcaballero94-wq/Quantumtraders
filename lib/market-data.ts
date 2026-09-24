@@ -49,7 +49,7 @@ export const MARKET_SYMBOL_MAP: Record<string, string> = {
   SP500: '^GSPC',
   SPX500: '^GSPC',
   NASDAQ: '^IXIC',
-  NAS100: '^IXIC',
+  NAS100: '^NDX',
   US30: '^DJI',
   VIX: '^VIX',
   USOIL: 'CL=F',

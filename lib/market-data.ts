@@ -31,8 +31,8 @@ export interface CorrelationResult {
 }
 
 export const MARKET_SYMBOL_MAP: Record<string, string> = {
-  XAUUSD: 'GC=F',
-  XAGUSD: 'SI=F',
+  XAUUSD: 'XAUUSD=X',
+  XAGUSD: 'XAGUSD=X',
   EURUSD: 'EURUSD=X',
   GBPUSD: 'GBPUSD=X',
   AUDUSD: 'AUDUSD=X',

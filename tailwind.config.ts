@@ -64,6 +64,7 @@ const config: Config = {
         'fade-in': 'fadeIn 0.3s ease-in-out',
         'slide-up': 'slideUp 0.3s ease-out',
         'glow-pulse': 'glowPulse 2.4s ease-in-out infinite',
+        'marquee': 'marquee 28s linear infinite',
       },
       keyframes: {
         fadeIn: {
@@ -77,6 +78,10 @@ const config: Config = {
         glowPulse: {
           '0%, 100%': { opacity: '0.4', transform: 'scale(1)' },
           '50%':      { opacity: '1',   transform: 'scale(1.06)' },
+        },
+        marquee: {
+          '0%':   { transform: 'translateX(0%)' },
+          '100%': { transform: 'translateX(-50%)' },
         },
       },
     },

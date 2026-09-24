@@ -139,29 +139,48 @@ export function LandingPage() {
     return () => clearInterval(id)
   }, [])
 
+  // Quotes drive the ticker strip and hero cards — poll often so prices feel live.
   useEffect(() => {
     let mounted = true
-    const load = async () => {
+    const loadQuotes = async () => {
       try {
-        const [quotePayload, ...historyPayloads] = await Promise.all([
-          fetch(`/api/market/quote?symbols=${TICKER_SYMBOLS.join(',')}`).then((r) => r.json() as Promise<QuoteResponse>),
-          ...CARD_SYMBOLS.map((s) => fetch(`/api/market/history?symbol=${s}&interval=1h&outputsize=24`).then((r) => r.json() as Promise<HistoryPoint[]>)),
-        ])
+        const payload = await fetch(`/api/market/quote?symbols=${TICKER_SYMBOLS.join(',')}`).then((r) => r.json() as Promise<QuoteResponse>)
         if (!mounted) return
         const qMap: Record<string, QuoteItem> = {}
-        for (const item of quotePayload?.quotes ?? []) qMap[item.symbol] = item
+        for (const item of payload?.quotes ?? []) qMap[item.symbol] = item
         setQuotes(qMap)
+      } catch {
+        // hero shows placeholders on failure — no fake numbers
+      }
+    }
+    loadQuotes()
+    const timer = setInterval(loadQuotes, 5_000)
+    return () => {
+      mounted = false
+      clearInterval(timer)
+    }
+  }, [])
+
+  // Sparkline history changes far more slowly — no need to refetch as often.
+  useEffect(() => {
+    let mounted = true
+    const loadHistories = async () => {
+      try {
+        const historyPayloads = await Promise.all(
+          CARD_SYMBOLS.map((s) => fetch(`/api/market/history?symbol=${s}&interval=1h&outputsize=24`).then((r) => r.json() as Promise<HistoryPoint[]>)),
+        )
+        if (!mounted) return
         const hMap: Record<string, number[]> = {}
         CARD_SYMBOLS.forEach((s, i) => {
           hMap[s] = (Array.isArray(historyPayloads[i]) ? historyPayloads[i] : []).map((c) => c.close).filter((v): v is number => Number.isFinite(v))
         })
         setHistories(hMap)
       } catch {
-        // hero shows placeholders on failure — no fake numbers
+        // sparkline just stays empty on failure
       }
     }
-    load()
-    const timer = setInterval(load, 60_000)
+    loadHistories()
+    const timer = setInterval(loadHistories, 60_000)
     return () => {
       mounted = false
       clearInterval(timer)
@@ -258,19 +277,21 @@ export function LandingPage() {
           <HeroDataCard symbol="XAUUSD" quote={quotes.XAUUSD} history={histories.XAUUSD ?? []} />
         </div>
 
-        {/* Live ticker strip */}
-        <div className="absolute inset-x-0 bottom-0 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 border-t border-bg-border bg-bg-deep/80 backdrop-blur-md">
-          {TICKER_SYMBOLS.map((symbol) => {
-            const q = quotes[symbol]
-            const up = (q?.changePct ?? 0) >= 0
-            return (
-              <div key={symbol} className="flex items-baseline justify-between gap-3 px-6 py-4 border-r border-bg-border font-mono">
-                <span className="text-xs text-ink-secondary">{symbol}</span>
-                <span className="text-sm text-ink-primary tabular-nums">{fmtPrice(symbol, q?.price)}</span>
-                <span className={clsx('text-xs tabular-nums', up ? 'text-atlas' : 'text-bear')}>{fmtChg(q?.changePct)}</span>
-              </div>
-            )
-          })}
+        {/* Live ticker strip — scrolling tape, doubled for a seamless loop */}
+        <div className="absolute inset-x-0 bottom-0 overflow-hidden border-t border-bg-border bg-bg-deep/80 backdrop-blur-md">
+          <div className="flex w-max animate-marquee hover:[animation-play-state:paused]">
+            {[...TICKER_SYMBOLS, ...TICKER_SYMBOLS].map((symbol, i) => {
+              const q = quotes[symbol]
+              const up = (q?.changePct ?? 0) >= 0
+              return (
+                <div key={`${symbol}-${i}`} className="flex shrink-0 items-baseline gap-3 px-6 py-4 border-r border-bg-border font-mono">
+                  <span className="text-xs text-ink-secondary">{symbol}</span>
+                  <span className="text-sm text-ink-primary tabular-nums">{fmtPrice(symbol, q?.price)}</span>
+                  <span className={clsx('text-xs tabular-nums', up ? 'text-atlas' : 'text-bear')}>{fmtChg(q?.changePct)}</span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </section>
 

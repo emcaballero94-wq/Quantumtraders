@@ -58,16 +58,32 @@ export async function POST(request: Request) {
       emotionTag?: string | null
       mistakeTag?: string | null
       notes?: string | null
+      source?: 'manual' | 'mt5'
     }
 
     if (!body.symbol || !body.side) {
       return NextResponse.json({ success: false, error: 'Missing required fields: symbol, side' }, { status: 400 })
     }
 
+    const source = body.source === 'mt5' ? 'mt5' : 'manual'
+
+    if (source === 'mt5') {
+      const expectedKey = process.env.MT5_JOURNAL_API_KEY
+      if (!expectedKey) {
+        return NextResponse.json({ success: false, error: 'MT5 ingestion is not configured on the server' }, { status: 503 })
+      }
+      const providedKey = request.headers.get('x-api-key')
+      if (providedKey !== expectedKey) {
+        return NextResponse.json({ success: false, error: 'Invalid or missing API key' }, { status: 401 })
+      }
+    }
+
+    const result = body.result ?? (source === 'mt5' ? ((body.profit ?? 0) > 0 ? 'WIN' : 'LOSS') : undefined)
+
     const entry = await insertTradeJournalEntry({
       symbol: body.symbol.toUpperCase(),
       side: body.side,
-      result: body.result,
+      result,
       profit: body.profit,
       entryPrice: body.entryPrice,
       stopLoss: body.stopLoss,
@@ -77,7 +93,7 @@ export async function POST(request: Request) {
       commission: body.commission,
       swap: body.swap,
       closedAt: body.closedAt,
-      source: 'manual',
+      source,
       notes: body.notes,
     })
 

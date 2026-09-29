@@ -53,6 +53,10 @@ export const MARKET_SYMBOL_MAP: Record<string, string> = {
   US30: '^DJI',
   VIX: '^VIX',
   USOIL: 'CL=F',
+  // Broad-market ETFs — same tickers on Yahoo, no suffix needed
+  QQQ: 'QQQ',
+  SPY: 'SPY',
+  DIA: 'DIA',
   // US mega-cap tech — same tickers on Yahoo as on any US exchange, no suffix needed
   NVDA: 'NVDA',
   MSFT: 'MSFT',

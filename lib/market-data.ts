@@ -485,39 +485,34 @@ async function fetchBinanceHistory(symbol: string, options?: { interval?: string
   return candles
 }
 
-export async function fetchMarketHistory(
-  symbol: string,
-  options?: { interval?: string; range?: string },
+// One bad symbol must never take down a batch computation (correlations,
+// sector strength) that Promise.all()s several of these together — so this
+// never throws. Any failure (network, non-2xx, malformed payload) just
+// yields an empty candle list for that one symbol.
+async function fetchYahooHistoryCandles(
+  providerSymbol: string,
+  interval: string,
+  range: string,
 ): Promise<Candle[]> {
-  const normalizedSymbol = symbol.toUpperCase().trim()
-
-  if (symbolToBinanceSymbol(normalizedSymbol)) {
-    try {
-      const binanceCandles = await fetchBinanceHistory(normalizedSymbol, options)
-      if (binanceCandles.length > 0) return binanceCandles
-    } catch {
-      // Fallback to Yahoo below
-    }
-  }
-
-  const providerSymbol = symbolToProviderSymbol(symbol)
-  if (!providerSymbol) return []
-
-  const interval = options?.interval ?? '1h'
-  const range = options?.range ?? '1mo'
-
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(providerSymbol)}?interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}&includePrePost=false`
 
-  const response = await fetch(url, {
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-    },
-    next: { revalidate: 0 },
-  })
+  let response: Response
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      },
+      next: { revalidate: 0 },
+    })
+  } catch (error) {
+    console.error(`[fetchYahooHistoryCandles] Network error for ${providerSymbol}:`, error)
+    return []
+  }
 
   if (!response.ok) {
-    throw new Error(`History provider responded with status ${response.status}`)
+    console.error(`[fetchYahooHistoryCandles] ${providerSymbol} responded with status ${response.status}`)
+    return []
   }
 
   const json = await response.json()
@@ -553,6 +548,36 @@ export async function fetchMarketHistory(
 
   candles.sort((a, b) => a.timestamp - b.timestamp)
   return candles
+}
+
+export async function fetchMarketHistory(
+  symbol: string,
+  options?: { interval?: string; range?: string },
+): Promise<Candle[]> {
+  const normalizedSymbol = symbol.toUpperCase().trim()
+
+  if (symbolToBinanceSymbol(normalizedSymbol)) {
+    try {
+      const binanceCandles = await fetchBinanceHistory(normalizedSymbol, options)
+      if (binanceCandles.length > 0) return binanceCandles
+    } catch {
+      // Fallback to Yahoo below
+    }
+  }
+
+  const providerSymbol = symbolToProviderSymbol(symbol)
+  if (!providerSymbol) return []
+
+  const interval = options?.interval ?? '1h'
+  const range = options?.range ?? '1mo'
+
+  const candles = await fetchYahooHistoryCandles(providerSymbol, interval, range)
+  if (candles.length > 0) return candles
+
+  const fallbackProviderSymbol = FALLBACK_PROVIDER_SYMBOL[normalizedSymbol]
+  if (fallbackProviderSymbol) return fetchYahooHistoryCandles(fallbackProviderSymbol, interval, range)
+
+  return []
 }
 
 export function resampleCandles(candles: Candle[], chunkSize: number): Candle[] {
@@ -677,9 +702,13 @@ export async function computeCorrelationMatrix(
     }
   }
 
-  const sampleSize = Math.min(
-    ...normalizedSymbols.map((symbol) => (returnsBySymbol[symbol] ?? []).length),
-  )
+  // One symbol failing to fetch (provider outage, delisted ticker, etc.)
+  // shouldn't make the whole matrix report zero samples — report the
+  // minimum among the symbols that actually returned data.
+  const sampleLengths = normalizedSymbols
+    .map((symbol) => (returnsBySymbol[symbol] ?? []).length)
+    .filter((length) => length > 0)
+  const sampleSize = sampleLengths.length > 0 ? Math.min(...sampleLengths) : 0
 
   return {
     symbols: normalizedSymbols,

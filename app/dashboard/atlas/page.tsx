@@ -20,7 +20,7 @@ const TradingViewChart = dynamic(() => import('@/components/atlas/TradingViewCha
   ),
 })
 
-const SYMBOLS = ['SPX500', 'NAS100', 'US30', 'NVDA', 'MSFT', 'GOOGL', 'AMZN', 'META', 'AVGO', 'TSM', 'AMD', 'MU', 'TSLA', 'PLTR', 'BTCUSD', 'XAUUSD']
+const SYMBOLS = ['SPX500', 'NAS100', 'US30', 'QQQ', 'SPY', 'DIA', 'NVDA', 'MSFT', 'GOOGL', 'AMZN', 'META', 'AVGO', 'TSM', 'AMD', 'MU', 'TSLA', 'PLTR', 'BTCUSD', 'XAUUSD']
 
 const TIMEFRAMES = [
   { label: 'M1', value: '1' },

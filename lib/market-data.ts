@@ -53,6 +53,10 @@ export const MARKET_SYMBOL_MAP: Record<string, string> = {
   US30: '^DJI',
   VIX: '^VIX',
   USOIL: 'CL=F',
+  // Broad-market ETFs — same tickers on Yahoo, no suffix needed
+  QQQ: 'QQQ',
+  SPY: 'SPY',
+  DIA: 'DIA',
   // US mega-cap tech — same tickers on Yahoo as on any US exchange, no suffix needed
   NVDA: 'NVDA',
   MSFT: 'MSFT',
@@ -198,8 +202,17 @@ async function fetchYahooQuotes(symbols: string[]): Promise<MarketQuote[]> {
   })
 }
 
-async function fetchYahooSnapshotQuote(symbol: string): Promise<MarketQuote | null> {
-  const providerSymbol = MARKET_SYMBOL_MAP[symbol]
+// Some spot-style tickers (e.g. XAUUSD=X) aren't reliably served by Yahoo's
+// endpoints. If a symbol's primary provider ticker comes back empty, retry
+// once with a known-reliable fallback (e.g. the futures contract) rather
+// than showing nothing.
+const FALLBACK_PROVIDER_SYMBOL: Record<string, string> = {
+  XAUUSD: 'GC=F',
+  XAGUSD: 'SI=F',
+}
+
+async function fetchYahooSnapshotQuote(symbol: string, providerSymbolOverride?: string): Promise<MarketQuote | null> {
+  const providerSymbol = providerSymbolOverride ?? MARKET_SYMBOL_MAP[symbol]
   if (!providerSymbol) return null
 
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(providerSymbol)}?interval=1h&range=2d&includePrePost=false`
@@ -361,6 +374,18 @@ export async function fetchMarketQuotes(symbols: string[]): Promise<MarketQuote[
     }
   }
 
+  const stillUnresolved = normalizedSymbols.filter((symbol) => !merged.has(symbol) && FALLBACK_PROVIDER_SYMBOL[symbol])
+  if (stillUnresolved.length > 0) {
+    const lastResortSnapshots = await Promise.all(
+      stillUnresolved.map((symbol) =>
+        fetchYahooSnapshotQuote(symbol, FALLBACK_PROVIDER_SYMBOL[symbol]).catch(() => null),
+      ),
+    )
+    for (const quote of lastResortSnapshots) {
+      if (quote && !merged.has(quote.symbol)) merged.set(quote.symbol, quote)
+    }
+  }
+
   return normalizedSymbols
     .map((symbol) => merged.get(symbol))
     .filter((quote): quote is MarketQuote => Boolean(quote))
@@ -460,39 +485,34 @@ async function fetchBinanceHistory(symbol: string, options?: { interval?: string
   return candles
 }
 
-export async function fetchMarketHistory(
-  symbol: string,
-  options?: { interval?: string; range?: string },
+// One bad symbol must never take down a batch computation (correlations,
+// sector strength) that Promise.all()s several of these together — so this
+// never throws. Any failure (network, non-2xx, malformed payload) just
+// yields an empty candle list for that one symbol.
+async function fetchYahooHistoryCandles(
+  providerSymbol: string,
+  interval: string,
+  range: string,
 ): Promise<Candle[]> {
-  const normalizedSymbol = symbol.toUpperCase().trim()
-
-  if (symbolToBinanceSymbol(normalizedSymbol)) {
-    try {
-      const binanceCandles = await fetchBinanceHistory(normalizedSymbol, options)
-      if (binanceCandles.length > 0) return binanceCandles
-    } catch {
-      // Fallback to Yahoo below
-    }
-  }
-
-  const providerSymbol = symbolToProviderSymbol(symbol)
-  if (!providerSymbol) return []
-
-  const interval = options?.interval ?? '1h'
-  const range = options?.range ?? '1mo'
-
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(providerSymbol)}?interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}&includePrePost=false`
 
-  const response = await fetch(url, {
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-    },
-    next: { revalidate: 0 },
-  })
+  let response: Response
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      },
+      next: { revalidate: 0 },
+    })
+  } catch (error) {
+    console.error(`[fetchYahooHistoryCandles] Network error for ${providerSymbol}:`, error)
+    return []
+  }
 
   if (!response.ok) {
-    throw new Error(`History provider responded with status ${response.status}`)
+    console.error(`[fetchYahooHistoryCandles] ${providerSymbol} responded with status ${response.status}`)
+    return []
   }
 
   const json = await response.json()
@@ -528,6 +548,36 @@ export async function fetchMarketHistory(
 
   candles.sort((a, b) => a.timestamp - b.timestamp)
   return candles
+}
+
+export async function fetchMarketHistory(
+  symbol: string,
+  options?: { interval?: string; range?: string },
+): Promise<Candle[]> {
+  const normalizedSymbol = symbol.toUpperCase().trim()
+
+  if (symbolToBinanceSymbol(normalizedSymbol)) {
+    try {
+      const binanceCandles = await fetchBinanceHistory(normalizedSymbol, options)
+      if (binanceCandles.length > 0) return binanceCandles
+    } catch {
+      // Fallback to Yahoo below
+    }
+  }
+
+  const providerSymbol = symbolToProviderSymbol(symbol)
+  if (!providerSymbol) return []
+
+  const interval = options?.interval ?? '1h'
+  const range = options?.range ?? '1mo'
+
+  const candles = await fetchYahooHistoryCandles(providerSymbol, interval, range)
+  if (candles.length > 0) return candles
+
+  const fallbackProviderSymbol = FALLBACK_PROVIDER_SYMBOL[normalizedSymbol]
+  if (fallbackProviderSymbol) return fetchYahooHistoryCandles(fallbackProviderSymbol, interval, range)
+
+  return []
 }
 
 export function resampleCandles(candles: Candle[], chunkSize: number): Candle[] {
@@ -652,9 +702,13 @@ export async function computeCorrelationMatrix(
     }
   }
 
-  const sampleSize = Math.min(
-    ...normalizedSymbols.map((symbol) => (returnsBySymbol[symbol] ?? []).length),
-  )
+  // One symbol failing to fetch (provider outage, delisted ticker, etc.)
+  // shouldn't make the whole matrix report zero samples — report the
+  // minimum among the symbols that actually returned data.
+  const sampleLengths = normalizedSymbols
+    .map((symbol) => (returnsBySymbol[symbol] ?? []).length)
+    .filter((length) => length > 0)
+  const sampleSize = sampleLengths.length > 0 ? Math.min(...sampleLengths) : 0
 
   return {
     symbols: normalizedSymbols,

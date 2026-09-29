@@ -84,6 +84,30 @@ export default function StockDetailPage() {
   const [briefLoading, setBriefLoading] = useState(false)
   const [relatedNodes, setRelatedNodes] = useState<RelatedNode[]>([])
 
+  // Quote (price, open/high/low, volume) changes constantly during the
+  // session — poll it independently so the header stats don't go stale.
+  useEffect(() => {
+    if (!symbol) return
+    let mounted = true
+    const loadQuote = async () => {
+      try {
+        const payload = await fetch(`/api/market/quote?symbols=${encodeURIComponent(symbol)}`).then((r) => r.json() as Promise<QuoteResponse>)
+        if (!mounted) return
+        setQuote(payload?.quotes?.[0] ?? null)
+      } catch {
+        // keep the last known quote on a transient failure
+      }
+    }
+    loadQuote()
+    const timer = setInterval(loadQuote, 5_000)
+    return () => {
+      mounted = false
+      clearInterval(timer)
+    }
+  }, [symbol])
+
+  // Company fundamentals and related-symbol map barely change intraday —
+  // fetch once per symbol instead of on every quote poll.
   useEffect(() => {
     if (!symbol) return
     let mounted = true
@@ -91,15 +115,13 @@ export default function StockDetailPage() {
     const load = async () => {
       setLoading(true)
       try {
-        const [quotePayload, companyPayload, relatedPayload] = await Promise.all([
-          fetch(`/api/market/quote?symbols=${encodeURIComponent(symbol)}`).then((r) => r.json() as Promise<QuoteResponse>),
+        const [companyPayload, relatedPayload] = await Promise.all([
           fetch(`/api/market/company?symbol=${encodeURIComponent(symbol)}`).then((r) => r.json() as Promise<CompanyResponse>),
           relatedSymbols.length > 0
             ? fetch(`/api/market/quote?symbols=${encodeURIComponent(relatedSymbols.join(','))}`).then((r) => r.json() as Promise<QuoteResponse>)
             : Promise.resolve<QuoteResponse>({ quotes: [] }),
         ])
         if (!mounted) return
-        setQuote(quotePayload?.quotes?.[0] ?? null)
         if (companyPayload.success && companyPayload.data) {
           setProfile(companyPayload.data)
           setProfileError(null)

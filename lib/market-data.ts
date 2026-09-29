@@ -198,8 +198,17 @@ async function fetchYahooQuotes(symbols: string[]): Promise<MarketQuote[]> {
   })
 }
 
-async function fetchYahooSnapshotQuote(symbol: string): Promise<MarketQuote | null> {
-  const providerSymbol = MARKET_SYMBOL_MAP[symbol]
+// Some spot-style tickers (e.g. XAUUSD=X) aren't reliably served by Yahoo's
+// endpoints. If a symbol's primary provider ticker comes back empty, retry
+// once with a known-reliable fallback (e.g. the futures contract) rather
+// than showing nothing.
+const FALLBACK_PROVIDER_SYMBOL: Record<string, string> = {
+  XAUUSD: 'GC=F',
+  XAGUSD: 'SI=F',
+}
+
+async function fetchYahooSnapshotQuote(symbol: string, providerSymbolOverride?: string): Promise<MarketQuote | null> {
+  const providerSymbol = providerSymbolOverride ?? MARKET_SYMBOL_MAP[symbol]
   if (!providerSymbol) return null
 
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(providerSymbol)}?interval=1h&range=2d&includePrePost=false`
@@ -358,6 +367,18 @@ export async function fetchMarketQuotes(symbols: string[]): Promise<MarketQuote[
     const fallbackSnapshots = await fetchYahooSnapshotQuotes(unresolved)
     for (const quote of fallbackSnapshots) {
       if (!merged.has(quote.symbol)) merged.set(quote.symbol, quote)
+    }
+  }
+
+  const stillUnresolved = normalizedSymbols.filter((symbol) => !merged.has(symbol) && FALLBACK_PROVIDER_SYMBOL[symbol])
+  if (stillUnresolved.length > 0) {
+    const lastResortSnapshots = await Promise.all(
+      stillUnresolved.map((symbol) =>
+        fetchYahooSnapshotQuote(symbol, FALLBACK_PROVIDER_SYMBOL[symbol]).catch(() => null),
+      ),
+    )
+    for (const quote of lastResortSnapshots) {
+      if (quote && !merged.has(quote.symbol)) merged.set(quote.symbol, quote)
     }
   }
 

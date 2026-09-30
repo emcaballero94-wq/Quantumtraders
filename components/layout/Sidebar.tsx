@@ -38,6 +38,7 @@ const NAV: { sectionKey: string; items: NavItem[] }[] = [
       { href: '/dashboard/atlas',   labelKey: 'atlas',   subKey: 'atlasSub',   dot: 'bg-atlas',   icon: AtlasIcon   },
       { href: '/dashboard/nexus',   labelKey: 'nexus',   subKey: 'nexusSub',   dot: 'bg-nexus',   icon: NexusIcon,  advanced: true },
       { href: '/dashboard/orderflow', labelKey: 'orderflow', subKey: 'orderflowSub', dot: 'bg-atlas', icon: OrderFlowIcon, advanced: true },
+      { href: '/dashboard/options', labelKey: 'options', subKey: 'optionsSub', dot: 'bg-oracle', icon: OptionsIcon, advanced: true },
     ],
   },
   {
@@ -301,6 +302,13 @@ function OrderFlowIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6h9m-9 4.5h6m-6 4.5h12M3.75 19.5h4.5M15 15l3-3 3 3m-3-3v6" />
+    </svg>
+  )
+}
+function OptionsIcon({ cls }: { cls: string }) {
+  return (
+    <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   )
 }

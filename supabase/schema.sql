@@ -146,3 +146,24 @@ alter table quantumtraders.trade_journal_entries
 alter table quantumtraders.trade_journal_checklists
   add column if not exists emotion_tag text null,
   add column if not exists mistake_tag text null;
+
+-- Order Flow AI briefs — one row per generated brief (every ~60s while the
+-- page is open, per symbol). Key signals are pulled out into their own
+-- columns so the backtest endpoint can do numeric analysis without parsing
+-- jsonb on every row; the full snapshot is kept in `snapshot` for reference.
+create table if not exists quantumtraders.orderflow_briefs (
+  id uuid primary key default gen_random_uuid(),
+  symbol text not null,
+  brief_text text not null,
+  price double precision null,
+  cvd double precision null,
+  funding_rate double precision null,
+  open_interest double precision null,
+  book_imbalance double precision null,
+  liquidation_long_notional double precision null,
+  liquidation_short_notional double precision null,
+  snapshot jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_orderflow_briefs_symbol_created_at on quantumtraders.orderflow_briefs (symbol, created_at);

@@ -30,6 +30,21 @@ interface BacktestStats {
   neutralCount: number
 }
 
+interface FlowBucket {
+  startLabel: string
+  endLabel: string
+  priceStart: number | null
+  priceEnd: number | null
+  priceChangePct: number | null
+  cvdStart: number | null
+  cvdEnd: number | null
+  avgBookImbalance: number | null
+  avgFundingRate: number | null
+  bias: 'bullish' | 'bearish' | 'neutral'
+}
+
+const MEMORY_PRESETS = ['¿Cómo evolucionó el flujo desde las 08:00 UTC?', '¿Qué pasó en la última hora?', '¿Cómo va el flujo hoy?']
+
 export default function OrderFlowPage() {
   const [symbol, setSymbol] = useState(SYMBOLS[0].value)
 
@@ -48,6 +63,13 @@ export default function OrderFlowPage() {
   const [backtestError, setBacktestError] = useState<string | null>(null)
   const [backtestStats, setBacktestStats] = useState<BacktestStats | null>(null)
   const [backtestNarrative, setBacktestNarrative] = useState<string | null>(null)
+
+  const [memoryQuestion, setMemoryQuestion] = useState('')
+  const [memoryLoading, setMemoryLoading] = useState(false)
+  const [memoryError, setMemoryError] = useState<string | null>(null)
+  const [memoryAnswer, setMemoryAnswer] = useState<string | null>(null)
+  const [memoryWindowLabel, setMemoryWindowLabel] = useState<string | null>(null)
+  const [memoryTimeline, setMemoryTimeline] = useState<FlowBucket[]>([])
 
   // Snapshots arrive via throttled callbacks from each live component. The
   // brief refresh runs on its own interval, so it reads the latest values
@@ -115,6 +137,42 @@ export default function OrderFlowPage() {
     }
   }, [backtestHorizon])
 
+  const askMemory = useCallback(
+    async (question: string) => {
+      const trimmed = question.trim()
+      if (!trimmed) return
+
+      setMemoryLoading(true)
+      setMemoryError(null)
+      try {
+        const response = await fetch('/api/oracle/orderflow-memory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol: latestRef.current.symbol.toUpperCase(), question: trimmed }),
+        })
+        const result = await response.json()
+        if (result.success) {
+          setMemoryAnswer(result.data.answer)
+          setMemoryWindowLabel(result.data.windowLabel)
+          setMemoryTimeline(result.data.timeline ?? [])
+        } else {
+          setMemoryAnswer(null)
+          setMemoryWindowLabel(null)
+          setMemoryTimeline([])
+          setMemoryError(result.error ?? 'No se pudo consultar la memoria intradía.')
+        }
+      } catch {
+        setMemoryAnswer(null)
+        setMemoryWindowLabel(null)
+        setMemoryTimeline([])
+        setMemoryError('Error de conexión al consultar la memoria intradía.')
+      } finally {
+        setMemoryLoading(false)
+      }
+    },
+    [],
+  )
+
   // Symbol-specific snapshots (and the brief itself) reset on symbol switch.
   // Liquidations stay — that feed already covers BTC+ETH globally.
   useEffect(() => {
@@ -126,6 +184,10 @@ export default function OrderFlowPage() {
     setBacktestStats(null)
     setBacktestNarrative(null)
     setBacktestError(null)
+    setMemoryAnswer(null)
+    setMemoryError(null)
+    setMemoryWindowLabel(null)
+    setMemoryTimeline([])
   }, [symbol])
 
   // Auto-refresh while the page is open. This is a live analysis of what's
@@ -308,6 +370,115 @@ export default function OrderFlowPage() {
                 </p>
               )}
             </>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-bg-border">
+          <span className="text-xs font-mono uppercase tracking-[0.12em] text-oracle">Memoria intradía</span>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <p className="text-xs font-sans text-ink-dim">
+            Pregúntale a MANDO cómo evolucionó el order flow de {symbol.replace('usdt', '').toUpperCase()} en lo que
+            va del día, usando el historial de briefs ya guardados.
+          </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              askMemory(memoryQuestion)
+            }}
+            className="flex gap-2"
+          >
+            <input
+              type="text"
+              value={memoryQuestion}
+              onChange={(e) => setMemoryQuestion(e.target.value)}
+              placeholder="Ej: ¿Cómo evolucionó el flujo desde las 08:00 UTC?"
+              className="flex-1 min-w-0 rounded-md border border-bg-border bg-bg-elevated px-3 py-1.5 text-xs font-sans text-ink-primary placeholder:text-ink-dim focus:outline-none focus:border-oracle/50"
+            />
+            <button
+              type="submit"
+              disabled={memoryLoading || !memoryQuestion.trim()}
+              className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-ink-muted transition-colors disabled:opacity-50 shrink-0"
+            >
+              {memoryLoading ? 'Analizando…' : 'Preguntar'}
+            </button>
+          </form>
+          <div className="flex gap-2 flex-wrap">
+            {MEMORY_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => {
+                  setMemoryQuestion(preset)
+                  askMemory(preset)
+                }}
+                disabled={memoryLoading}
+                className="px-2 py-1 rounded-md text-[10px] font-mono border border-bg-border text-ink-secondary hover:border-ink-muted transition-colors disabled:opacity-50"
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+
+          {memoryError && <p className="text-xs font-sans text-bear">{memoryError}</p>}
+
+          {memoryAnswer && (
+            <div className="border-t border-bg-border pt-3 space-y-3">
+              {memoryWindowLabel && (
+                <p className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">
+                  Ventana analizada: {memoryWindowLabel}
+                </p>
+              )}
+              <p className="text-sm font-sans leading-relaxed text-ink-primary whitespace-pre-wrap">{memoryAnswer}</p>
+              {memoryTimeline.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[10px] font-mono">
+                    <thead>
+                      <tr className="text-ink-secondary uppercase tracking-wider">
+                        <th className="text-left py-1 pr-3">Tramo (UTC)</th>
+                        <th className="text-right py-1 pr-3">Δ precio</th>
+                        <th className="text-right py-1 pr-3">Desequilibrio</th>
+                        <th className="text-right py-1">Sesgo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {memoryTimeline.map((bucket, i) => (
+                        <tr key={i} className="border-t border-bg-border">
+                          <td className="py-1 pr-3 text-ink-primary tabular-nums">
+                            {bucket.startLabel}–{bucket.endLabel}
+                          </td>
+                          <td
+                            className={clsx(
+                              'py-1 pr-3 text-right tabular-nums',
+                              bucket.priceChangePct === null
+                                ? 'text-ink-dim'
+                                : bucket.priceChangePct >= 0
+                                  ? 'text-atlas'
+                                  : 'text-bear',
+                            )}
+                          >
+                            {bucket.priceChangePct !== null ? `${bucket.priceChangePct >= 0 ? '+' : ''}${bucket.priceChangePct.toFixed(3)}%` : '—'}
+                          </td>
+                          <td className="py-1 pr-3 text-right tabular-nums text-ink-secondary">
+                            {bucket.avgBookImbalance !== null ? bucket.avgBookImbalance.toFixed(4) : '—'}
+                          </td>
+                          <td
+                            className={clsx(
+                              'py-1 text-right uppercase tracking-wider',
+                              bucket.bias === 'bullish' ? 'text-atlas' : bucket.bias === 'bearish' ? 'text-bear' : 'text-ink-dim',
+                            )}
+                          >
+                            {bucket.bias === 'bullish' ? 'Alcista' : bucket.bias === 'bearish' ? 'Bajista' : 'Neutral'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

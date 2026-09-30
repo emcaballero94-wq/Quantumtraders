@@ -94,3 +94,23 @@ export async function listOrderFlowBriefs(symbol: string, limit = 500): Promise<
   if (error || !data) return []
   return (data as OrderFlowBriefRow[]).map(mapRow)
 }
+
+export async function listOrderFlowBriefsSince(
+  symbol: string,
+  sinceIso: string,
+  limit = 500,
+): Promise<OrderFlowBriefRecord[]> {
+  const admin = createAdminClient()
+  if (!admin) return []
+
+  const { data, error } = await admin
+    .from('orderflow_briefs')
+    .select('id, symbol, brief_text, price, cvd, funding_rate, open_interest, book_imbalance, liquidation_long_notional, liquidation_short_notional, created_at')
+    .eq('symbol', symbol)
+    .gte('created_at', sinceIso)
+    .order('created_at', { ascending: true })
+    .limit(limit)
+
+  if (error || !data) return []
+  return (data as OrderFlowBriefRow[]).map(mapRow)
+}

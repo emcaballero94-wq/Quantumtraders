@@ -96,6 +96,28 @@ const REVERSE_BINANCE_SYMBOL_MAP: Record<string, string> = Object.fromEntries(
   Object.entries(BINANCE_SYMBOL_MAP).map(([symbol, providerSymbol]) => [providerSymbol, symbol]),
 )
 
+// OANDA covers forex, metals, indices and USOIL with reliable real-time
+// pricing (unlike Yahoo's spot tickers). DXY isn't a tradeable OANDA
+// instrument, so it stays on Yahoo (DX-Y.NYB).
+const OANDA_SYMBOL_MAP: Record<string, string> = {
+  XAUUSD: 'XAU_USD',
+  XAGUSD: 'XAG_USD',
+  EURUSD: 'EUR_USD',
+  GBPUSD: 'GBP_USD',
+  AUDUSD: 'AUD_USD',
+  NZDUSD: 'NZD_USD',
+  USDJPY: 'USD_JPY',
+  USDCHF: 'USD_CHF',
+  USDCAD: 'USD_CAD',
+  EURCAD: 'EUR_CAD',
+  GBPJPY: 'GBP_JPY',
+  EURJPY: 'EUR_JPY',
+  SPX500: 'SPX500_USD',
+  NAS100: 'NAS100_USD',
+  US30: 'US30_USD',
+  USOIL: 'WTICO_USD',
+}
+
 export const SECTOR_ETFS: Record<string, string> = {
   Technology: 'XLK',
   Financials: 'XLF',
@@ -348,7 +370,12 @@ export async function fetchMarketQuotes(symbols: string[]): Promise<MarketQuote[
   if (normalizedSymbols.length === 0) return []
 
   const cryptoSymbols = normalizedSymbols.filter((symbol) => Boolean(symbolToBinanceSymbol(symbol)))
-  const nonCryptoSymbols = normalizedSymbols.filter((symbol) => !symbolToBinanceSymbol(symbol))
+  const oandaSymbols = isOandaConfigured()
+    ? normalizedSymbols.filter((symbol) => Boolean(symbolToOandaInstrument(symbol)))
+    : []
+  const remainingSymbols = normalizedSymbols.filter(
+    (symbol) => !cryptoSymbols.includes(symbol) && !oandaSymbols.includes(symbol),
+  )
 
   let binanceQuotes: MarketQuote[] = []
   try {
@@ -357,11 +384,25 @@ export async function fetchMarketQuotes(symbols: string[]): Promise<MarketQuote[
     binanceQuotes = []
   }
 
-  const resolvedSymbols = new Set(binanceQuotes.map((quote) => quote.symbol))
-  const yahooSymbols = [...nonCryptoSymbols, ...cryptoSymbols.filter((symbol) => !resolvedSymbols.has(symbol))]
+  let oandaQuotes: MarketQuote[] = []
+  try {
+    oandaQuotes = await fetchOandaQuotes(oandaSymbols)
+  } catch {
+    oandaQuotes = []
+  }
+
+  const resolvedSymbols = new Set([...binanceQuotes, ...oandaQuotes].map((quote) => quote.symbol))
+  const yahooSymbols = [
+    ...remainingSymbols,
+    ...cryptoSymbols.filter((symbol) => !resolvedSymbols.has(symbol)),
+    ...oandaSymbols.filter((symbol) => !resolvedSymbols.has(symbol)),
+  ]
   const yahooQuotes = await fetchYahooQuotes(yahooSymbols)
   const merged = new Map<string, MarketQuote>()
   for (const quote of binanceQuotes) merged.set(quote.symbol, quote)
+  for (const quote of oandaQuotes) {
+    if (!merged.has(quote.symbol)) merged.set(quote.symbol, quote)
+  }
   for (const quote of yahooQuotes) {
     if (!merged.has(quote.symbol)) merged.set(quote.symbol, quote)
   }
@@ -485,6 +526,179 @@ async function fetchBinanceHistory(symbol: string, options?: { interval?: string
   return candles
 }
 
+function isOandaConfigured(): boolean {
+  return Boolean(process.env.OANDA_API_TOKEN && process.env.OANDA_ACCOUNT_ID)
+}
+
+function getOandaBaseUrl(): string {
+  return process.env.OANDA_ENVIRONMENT === 'live'
+    ? 'https://api-fxtrade.oanda.com'
+    : 'https://api-fxpractice.oanda.com'
+}
+
+function symbolToOandaInstrument(symbol: string): string | null {
+  return OANDA_SYMBOL_MAP[symbol.toUpperCase()] ?? null
+}
+
+function mapHistoryIntervalToOandaGranularity(interval: string): string {
+  switch (interval) {
+    case '15m':
+      return 'M15'
+    case '1h':
+      return 'H1'
+    case '4h':
+      return 'H4'
+    case '1d':
+      return 'D'
+    default:
+      return 'H1'
+  }
+}
+
+function oandaGranularityMinutes(granularity: string): number {
+  switch (granularity) {
+    case 'M15':
+      return 15
+    case 'H1':
+      return 60
+    case 'H4':
+      return 240
+    case 'D':
+      return 1440
+    default:
+      return 60
+  }
+}
+
+function estimateOandaCount(granularity: string, range: string): number {
+  const approxMinutes = mapRangeToApproxHours(range) * 60
+  const estimated = Math.ceil(approxMinutes / oandaGranularityMinutes(granularity))
+  return clamp(estimated, 10, 5000)
+}
+
+interface OandaCandle {
+  timestamp: number
+  complete: boolean
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number | null
+}
+
+// Never throws — any failure (missing credentials, network, non-2xx,
+// malformed payload) yields an empty candle list so callers can fall back
+// to Yahoo without special-casing OANDA outages.
+async function fetchOandaCandles(instrument: string, granularity: string, count: number): Promise<OandaCandle[]> {
+  if (!isOandaConfigured()) return []
+
+  const url = `${getOandaBaseUrl()}/v3/instruments/${encodeURIComponent(instrument)}/candles?granularity=${encodeURIComponent(granularity)}&count=${count}&price=M`
+
+  let response: Response
+  try {
+    response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${process.env.OANDA_API_TOKEN}`,
+        Accept: 'application/json',
+        'Accept-Datetime-Format': 'UNIX',
+      },
+      next: { revalidate: 0 },
+    })
+  } catch (error) {
+    console.error(`[fetchOandaCandles] Network error for ${instrument}:`, error)
+    return []
+  }
+
+  if (!response.ok) {
+    console.error(`[fetchOandaCandles] ${instrument} responded with status ${response.status}`)
+    return []
+  }
+
+  const json = await response.json()
+  const rows = Array.isArray(json?.candles) ? json.candles : []
+
+  const candles: OandaCandle[] = []
+  for (const row of rows) {
+    const timestamp = Number.parseFloat(String(row?.time ?? ''))
+    const open = safeNumber(Number.parseFloat(row?.mid?.o))
+    const high = safeNumber(Number.parseFloat(row?.mid?.h))
+    const low = safeNumber(Number.parseFloat(row?.mid?.l))
+    const close = safeNumber(Number.parseFloat(row?.mid?.c))
+    if (!Number.isFinite(timestamp) || open === null || high === null || low === null || close === null) continue
+
+    candles.push({
+      timestamp: Math.round(timestamp * 1000),
+      complete: Boolean(row?.complete),
+      open,
+      high,
+      low,
+      close,
+      volume: safeNumber(row?.volume),
+    })
+  }
+
+  return candles
+}
+
+async function fetchOandaSnapshotQuote(symbol: string): Promise<MarketQuote | null> {
+  const instrument = symbolToOandaInstrument(symbol)
+  if (!instrument) return null
+
+  const candles = await fetchOandaCandles(instrument, 'D', 2)
+  if (candles.length === 0) return null
+
+  const today = candles[candles.length - 1]
+  const previous = candles.length > 1 ? candles[candles.length - 2] : null
+  if (!today) return null
+
+  const prevClose = previous?.close ?? today.open
+  const change = today.close - prevClose
+  const changePct = prevClose === 0 ? 0 : (change / prevClose) * 100
+  const quoteCurrency = instrument.includes('_') ? instrument.split('_')[1] ?? null : null
+
+  return {
+    symbol,
+    providerSymbol: instrument,
+    price: today.close,
+    change,
+    changePct,
+    open: today.open,
+    high: today.high,
+    low: today.low,
+    prevClose,
+    volume: today.volume,
+    currency: quoteCurrency,
+    description: symbol,
+    timestamp: today.timestamp,
+  }
+}
+
+async function fetchOandaQuotes(symbols: string[]): Promise<MarketQuote[]> {
+  if (symbols.length === 0 || !isOandaConfigured()) return []
+  const snapshots = await Promise.all(symbols.map((symbol) => fetchOandaSnapshotQuote(symbol).catch(() => null)))
+  return snapshots.filter((quote): quote is MarketQuote => Boolean(quote))
+}
+
+async function fetchOandaHistoryCandles(symbol: string, interval: string, range: string): Promise<Candle[]> {
+  const instrument = symbolToOandaInstrument(symbol)
+  if (!instrument || !isOandaConfigured()) return []
+
+  const granularity = mapHistoryIntervalToOandaGranularity(interval)
+  const count = estimateOandaCount(granularity, range)
+  const oandaCandles = await fetchOandaCandles(instrument, granularity, count)
+
+  return oandaCandles
+    .map((candle) => ({
+      timestamp: candle.timestamp,
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      volume: candle.volume ?? undefined,
+    }))
+    .sort((a, b) => a.timestamp - b.timestamp)
+}
+
 // One bad symbol must never take down a batch computation (correlations,
 // sector strength) that Promise.all()s several of these together — so this
 // never throws. Any failure (network, non-2xx, malformed payload) just
@@ -560,6 +774,15 @@ export async function fetchMarketHistory(
     try {
       const binanceCandles = await fetchBinanceHistory(normalizedSymbol, options)
       if (binanceCandles.length > 0) return binanceCandles
+    } catch {
+      // Fallback to Yahoo below
+    }
+  }
+
+  if (isOandaConfigured() && symbolToOandaInstrument(normalizedSymbol)) {
+    try {
+      const oandaCandles = await fetchOandaHistoryCandles(normalizedSymbol, options?.interval ?? '1h', options?.range ?? '1mo')
+      if (oandaCandles.length > 0) return oandaCandles
     } catch {
       // Fallback to Yahoo below
     }

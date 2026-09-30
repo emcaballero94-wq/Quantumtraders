@@ -3,26 +3,46 @@
 import { useState } from 'react'
 import { clsx } from 'clsx'
 
+interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export function QuantumAI() {
   const [isOpen, setIsOpen] = useState(false)
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'SISTEMA MANDO ACTIVO. ¿Qué activo deseas analizar hoy?' }
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { role: 'assistant', content: 'SISTEMA MANDO ACTIVO. ¿Qué activo deseas analizar hoy?' },
   ])
   const [input, setInput] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleSend = () => {
-    if (!input.trim()) return
-    const newMessages = [...messages, { role: 'user', content: input }]
+  const handleSend = async () => {
+    const text = input.trim()
+    if (!text || isLoading) return
+
+    const newMessages: ChatMessage[] = [...messages, { role: 'user', content: text }]
     setMessages(newMessages)
     setInput('')
-    
-    // Simulate AI response
-    setTimeout(() => {
-      setMessages([...newMessages, { 
-        role: 'assistant', 
-        content: 'Procesando datos de ORÁCULO... Detecto alta probabilidad en XAUUSD para la sesión de NY. Bias actual: ALCISTA.' 
-      }])
-    }, 1000)
+    setIsLoading(true)
+
+    try {
+      const response = await fetch('/api/oracle/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: newMessages }),
+      })
+      const result = await response.json()
+
+      const reply = result?.success
+        ? result.data.reply
+        : result?.error ?? 'No se pudo obtener respuesta del sistema MANDO.'
+
+      setMessages([...newMessages, { role: 'assistant', content: reply }])
+    } catch {
+      setMessages([...newMessages, { role: 'assistant', content: 'Error de conexión con el sistema MANDO.' }])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -61,7 +81,7 @@ export function QuantumAI() {
                 </p>
               </div>
             </div>
-            <button 
+            <button
               onClick={() => setIsOpen(false)}
               className="text-ink-muted hover:text-ink-primary transition-colors"
             >
@@ -77,8 +97,8 @@ export function QuantumAI() {
               <div key={i} className={clsx("flex flex-col", m.role === 'user' ? "items-end" : "items-start")}>
                 <div className={clsx(
                   "max-w-[85%] px-4 py-3 rounded-xl text-xs font-mono leading-relaxed",
-                  m.role === 'user' 
-                    ? "bg-bg-elevated text-ink-primary border border-bg-border" 
+                  m.role === 'user'
+                    ? "bg-bg-elevated text-ink-primary border border-bg-border"
                     : "bg-oracle/5 border border-oracle/20 text-ink-secondary"
                 )}>
                   {m.content}
@@ -88,6 +108,13 @@ export function QuantumAI() {
                 </span>
               </div>
             ))}
+            {isLoading && (
+              <div className="flex flex-col items-start">
+                <div className="max-w-[85%] px-4 py-3 rounded-xl text-xs font-mono leading-relaxed bg-oracle/5 border border-oracle/20 text-ink-dim animate-pulse">
+                  Procesando...
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Input */}
@@ -99,11 +126,13 @@ export function QuantumAI() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder="Escribe un comando o pregunta..."
-                className="w-full bg-bg-deep border border-bg-border rounded-lg pl-4 pr-12 py-3 text-xs font-mono text-ink-primary focus:outline-none focus:border-oracle/50 transition-colors placeholder:text-ink-dim"
+                disabled={isLoading}
+                className="w-full bg-bg-deep border border-bg-border rounded-lg pl-4 pr-12 py-3 text-xs font-mono text-ink-primary focus:outline-none focus:border-oracle/50 transition-colors placeholder:text-ink-dim disabled:opacity-50"
               />
               <button
                 onClick={handleSend}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-md bg-oracle/10 text-oracle flex items-center justify-center hover:bg-oracle/20 transition-colors"
+                disabled={isLoading}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-md bg-oracle/10 text-oracle flex items-center justify-center hover:bg-oracle/20 transition-colors disabled:opacity-50"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />

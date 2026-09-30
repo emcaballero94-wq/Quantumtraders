@@ -1,5 +1,6 @@
 import { Sidebar } from '@/components/layout/Sidebar'
 import { TopBar } from '@/components/layout/TopBar'
+import { QuantumAI } from '@/components/layout/QuantumAI'
 import { ShortcutHandler } from '@/components/utils/ShortcutHandler'
 
 export default function DashboardLayout({
@@ -17,6 +18,7 @@ export default function DashboardLayout({
           {children}
         </div>
       </main>
+      <QuantumAI />
     </div>
   )
 }

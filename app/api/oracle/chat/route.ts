@@ -1,9 +1,125 @@
 import { NextResponse } from 'next/server'
 import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
+import { fetchMarketQuotes, MARKET_SYMBOL_MAP } from '@/lib/market-data'
+import { buildOracleState } from '@/lib/oracle/live-state'
+import type { RadarAsset } from '@/lib/oracle/types'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+}
+
+// Natural-language aliases → canonical symbols already known by the market
+// data pipeline (lib/market-data.ts). Longer phrases are checked first so
+// "S&P 500" matches before a looser single-word alias would.
+const SYMBOL_ALIASES: Record<string, string> = {
+  'NASDAQ': 'NAS100',
+  'NAS 100': 'NAS100',
+  'ORO': 'XAUUSD',
+  'GOLD': 'XAUUSD',
+  'PLATA': 'XAGUSD',
+  'SILVER': 'XAGUSD',
+  'S&P 500': 'SPX500',
+  'S&P500': 'SPX500',
+  'SP500': 'SPX500',
+  'SPX': 'SPX500',
+  'DOW JONES': 'US30',
+  'DOW': 'US30',
+  'BITCOIN': 'BTCUSD',
+  'BTC': 'BTCUSD',
+  'ETHEREUM': 'ETHUSD',
+  'ETH': 'ETHUSD',
+  'PETRÓLEO': 'USOIL',
+  'PETROLEO': 'USOIL',
+  'OIL': 'USOIL',
+  'WTI': 'USOIL',
+  'DÓLAR': 'DXY',
+  'DOLAR': 'DXY',
+}
+
+// The subset of RADAR_DEFINITIONS symbols in lib/oracle/live-state.ts that
+// carry a real Oracle bias/score, not just a raw quote.
+const RADAR_SYMBOLS = new Set([
+  'SPX500', 'NAS100', 'US30', 'QQQ', 'SPY', 'DIA',
+  'NVDA', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA',
+  'BTCUSD', 'XAUUSD',
+])
+
+function detectSymbolFromText(text: string): string | null {
+  const upper = text.toUpperCase()
+
+  const aliasKeys = Object.keys(SYMBOL_ALIASES).sort((a, b) => b.length - a.length)
+  for (const alias of aliasKeys) {
+    if (upper.includes(alias)) return SYMBOL_ALIASES[alias]
+  }
+
+  const directSymbols = Object.keys(MARKET_SYMBOL_MAP).sort((a, b) => b.length - a.length)
+  for (const symbol of directSymbols) {
+    if (new RegExp(`\\b${symbol}\\b`).test(upper)) return symbol
+  }
+
+  return null
+}
+
+function isScanIntent(text: string): boolean {
+  return /SCAN|ESCANEA|ESCANEO|OPORTUNIDAD|OPPORTUNIT/.test(text.toUpperCase())
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ])
+}
+
+function formatRadarAsset(asset: RadarAsset): string {
+  const changeSign = asset.change24h >= 0 ? '+' : ''
+  const biasLabel = asset.bias === 'long' ? 'ALCISTA' : asset.bias === 'short' ? 'BAJISTA' : 'NEUTRAL'
+  return `${asset.symbol} (${asset.name}): precio ${asset.currentPrice}, cambio 24h ${changeSign}${asset.change24h.toFixed(2)}%, bias ${biasLabel}, score total ${asset.totalScore}/100 (macro ${asset.macroScore}, técnico ${asset.technicalScore}, timing ${asset.timingScore}), tendencia ${asset.trend}.`
+}
+
+function utcTimestamp(): string {
+  return `${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`
+}
+
+// Never throws — any failure (timeout, provider outage, no symbol detected)
+// yields null so the caller falls back to the base system prompt, and MANDO
+// honestly says it has no real-time data for that query (per its own
+// instructions) instead of the request failing outright.
+async function buildRealTimeContext(userText: string): Promise<string | null> {
+  try {
+    if (isScanIntent(userText)) {
+      const state = await withTimeout(buildOracleState(), 8000)
+      if (!state) return null
+
+      const bullish = state.radar.filter((asset) => asset.bias === 'long').slice(0, 5)
+      const bearish = state.radar.filter((asset) => asset.bias === 'short').slice(0, 3)
+      const lines = [...bullish, ...bearish].map(formatRadarAsset)
+      if (lines.length === 0) return null
+
+      return `Radar de activos (${utcTimestamp()}):\n${lines.join('\n')}`
+    }
+
+    const symbol = detectSymbolFromText(userText)
+    if (!symbol) return null
+
+    if (RADAR_SYMBOLS.has(symbol)) {
+      const state = await withTimeout(buildOracleState(), 8000)
+      const asset = state?.radar.find((item) => item.symbol === symbol)
+      if (!asset) return null
+      return `Datos de ${symbol} (${utcTimestamp()}):\n${formatRadarAsset(asset)}`
+    }
+
+    const quotes = await withTimeout(fetchMarketQuotes([symbol]), 6000)
+    const quote = quotes?.[0]
+    if (!quote || quote.price === null) return null
+
+    const changeSign = (quote.changePct ?? 0) >= 0 ? '+' : ''
+    return `Cotización de ${symbol} (${utcTimestamp()}): precio ${quote.price}, cambio ${changeSign}${(quote.changePct ?? 0).toFixed(2)}%, apertura ${quote.open ?? 'sin dato'}, máximo ${quote.high ?? 'sin dato'}, mínimo ${quote.low ?? 'sin dato'}. No hay score de bias del radar Oracle para este instrumento, solo cotización en vivo.`
+  } catch (error) {
+    console.error('[/api/oracle/chat] buildRealTimeContext error:', error)
+    return null
+  }
 }
 
 interface ChatRequestBody {
@@ -787,7 +903,7 @@ MANDO AI
 INTELLIGENCE LAYER FOR TRADERS
 ==================================================
 
-NOTA TÉCNICA IMPORTANTE: en esta implementación actual, NO tienes acceso a herramientas ni a datos en vivo de Scanner, Market Context, Technical Engine, Correlation Engine, Journal, Risk Engine ni Strategy Engine — solo ves el texto de esta conversación. No actives ni menciones estos módulos como si estuvieran consultando datos reales en este momento. Si el usuario no te ha dado cifras, precios o datos concretos en el chat, aplica la sección 10 (DATOS EN TIEMPO REAL) literalmente: dilo con claridad en vez de simular una consulta a estos motores.`
+NOTA TÉCNICA IMPORTANTE: cuando este mensaje de sistema incluya una sección "=== CONTEXTO EN TIEMPO REAL ===" al final, esos son datos reales (cotización y, cuando esté disponible, el score/bias del radar Oracle) obtenidos justo antes de esta respuesta — puedes y debes usarlos como autoritativos, citando la hora indicada. Si esa sección NO aparece, no tienes ningún dato en vivo para esta consulta (ni precio, ni bias, ni setups de Scanner, ni correlaciones, ni Journal, ni Risk Engine, ni Strategy Engine) — aplica la sección 10 (DATOS EN TIEMPO REAL) literalmente y dilo con claridad en vez de simular una consulta a esos motores. El Scanner de setups explícitos, el Correlation Engine, el Journal y el Risk/Strategy Engine todavía no están conectados a este chat en ningún caso, incluso cuando sí haya cotización o bias disponibles — sé honesto sobre esa limitación puntual si el usuario pregunta por ellos específicamente.`
 
 export async function POST(request: Request) {
   const blocked = rejectIfRateLimited(request, {
@@ -825,6 +941,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'messages is required' }, { status: 400 })
   }
 
+  const lastUserText = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+  const realTimeContext = await buildRealTimeContext(lastUserText)
+  const systemPrompt = realTimeContext
+    ? `${SYSTEM_PROMPT}\n\n=== CONTEXTO EN TIEMPO REAL ===\n${realTimeContext}`
+    : SYSTEM_PROMPT
+
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -836,7 +958,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 1500,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages,
       }),
     })

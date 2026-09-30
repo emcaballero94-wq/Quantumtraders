@@ -14,6 +14,8 @@
     "atlasSub": "Atlas · Live",
     "nexus": "CORRELATIONS",
     "nexusSub": "Nexus · DXY",
+    "orderflow": "ORDER FLOW",
+    "orderflowSub": "Depth · BTC/ETH live",
     "gex": "GAMMA",
     "gexSub": "GEX (demo)",
     "pulse": "MARKET STATE",

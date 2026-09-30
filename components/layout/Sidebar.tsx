@@ -37,6 +37,7 @@ const NAV: { sectionKey: string; items: NavItem[] }[] = [
       { href: '/dashboard/scanner', labelKey: 'scanner', subKey: 'scannerSub', dot: 'bg-oracle', icon: ScannerIcon },
       { href: '/dashboard/atlas',   labelKey: 'atlas',   subKey: 'atlasSub',   dot: 'bg-atlas',   icon: AtlasIcon   },
       { href: '/dashboard/nexus',   labelKey: 'nexus',   subKey: 'nexusSub',   dot: 'bg-nexus',   icon: NexusIcon,  advanced: true },
+      { href: '/dashboard/orderflow', labelKey: 'orderflow', subKey: 'orderflowSub', dot: 'bg-atlas', icon: OrderFlowIcon, advanced: true },
     ],
   },
   {
@@ -293,6 +294,13 @@ function NexusIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+    </svg>
+  )
+}
+function OrderFlowIcon({ cls }: { cls: string }) {
+  return (
+    <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6h9m-9 4.5h6m-6 4.5h12M3.75 19.5h4.5M15 15l3-3 3 3m-3-3v6" />
     </svg>
   )
 }

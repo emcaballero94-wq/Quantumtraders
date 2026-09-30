@@ -87,13 +87,15 @@ Devuelve solo el texto del brief, sin títulos ni markdown.`
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 400,
         messages: [{ role: 'user', content: prompt }],
       }),
     })
 
     if (!response.ok) {
+      const errorBody = await response.text().catch(() => '')
+      console.error(`[/api/market/brief] Claude API responded ${response.status}: ${errorBody}`)
       return NextResponse.json({ success: false, error: 'Claude API request failed' }, { status: 502 })
     }
 

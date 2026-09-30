@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { clsx } from 'clsx'
 import { OrderBookHeatmap } from '@/components/orderflow/OrderBookHeatmap'
 import { TradeTape } from '@/components/orderflow/TradeTape'
+import { LiquidationsFeed } from '@/components/orderflow/LiquidationsFeed'
 
 const SYMBOLS = [
   { label: 'BTC/USDT', value: 'btcusdt' },
@@ -44,11 +45,17 @@ export default function OrderFlowPage() {
         <TradeTape symbol={symbol} />
       </div>
 
+      <div className="mt-4">
+        <LiquidationsFeed />
+      </div>
+
       <p className="mt-4 text-xs font-sans leading-relaxed text-ink-dim">
-        Libro de órdenes (top 20 niveles, cada 100ms) y cinta de operaciones con CVD (delta de volumen acumulado,
-        reiniciado cada vez que abres la página) en vivo de Binance — conexión directa desde el navegador, sin
-        intermediarios. Por ahora solo cripto: futuros (oro, índices, petróleo) y forex requieren un feed de
-        datos Level 2 de pago (Databento, Rithmic, CQG) que todavía no está conectado.
+        Libro de órdenes (top 20 niveles, cada 100ms), cinta de operaciones con CVD (delta de volumen acumulado,
+        reiniciado cada vez que abres la página) y liquidaciones de futuros (mayores a $1,000) en vivo de
+        Binance — conexión directa desde el navegador, sin intermediarios. La cinta y el heatmap siguen al
+        símbolo seleccionado arriba; las liquidaciones muestran BTC y ETH juntos, sin importar cuál elijas. Por
+        ahora solo cripto: futuros tradicionales (oro, índices, petróleo) y forex requieren un feed de datos
+        Level 2 de pago (Databento, Rithmic, CQG) que todavía no está conectado.
       </p>
     </div>
   )

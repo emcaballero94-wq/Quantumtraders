@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "frame-src 'self' https://www.tradingview.com https://s.tradingview.com",
-              "connect-src 'self' https://api.twelvedata.com wss://ws.twelvedata.com https://api.anthropic.com https://*.supabase.co wss://*.supabase.co https://www.tradingview.com https://quotes.tradingview.com https://symbol-search.tradingview.com https://quotefast.tradingview.com wss://stream.binance.com:9443",
+              "connect-src 'self' https://api.twelvedata.com wss://ws.twelvedata.com https://api.anthropic.com https://*.supabase.co wss://*.supabase.co https://www.tradingview.com https://quotes.tradingview.com https://symbol-search.tradingview.com https://quotefast.tradingview.com wss://stream.binance.com:9443 wss://fstream.binance.com",
               "img-src 'self' data: blob: https:",
               "worker-src 'self' blob:",
             ].join('; '),

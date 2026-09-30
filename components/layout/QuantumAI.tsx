@@ -8,16 +8,24 @@ interface ChatMessage {
   content: string
 }
 
+const QUICK_ACTIONS: { label: string; prompt: string }[] = [
+  { label: 'NASDAQ', prompt: 'Analiza NASDAQ' },
+  { label: 'GOLD', prompt: 'Analiza el oro (XAUUSD)' },
+  { label: 'SP500', prompt: 'Analiza el SP500' },
+  { label: 'BTC', prompt: 'Analiza BTC' },
+  { label: 'SCAN MARKET', prompt: 'Busca oportunidades en el mercado ahora mismo' },
+]
+
 export function QuantumAI() {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'assistant', content: 'SISTEMA MANDO ACTIVO. ¿Qué activo deseas analizar hoy?' },
+    { role: 'assistant', content: 'MANDO AI ONLINE.\n\n¿Qué quieres analizar?' },
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleSend = async () => {
-    const text = input.trim()
+  const handleSend = async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim()
     if (!text || isLoading) return
 
     const newMessages: ChatMessage[] = [...messages, { role: 'user', content: text }]
@@ -44,6 +52,8 @@ export function QuantumAI() {
       setIsLoading(false)
     }
   }
+
+  const showQuickActions = messages.length === 1 && !isLoading
 
   return (
     <>
@@ -93,26 +103,38 @@ export function QuantumAI() {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {messages.map((m, i) => (
-              <div key={i} className={clsx("flex flex-col", m.role === 'user' ? "items-end" : "items-start")}>
-                <div className={clsx(
-                  "max-w-[85%] px-4 py-3 rounded-xl text-xs font-mono leading-relaxed",
-                  m.role === 'user'
-                    ? "bg-bg-elevated text-ink-primary border border-bg-border"
-                    : "bg-oracle/5 border border-oracle/20 text-ink-secondary"
-                )}>
+            {messages.map((m, i) =>
+              m.role === 'user' ? (
+                <div key={i} className="flex flex-col items-end">
+                  <div className="max-w-[85%] px-4 py-3 rounded-xl text-xs font-mono leading-relaxed bg-bg-elevated text-ink-primary border border-bg-border">
+                    {m.content}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  key={i}
+                  className="w-full px-4 py-3 rounded-lg text-xs font-mono leading-relaxed bg-oracle/5 border border-oracle/20 text-ink-secondary whitespace-pre-wrap"
+                >
                   {m.content}
                 </div>
-                <span className="text-[10px] font-mono text-ink-dim mt-1.5 uppercase">
-                  {m.role === 'assistant' ? 'Mando System' : 'Trader'}
-                </span>
-              </div>
-            ))}
+              ),
+            )}
             {isLoading && (
-              <div className="flex flex-col items-start">
-                <div className="max-w-[85%] px-4 py-3 rounded-xl text-xs font-mono leading-relaxed bg-oracle/5 border border-oracle/20 text-ink-dim animate-pulse">
-                  Procesando...
-                </div>
+              <div className="w-full px-4 py-3 rounded-lg text-xs font-mono leading-relaxed bg-oracle/5 border border-oracle/20 text-ink-dim animate-pulse">
+                Procesando...
+              </div>
+            )}
+            {showQuickActions && (
+              <div className="flex flex-col gap-2 pt-2">
+                {QUICK_ACTIONS.map((action) => (
+                  <button
+                    key={action.label}
+                    onClick={() => handleSend(action.prompt)}
+                    className="w-full px-4 py-3 rounded-lg text-xs font-mono font-bold tracking-[0.08em] text-ink-primary border border-bg-border hover:border-oracle/50 hover:bg-oracle/5 transition-colors text-left"
+                  >
+                    {action.label}
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -125,12 +147,12 @@ export function QuantumAI() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Escribe un comando o pregunta..."
+                placeholder="Pregúntale algo a MANDO..."
                 disabled={isLoading}
                 className="w-full bg-bg-deep border border-bg-border rounded-lg pl-4 pr-12 py-3 text-xs font-mono text-ink-primary focus:outline-none focus:border-oracle/50 transition-colors placeholder:text-ink-dim disabled:opacity-50"
               />
               <button
-                onClick={handleSend}
+                onClick={() => handleSend()}
                 disabled={isLoading}
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-md bg-oracle/10 text-oracle flex items-center justify-center hover:bg-oracle/20 transition-colors disabled:opacity-50"
               >

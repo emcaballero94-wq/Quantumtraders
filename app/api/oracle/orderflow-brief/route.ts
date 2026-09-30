@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
+import { insertOrderFlowBrief } from '@/lib/oracle/orderflow-persistence'
 
 interface OrderFlowSnapshotBody {
   symbol: string
@@ -108,7 +109,22 @@ Devuelve solo el texto del brief, sin títulos ni markdown.`
       return NextResponse.json({ success: false, error: 'Empty response from Claude API' }, { status: 502 })
     }
 
-    return NextResponse.json({ success: true, data: { brief: text.trim() } })
+    const briefText = text.trim()
+
+    await insertOrderFlowBrief({
+      symbol: body.symbol,
+      briefText,
+      price: body.tape?.lastPrice ?? body.derivatives?.markPrice ?? null,
+      cvd: body.tape?.cvd ?? null,
+      fundingRate: body.derivatives?.fundingRate ?? null,
+      openInterest: body.derivatives?.openInterest ?? null,
+      bookImbalance: imbalance,
+      liquidationLongNotional: body.liquidations?.longNotional ?? null,
+      liquidationShortNotional: body.liquidations?.shortNotional ?? null,
+      snapshot: body,
+    })
+
+    return NextResponse.json({ success: true, data: { brief: briefText } })
   } catch (error) {
     console.error('[/api/oracle/orderflow-brief] Error:', error)
     return NextResponse.json({ success: false, error: 'Failed to generate AI brief' }, { status: 502 })

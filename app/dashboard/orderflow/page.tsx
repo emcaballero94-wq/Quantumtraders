@@ -15,6 +15,21 @@ const SYMBOLS = [
 const BRIEF_REFRESH_MS = 60_000
 const BRIEF_FIRST_RUN_DELAY_MS = 8_000
 
+const BACKTEST_HORIZONS = [5, 15, 60]
+
+interface BacktestStats {
+  symbol: string
+  horizonMinutes: number
+  totalRecords: number
+  gradedRecords: number
+  hitRatePct: number | null
+  avgReturnPctWhenBullish: number | null
+  avgReturnPctWhenBearish: number | null
+  bullishCount: number
+  bearishCount: number
+  neutralCount: number
+}
+
 export default function OrderFlowPage() {
   const [symbol, setSymbol] = useState(SYMBOLS[0].value)
 
@@ -27,6 +42,12 @@ export default function OrderFlowPage() {
   const [briefError, setBriefError] = useState<string | null>(null)
   const [briefLoading, setBriefLoading] = useState(false)
   const [lastBriefAt, setLastBriefAt] = useState<Date | null>(null)
+
+  const [backtestHorizon, setBacktestHorizon] = useState(15)
+  const [backtestLoading, setBacktestLoading] = useState(false)
+  const [backtestError, setBacktestError] = useState<string | null>(null)
+  const [backtestStats, setBacktestStats] = useState<BacktestStats | null>(null)
+  const [backtestNarrative, setBacktestNarrative] = useState<string | null>(null)
 
   // Snapshots arrive via throttled callbacks from each live component. The
   // brief refresh runs on its own interval, so it reads the latest values
@@ -69,6 +90,31 @@ export default function OrderFlowPage() {
     }
   }, [])
 
+  const runBacktest = useCallback(async () => {
+    setBacktestLoading(true)
+    setBacktestError(null)
+    try {
+      const response = await fetch(
+        `/api/oracle/orderflow-backtest?symbol=${latestRef.current.symbol.toUpperCase()}&horizonMinutes=${backtestHorizon}`,
+      )
+      const result = await response.json()
+      if (result.success) {
+        setBacktestStats(result.data.stats)
+        setBacktestNarrative(result.data.narrative ?? result.data.narrativeError ?? null)
+      } else {
+        setBacktestStats(null)
+        setBacktestNarrative(null)
+        setBacktestError(result.error ?? 'No se pudo correr el backtest.')
+      }
+    } catch {
+      setBacktestStats(null)
+      setBacktestNarrative(null)
+      setBacktestError('Error de conexión al correr el backtest.')
+    } finally {
+      setBacktestLoading(false)
+    }
+  }, [backtestHorizon])
+
   // Symbol-specific snapshots (and the brief itself) reset on symbol switch.
   // Liquidations stay — that feed already covers BTC+ETH globally.
   useEffect(() => {
@@ -77,6 +123,9 @@ export default function OrderFlowPage() {
     setDerivatives(null)
     setBrief(null)
     setBriefError(null)
+    setBacktestStats(null)
+    setBacktestNarrative(null)
+    setBacktestError(null)
   }, [symbol])
 
   // Auto-refresh while the page is open. This is a live analysis of what's
@@ -148,6 +197,117 @@ export default function OrderFlowPage() {
                 ? 'Desactivado — falta la clave de Anthropic (ANTHROPIC_API_KEY).'
                 : (briefError ?? 'Esperando suficientes datos en vivo para el primer análisis…')}
             </p>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-bg-border flex-wrap gap-2">
+          <span className="text-xs font-mono uppercase tracking-[0.12em] text-oracle">Backtest de sesgo</span>
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              {BACKTEST_HORIZONS.map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => setBacktestHorizon(h)}
+                  className={clsx(
+                    'px-2 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border transition-colors',
+                    backtestHorizon === h
+                      ? 'border-oracle/50 bg-oracle/10 text-oracle'
+                      : 'border-bg-border text-ink-secondary hover:border-ink-muted',
+                  )}
+                >
+                  {h}min
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={runBacktest}
+              disabled={backtestLoading}
+              className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-ink-muted transition-colors disabled:opacity-50"
+            >
+              {backtestLoading ? 'Analizando…' : 'Ver backtest'}
+            </button>
+          </div>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          {!backtestLoading && !backtestStats && !backtestError && (
+            <p className="text-xs font-sans text-ink-dim">
+              Corre un backtest sobre los briefs guardados: compara el sesgo compuesto de cada brief pasado
+              (CVD + libro + liquidaciones + funding) contra lo que el precio hizo realmente después.
+            </p>
+          )}
+          {backtestLoading && <p className="text-xs font-sans text-ink-secondary">Evaluando historial…</p>}
+          {backtestError && <p className="text-xs font-sans text-bear">{backtestError}</p>}
+
+          {backtestStats && (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">
+                    Tasa de acierto
+                  </p>
+                  <p className="text-lg font-mono tabular-nums text-ink-primary">
+                    {backtestStats.hitRatePct !== null ? `${backtestStats.hitRatePct.toFixed(1)}%` : '—'}
+                  </p>
+                  <p className="text-[10px] font-mono text-ink-dim mt-1">{backtestStats.gradedRecords} casos</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">
+                    Retorno prom. alcista
+                  </p>
+                  <p
+                    className={clsx(
+                      'text-lg font-mono tabular-nums',
+                      backtestStats.avgReturnPctWhenBullish === null
+                        ? 'text-ink-dim'
+                        : backtestStats.avgReturnPctWhenBullish >= 0
+                          ? 'text-atlas'
+                          : 'text-bear',
+                    )}
+                  >
+                    {backtestStats.avgReturnPctWhenBullish !== null
+                      ? `${backtestStats.avgReturnPctWhenBullish.toFixed(3)}%`
+                      : '—'}
+                  </p>
+                  <p className="text-[10px] font-mono text-ink-dim mt-1">{backtestStats.bullishCount} casos</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">
+                    Retorno prom. bajista
+                  </p>
+                  <p
+                    className={clsx(
+                      'text-lg font-mono tabular-nums',
+                      backtestStats.avgReturnPctWhenBearish === null
+                        ? 'text-ink-dim'
+                        : backtestStats.avgReturnPctWhenBearish <= 0
+                          ? 'text-atlas'
+                          : 'text-bear',
+                    )}
+                  >
+                    {backtestStats.avgReturnPctWhenBearish !== null
+                      ? `${backtestStats.avgReturnPctWhenBearish.toFixed(3)}%`
+                      : '—'}
+                  </p>
+                  <p className="text-[10px] font-mono text-ink-dim mt-1">{backtestStats.bearishCount} casos</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">
+                    Registros totales
+                  </p>
+                  <p className="text-lg font-mono tabular-nums text-ink-primary">{backtestStats.totalRecords}</p>
+                  <p className="text-[10px] font-mono text-ink-dim mt-1">{backtestStats.neutralCount} neutrales</p>
+                </div>
+              </div>
+              {backtestNarrative && (
+                <p className="text-sm font-sans leading-relaxed text-ink-primary whitespace-pre-wrap border-t border-bg-border pt-3">
+                  {backtestNarrative}
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>

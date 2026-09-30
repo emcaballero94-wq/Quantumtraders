@@ -18,19 +18,30 @@ interface CvdPoint {
 
 const MAX_TAPE_ROWS = 40
 const MAX_CVD_POINTS = 240
+const SNAPSHOT_THROTTLE_MS = 5000
+
+export interface TradeTapeSnapshot {
+  cvd: number
+  lastPrice: number | null
+}
 
 interface TradeTapeProps {
   /** Binance symbol, lowercase (e.g. 'btcusdt'). */
   symbol: string
+  /** Called at most once every few seconds with the current CVD/price. */
+  onSnapshot?: (snapshot: TradeTapeSnapshot) => void
 }
 
-export function TradeTape({ symbol }: TradeTapeProps) {
+export function TradeTape({ symbol, onSnapshot }: TradeTapeProps) {
   const [trades, setTrades] = useState<Trade[]>([])
   const [cvdSeries, setCvdSeries] = useState<CvdPoint[]>([])
   const [status, setStatus] = useState<'connecting' | 'live' | 'error'>('connecting')
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cvdRef = useRef(0)
+  const lastSnapshotAt = useRef(0)
+  const onSnapshotRef = useRef(onSnapshot)
+  onSnapshotRef.current = onSnapshot
 
   useEffect(() => {
     let cancelled = false
@@ -68,6 +79,12 @@ export function TradeTape({ symbol }: TradeTapeProps) {
           const id = Number(payload?.a) || time
           setTrades((prev) => [{ id, time, price, qty, side }, ...prev].slice(0, MAX_TAPE_ROWS))
           setCvdSeries((prev) => [...prev, { time, value: cvdNow }].slice(-MAX_CVD_POINTS))
+
+          const now = Date.now()
+          if (onSnapshotRef.current && now - lastSnapshotAt.current >= SNAPSHOT_THROTTLE_MS) {
+            lastSnapshotAt.current = now
+            onSnapshotRef.current({ cvd: cvdNow, lastPrice: price })
+          }
         } catch {
           // Ignore a single malformed frame — the next tick corrects it.
         }

@@ -8,12 +8,24 @@ interface OrderBookLevel {
   qty: number
 }
 
+export interface OrderBookSnapshot {
+  bestBid: number | null
+  bestAsk: number | null
+  spread: number | null
+  bidDepth: number | null
+  askDepth: number | null
+}
+
 interface OrderBookHeatmapProps {
   /** Binance symbol, lowercase (e.g. 'btcusdt'). */
   symbol: string
   /** How many levels to show per side. */
   levels?: number
+  /** Called at most once every few seconds with the current book summary. */
+  onSnapshot?: (snapshot: OrderBookSnapshot) => void
 }
+
+const SNAPSHOT_THROTTLE_MS = 5000
 
 function parseLevels(raw: unknown): OrderBookLevel[] {
   if (!Array.isArray(raw)) return []
@@ -28,12 +40,15 @@ function parseLevels(raw: unknown): OrderBookLevel[] {
     .filter((level): level is OrderBookLevel => Boolean(level))
 }
 
-export function OrderBookHeatmap({ symbol, levels = 10 }: OrderBookHeatmapProps) {
+export function OrderBookHeatmap({ symbol, levels = 10, onSnapshot }: OrderBookHeatmapProps) {
   const [bids, setBids] = useState<OrderBookLevel[]>([])
   const [asks, setAsks] = useState<OrderBookLevel[]>([])
   const [status, setStatus] = useState<'connecting' | 'live' | 'error'>('connecting')
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSnapshotAt = useRef(0)
+  const onSnapshotRef = useRef(onSnapshot)
+  onSnapshotRef.current = onSnapshot
 
   useEffect(() => {
     let cancelled = false
@@ -53,8 +68,26 @@ export function OrderBookHeatmap({ symbol, levels = 10 }: OrderBookHeatmapProps)
         if (cancelled) return
         try {
           const payload = JSON.parse(event.data)
-          setBids(parseLevels(payload?.bids))
-          setAsks(parseLevels(payload?.asks))
+          const parsedBids = parseLevels(payload?.bids)
+          const parsedAsks = parseLevels(payload?.asks)
+          setBids(parsedBids)
+          setAsks(parsedAsks)
+
+          const now = Date.now()
+          if (onSnapshotRef.current && now - lastSnapshotAt.current >= SNAPSHOT_THROTTLE_MS) {
+            lastSnapshotAt.current = now
+            const topBids = [...parsedBids].sort((a, b) => b.price - a.price).slice(0, levels)
+            const topAsks = [...parsedAsks].sort((a, b) => a.price - b.price).slice(0, levels)
+            const bestBid = topBids[0]?.price ?? null
+            const bestAsk = topAsks[0]?.price ?? null
+            onSnapshotRef.current({
+              bestBid,
+              bestAsk,
+              spread: bestBid !== null && bestAsk !== null ? bestAsk - bestBid : null,
+              bidDepth: topBids.length > 0 ? topBids.reduce((sum, l) => sum + l.qty, 0) : null,
+              askDepth: topAsks.length > 0 ? topAsks.reduce((sum, l) => sum + l.qty, 0) : null,
+            })
+          }
         } catch {
           // Ignore a single malformed frame — the next tick corrects it.
         }

@@ -3,9 +3,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 
+export interface DerivativesSnapshot {
+  fundingRate: number | null
+  openInterest: number | null
+  markPrice: number | null
+}
+
 interface DerivativesPanelProps {
   /** Binance USDT-M perpetual symbol, lowercase (e.g. 'btcusdt'). */
   symbol: string
+  /** Called at most once every few seconds with the current funding/OI. */
+  onSnapshot?: (snapshot: DerivativesSnapshot) => void
 }
 
 interface OiPoint {
@@ -15,8 +23,9 @@ interface OiPoint {
 
 const MAX_OI_POINTS = 60
 const OI_POLL_MS = 30_000
+const SNAPSHOT_THROTTLE_MS = 5000
 
-export function DerivativesPanel({ symbol }: DerivativesPanelProps) {
+export function DerivativesPanel({ symbol, onSnapshot }: DerivativesPanelProps) {
   const [fundingRate, setFundingRate] = useState<number | null>(null)
   const [nextFundingTime, setNextFundingTime] = useState<number | null>(null)
   const [markPrice, setMarkPrice] = useState<number | null>(null)
@@ -29,6 +38,12 @@ export function DerivativesPanel({ symbol }: DerivativesPanelProps) {
   const [now, setNow] = useState(() => Date.now())
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSnapshotAt = useRef(0)
+  const onSnapshotRef = useRef(onSnapshot)
+  onSnapshotRef.current = onSnapshot
+  const fundingRateRef = useRef<number | null>(null)
+  const markPriceRef = useRef<number | null>(null)
+  const openInterestRef = useRef<number | null>(null)
 
   // Funding rate + mark price: Binance streams these live, updated every
   // second, well before the funding settlement itself (every 8h).
@@ -36,6 +51,8 @@ export function DerivativesPanel({ symbol }: DerivativesPanelProps) {
     let cancelled = false
     setFundingRate(null)
     setNextFundingTime(null)
+    fundingRateRef.current = null
+    markPriceRef.current = null
     setMarkPrice(null)
 
     function connect() {
@@ -54,9 +71,25 @@ export function DerivativesPanel({ symbol }: DerivativesPanelProps) {
           const rate = Number.parseFloat(payload?.r)
           const nextTime = Number(payload?.T)
           const mark = Number.parseFloat(payload?.p)
-          if (Number.isFinite(rate)) setFundingRate(rate)
+          if (Number.isFinite(rate)) {
+            setFundingRate(rate)
+            fundingRateRef.current = rate
+          }
           if (Number.isFinite(nextTime)) setNextFundingTime(nextTime)
-          if (Number.isFinite(mark)) setMarkPrice(mark)
+          if (Number.isFinite(mark)) {
+            setMarkPrice(mark)
+            markPriceRef.current = mark
+          }
+
+          const nowTs = Date.now()
+          if (onSnapshotRef.current && nowTs - lastSnapshotAt.current >= SNAPSHOT_THROTTLE_MS) {
+            lastSnapshotAt.current = nowTs
+            onSnapshotRef.current({
+              fundingRate: fundingRateRef.current,
+              markPrice: markPriceRef.current,
+              openInterest: openInterestRef.current,
+            })
+          }
         } catch {
           // Ignore a single malformed frame — the next tick corrects it.
         }
@@ -87,6 +120,7 @@ export function DerivativesPanel({ symbol }: DerivativesPanelProps) {
   useEffect(() => {
     let cancelled = false
     setOpenInterest(null)
+    openInterestRef.current = null
     setOiSeries([])
     setOiStatus('loading')
 
@@ -100,8 +134,14 @@ export function DerivativesPanel({ symbol }: DerivativesPanelProps) {
         const value = Number.parseFloat(payload?.openInterest)
         if (cancelled || !Number.isFinite(value)) return
         setOpenInterest(value)
+        openInterestRef.current = value
         setOiSeries((prev) => [...prev, { time: Date.now(), value }].slice(-MAX_OI_POINTS))
         setOiStatus('live')
+        onSnapshotRef.current?.({
+          fundingRate: fundingRateRef.current,
+          markPrice: markPriceRef.current,
+          openInterest: value,
+        })
       } catch {
         if (!cancelled) setOiStatus('error')
       }

@@ -28,11 +28,25 @@ function formatNotional(value: number): string {
   return `$${value.toFixed(0)}`
 }
 
-export function LiquidationsFeed() {
+export interface LiquidationsSnapshot {
+  longNotional: number
+  shortNotional: number
+  count: number
+}
+
+interface LiquidationsFeedProps {
+  /** Called on every new liquidation with running totals for this session. */
+  onSnapshot?: (snapshot: LiquidationsSnapshot) => void
+}
+
+export function LiquidationsFeed({ onSnapshot }: LiquidationsFeedProps = {}) {
   const [events, setEvents] = useState<LiquidationEvent[]>([])
   const [status, setStatus] = useState<'connecting' | 'live' | 'error'>('connecting')
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const totalsRef = useRef({ longNotional: 0, shortNotional: 0, count: 0 })
+  const onSnapshotRef = useRef(onSnapshot)
+  onSnapshotRef.current = onSnapshot
 
   useEffect(() => {
     let cancelled = false
@@ -68,6 +82,12 @@ export function LiquidationsFeed() {
           const id = `${symbol}-${time}-${price}-${qty}`
 
           setEvents((prev) => [{ id, time, symbol, side, price, qty, notional }, ...prev].slice(0, MAX_ROWS))
+
+          const totals = totalsRef.current
+          if (side === 'long') totals.longNotional += notional
+          else totals.shortNotional += notional
+          totals.count += 1
+          onSnapshotRef.current?.({ ...totals })
         } catch {
           // Ignore a single malformed frame — the next tick corrects it.
         }

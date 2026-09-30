@@ -16,6 +16,8 @@
     "nexusSub": "Nexus · DXY",
     "orderflow": "ORDER FLOW",
     "orderflowSub": "Depth · BTC/ETH live",
+    "options": "OPTIONS",
+    "optionsSub": "Chain · Tradier",
     "gex": "GAMMA",
     "gexSub": "GEX (demo)",
     "pulse": "MARKET STATE",

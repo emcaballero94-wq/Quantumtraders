@@ -5,6 +5,7 @@ import { clsx } from 'clsx'
 import { OrderBookHeatmap } from '@/components/orderflow/OrderBookHeatmap'
 import { TradeTape } from '@/components/orderflow/TradeTape'
 import { LiquidationsFeed } from '@/components/orderflow/LiquidationsFeed'
+import { DerivativesPanel } from '@/components/orderflow/DerivativesPanel'
 
 const SYMBOLS = [
   { label: 'BTC/USDT', value: 'btcusdt' },
@@ -40,9 +41,10 @@ export default function OrderFlowPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         <OrderBookHeatmap symbol={symbol} levels={10} />
         <TradeTape symbol={symbol} />
+        <DerivativesPanel symbol={symbol} />
       </div>
 
       <div className="mt-4">
@@ -51,11 +53,13 @@ export default function OrderFlowPage() {
 
       <p className="mt-4 text-xs font-sans leading-relaxed text-ink-dim">
         Libro de órdenes (top 20 niveles, cada 100ms), cinta de operaciones con CVD (delta de volumen acumulado,
-        reiniciado cada vez que abres la página) y liquidaciones de futuros (mayores a $1,000) en vivo de
-        Binance — conexión directa desde el navegador, sin intermediarios. La cinta y el heatmap siguen al
-        símbolo seleccionado arriba; las liquidaciones muestran BTC y ETH juntos, sin importar cuál elijas. Por
-        ahora solo cripto: futuros tradicionales (oro, índices, petróleo) y forex requieren un feed de datos
-        Level 2 de pago (Databento, Rithmic, CQG) que todavía no está conectado.
+        reiniciado cada vez que abres la página), funding rate + open interest de futuros (funding en vivo,
+        open interest sondeado cada 30s — Binance no transmite open interest por WebSocket) y liquidaciones
+        de futuros (mayores a $1,000), todo en vivo de Binance — conexión directa desde el navegador, sin
+        intermediarios. El heatmap, la cinta y el panel de derivados siguen al símbolo seleccionado arriba; las
+        liquidaciones muestran BTC y ETH juntos, sin importar cuál elijas. Por ahora solo cripto: futuros
+        tradicionales (oro, índices, petróleo) y forex requieren un feed de datos Level 2 de pago (Databento,
+        Rithmic, CQG) que todavía no está conectado.
       </p>
     </div>
   )

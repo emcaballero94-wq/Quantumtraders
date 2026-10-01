@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { clsx } from 'clsx'
+import { GexHeatmap } from '@/components/gex/GexHeatmap'
 
 interface GexProfilePoint {
   strike: number
@@ -53,8 +54,11 @@ function fmtStrike(value: number | null | undefined): string {
   return value === null || value === undefined ? '—' : value.toLocaleString('en-US', { maximumFractionDigits: 2 })
 }
 
+type ViewMode = 'profile' | 'heatmap'
+
 export default function GexPage() {
   const [assetClass, setAssetClass] = useState<AssetClass>('equity')
+  const [view, setView] = useState<ViewMode>('profile')
 
   const [symbolInput, setSymbolInput] = useState('SPY')
   const [symbol, setSymbol] = useState('SPY')
@@ -230,6 +234,31 @@ export default function GexPage() {
           >
             Cripto
           </button>
+          <span className="w-px bg-bg-border mx-1" />
+          <button
+            type="button"
+            onClick={() => setView('profile')}
+            className={clsx(
+              'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
+              view === 'profile'
+                ? 'border-nexus/50 bg-nexus/10 text-nexus'
+                : 'border-bg-border text-ink-secondary hover:border-ink-muted',
+            )}
+          >
+            Perfil
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('heatmap')}
+            className={clsx(
+              'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
+              view === 'heatmap'
+                ? 'border-nexus/50 bg-nexus/10 text-nexus'
+                : 'border-bg-border text-ink-secondary hover:border-ink-muted',
+            )}
+          >
+            Mapa de calor
+          </button>
         </div>
 
         {assetClass === 'equity' ? (
@@ -292,7 +321,7 @@ export default function GexPage() {
           </div>
         )}
 
-        {expirations.length > 0 && (
+        {view === 'profile' && expirations.length > 0 && (
           <div className="flex gap-2 flex-wrap px-7 pb-4 overflow-x-auto">
             {expirations.slice(0, 10).map((exp) => (
               <button
@@ -322,17 +351,25 @@ export default function GexPage() {
         </div>
       )}
 
-      {!(assetClass === 'equity' && missingKey) && error && (
+      {view === 'heatmap' && !(assetClass === 'equity' && missingKey) && (
+        <GexHeatmap
+          assetClass={assetClass}
+          symbolOrCurrency={assetClass === 'equity' ? symbol : cryptoCurrency}
+          priceUnit={priceUnit}
+        />
+      )}
+
+      {view === 'profile' && !(assetClass === 'equity' && missingKey) && error && (
         <div className="rounded-xl border border-bg-border bg-bg-base px-7 py-10 text-center">
           <p className="text-sm font-sans text-ink-secondary">{error}</p>
         </div>
       )}
 
-      {!(assetClass === 'equity' && missingKey) && !error && (loadingExpirations || loadingGex) && !gex && (
+      {view === 'profile' && !(assetClass === 'equity' && missingKey) && !error && (loadingExpirations || loadingGex) && !gex && (
         <div className="h-[420px] bg-bg-elevated rounded-xl animate-pulse" />
       )}
 
-      {!(assetClass === 'equity' && missingKey) && !error && gex && (
+      {view === 'profile' && !(assetClass === 'equity' && missingKey) && !error && gex && (
         <>
           <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 px-5 py-4">
@@ -432,6 +469,12 @@ export default function GexPage() {
         dealers amortigua el movimiento del precio; negativo, que puede amplificarlo. Nada de esto es una
         recomendación de compra o venta.
       </p>
+      {view === 'heatmap' && (
+        <p className="mt-2 text-xs font-sans leading-relaxed text-ink-dim">
+          El mapa de calor combina únicamente los vencimientos mostrados (no toda la cadena de opciones) — Call
+          Wall, Put Wall, Gamma Flip y Régimen son ese agregado parcial, y cambian si movés el slider de vencimientos.
+        </p>
+      )}
     </div>
   )
 }

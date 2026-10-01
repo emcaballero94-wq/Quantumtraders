@@ -2,17 +2,8 @@ import { NextResponse } from 'next/server'
 import { fetchOptionChain, fetchUnderlyingLastPrice, isTradierConfigured } from '@/lib/tradier-data'
 import { fetchCryptoOptionChain, type CryptoOptionCurrency } from '@/lib/deribit-data'
 import { computeGex, type GexContract } from '@/lib/gex/compute'
+import { yearsToExpiry } from '@/lib/gex/expiry'
 import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
-
-const MS_PER_YEAR = 365 * 24 * 60 * 60 * 1000
-
-// Treats expiration as end-of-day UTC — good enough for GEX purposes
-// (matches the calendar date Tradier/Deribit both report), not an exact
-// intraday settlement time.
-function yearsToExpiry(expirationDate: string, now: Date): number {
-  const expiry = new Date(`${expirationDate}T23:59:59Z`)
-  return Math.max((expiry.getTime() - now.getTime()) / MS_PER_YEAR, 0)
-}
 
 export async function GET(request: Request) {
   const blocked = rejectIfRateLimited(request, {

@@ -5,6 +5,7 @@ import { clsx } from 'clsx'
 import { Tour, type TourStep } from '@/components/tour/Tour'
 import { useTour } from '@/lib/tour/use-tour'
 import { OptionsFlowPanel } from '@/components/options/OptionsFlowPanel'
+import { OptionsFlowManuBrief } from '@/components/options-flow/OptionsFlowManuBrief'
 
 const OPTIONS_TOUR_STEPS: TourStep[] = [
   {
@@ -550,6 +551,8 @@ export default function OptionsPage() {
           </div>
         </div>
       )}
+
+      {assetClass === 'crypto' && <OptionsFlowManuBrief currency={cryptoCurrency} />}
 
       {assetClass === 'crypto' && (
         <div data-tour="options-flow" className="mt-4 rounded-xl border border-bg-border bg-bg-base overflow-hidden">

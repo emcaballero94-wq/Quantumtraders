@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
 import { listOrderFlowBriefs, type OrderFlowBriefRecord } from '@/lib/oracle/orderflow-persistence'
+import { computeForwardOutcome } from '@/lib/manu/forward-returns'
 
 const MIN_RECORDS = 5
 const FUNDING_OVERHEATED_THRESHOLD = 0.0003 // 0.03% — a commonly-cited "hot" funding rate on Binance perps
@@ -38,39 +39,40 @@ interface BacktestRow {
   record: OrderFlowBriefRecord
   bias: Bias
   forwardReturnPct: number | null
+  maxFavorableExcursionPct: number | null
+  maxAdverseExcursionPct: number | null
   hit: boolean | null
 }
 
+// Forward-return/MFE/MAE scanning is shared with lib/manu/historical-validation.ts
+// (see lib/manu/forward-returns.ts) so this and M.A.N.U.'s pattern matching don't
+// each maintain their own definition of "what happened after this point".
 function buildBacktestRows(records: OrderFlowBriefRecord[], horizonMs: number): BacktestRow[] {
-  const rows: BacktestRow[] = []
-  let forwardPointer = 0
-
-  for (let i = 0; i < records.length; i += 1) {
-    const record = records[i]
-    const targetTime = new Date(record.createdAt).getTime() + horizonMs
-
-    if (forwardPointer < i + 1) forwardPointer = i + 1
-    while (forwardPointer < records.length && new Date(records[forwardPointer].createdAt).getTime() < targetTime) {
-      forwardPointer += 1
-    }
-
-    const forwardRecord = forwardPointer < records.length ? records[forwardPointer] : null
+  return records.map((record, i) => {
     const bias = classifyBias(record)
-
-    let forwardReturnPct: number | null = null
-    if (forwardRecord && record.price !== null && forwardRecord.price !== null && record.price !== 0) {
-      forwardReturnPct = ((forwardRecord.price - record.price) / record.price) * 100
-    }
+    const outcome = computeForwardOutcome(records, i, horizonMs)
 
     let hit: boolean | null = null
-    if (forwardReturnPct !== null && bias !== 'neutral') {
-      hit = (bias === 'bullish' && forwardReturnPct > 0) || (bias === 'bearish' && forwardReturnPct < 0)
+    if (outcome.forwardReturnPct !== null && bias !== 'neutral') {
+      hit = (bias === 'bullish' && outcome.forwardReturnPct > 0) || (bias === 'bearish' && outcome.forwardReturnPct < 0)
     }
 
-    rows.push({ record, bias, forwardReturnPct, hit })
-  }
+    return {
+      record,
+      bias,
+      forwardReturnPct: outcome.forwardReturnPct,
+      maxFavorableExcursionPct: outcome.maxFavorableExcursionPct,
+      maxAdverseExcursionPct: outcome.maxAdverseExcursionPct,
+      hit,
+    }
+  })
+}
 
-  return rows
+function median(values: number[]): number | null {
+  if (values.length === 0) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
 }
 
 export async function GET(request: Request) {
@@ -102,9 +104,19 @@ export async function GET(request: Request) {
   const hits = gradedRows.filter((row) => row.hit).length
   const hitRatePct = gradedRows.length > 0 ? (hits / gradedRows.length) * 100 : null
 
-  const bullishReturns = gradedRows.filter((row) => row.bias === 'bullish').map((row) => row.forwardReturnPct as number)
-  const bearishReturns = gradedRows.filter((row) => row.bias === 'bearish').map((row) => row.forwardReturnPct as number)
+  const bullishRows = gradedRows.filter((row) => row.bias === 'bullish')
+  const bearishRows = gradedRows.filter((row) => row.bias === 'bearish')
+  const bullishReturns = bullishRows.map((row) => row.forwardReturnPct as number)
+  const bearishReturns = bearishRows.map((row) => row.forwardReturnPct as number)
   const avg = (values: number[]) => (values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : null)
+  const mfe = (rows: BacktestRow[]) => {
+    const values = rows.map((r) => r.maxFavorableExcursionPct).filter((v): v is number => v !== null)
+    return values.length > 0 ? Math.max(...values) : null
+  }
+  const mae = (rows: BacktestRow[]) => {
+    const values = rows.map((r) => r.maxAdverseExcursionPct).filter((v): v is number => v !== null)
+    return values.length > 0 ? Math.min(...values) : null
+  }
 
   const stats = {
     symbol,
@@ -114,6 +126,12 @@ export async function GET(request: Request) {
     hitRatePct,
     avgReturnPctWhenBullish: avg(bullishReturns),
     avgReturnPctWhenBearish: avg(bearishReturns),
+    medianReturnPctWhenBullish: median(bullishReturns),
+    medianReturnPctWhenBearish: median(bearishReturns),
+    maxFavorableExcursionPctWhenBullish: mfe(bullishRows),
+    maxAdverseExcursionPctWhenBullish: mae(bullishRows),
+    maxFavorableExcursionPctWhenBearish: mfe(bearishRows),
+    maxAdverseExcursionPctWhenBearish: mae(bearishRows),
     bullishCount: bullishReturns.length,
     bearishCount: bearishReturns.length,
     neutralCount: rows.length - bullishReturns.length - bearishReturns.length,

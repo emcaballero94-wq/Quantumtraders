@@ -167,3 +167,33 @@ create table if not exists quantumtraders.orderflow_briefs (
 );
 
 create index if not exists idx_orderflow_briefs_symbol_created_at on quantumtraders.orderflow_briefs (symbol, created_at);
+
+-- CVD and liquidation notionals are client-side accumulators that reset to
+-- zero whenever the Order Flow page (re)loads — they are NOT a homogeneous
+-- time series across browser sessions. These markers record which "session"
+-- each row's cvd/liquidation values belong to, so M.A.N.U. can tell a real
+-- change in flow apart from a reset, instead of silently diffing values that
+-- may not be comparable. Null on rows written before this column existed —
+-- those are treated as "unknown session" (never compared across time).
+alter table quantumtraders.orderflow_briefs
+  add column if not exists cvd_session_started_at timestamptz null,
+  add column if not exists liquidations_session_started_at timestamptz null;
+
+-- M.A.N.U. market events — only HIGH/CRITICAL severity events are inserted
+-- here (see app/api/manu/analyze/route.ts), so the intraday timeline
+-- ("¿cuándo apareció el primer aumento de OI?", "¿cuántos eventos de
+-- liquidación tuvimos?") can be reconstructed without re-running change
+-- detection over the full orderflow_briefs history on every query. LOW/MEDIUM
+-- events are still shown live in the UI, just not persisted.
+create table if not exists quantumtraders.market_events (
+  id uuid primary key default gen_random_uuid(),
+  symbol text not null,
+  type text not null,
+  severity text not null check (severity in ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
+  evidence text not null,
+  values jsonb not null,
+  previous_values jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_market_events_symbol_created_at on quantumtraders.market_events (symbol, created_at);

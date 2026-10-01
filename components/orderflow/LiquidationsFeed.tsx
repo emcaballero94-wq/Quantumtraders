@@ -16,8 +16,8 @@ interface LiquidationEvent {
 
 const MAX_ROWS = 30
 // The combined stream broadcasts every USDT-M futures symbol — filter down
-// to what the rest of this page covers (BTC/ETH) instead of the full firehose.
-const TRACKED_SYMBOLS = new Set(['BTCUSDT', 'ETHUSDT'])
+// to what the rest of this page covers instead of the full firehose.
+const TRACKED_SYMBOLS = new Set(['BTCUSDT', 'ETHUSDT', 'SOLUSDT'])
 // Binance's futures liquidation engine fires many tiny partial fills —
 // only surface liquidations large enough to matter for reading market stress.
 const MIN_NOTIONAL_USD = 1000
@@ -32,6 +32,12 @@ export interface LiquidationsSnapshot {
   longNotional: number
   shortNotional: number
   count: number
+  /**
+   * Epoch ms marking when these running totals started accumulating (this
+   * component's mount time). They reset to 0 on every reload of the Order
+   * Flow page, so two snapshots are only comparable if this value matches.
+   */
+  sessionStartedAt: number
 }
 
 interface LiquidationsFeedProps {
@@ -47,6 +53,7 @@ export function LiquidationsFeed({ onSnapshot }: LiquidationsFeedProps = {}) {
   const totalsRef = useRef({ longNotional: 0, shortNotional: 0, count: 0 })
   const onSnapshotRef = useRef(onSnapshot)
   onSnapshotRef.current = onSnapshot
+  const sessionStartedAtRef = useRef(Date.now())
 
   useEffect(() => {
     let cancelled = false
@@ -87,7 +94,7 @@ export function LiquidationsFeed({ onSnapshot }: LiquidationsFeedProps = {}) {
           if (side === 'long') totals.longNotional += notional
           else totals.shortNotional += notional
           totals.count += 1
-          onSnapshotRef.current?.({ ...totals })
+          onSnapshotRef.current?.({ ...totals, sessionStartedAt: sessionStartedAtRef.current })
         } catch {
           // Ignore a single malformed frame — the next tick corrects it.
         }
@@ -117,7 +124,7 @@ export function LiquidationsFeed({ onSnapshot }: LiquidationsFeedProps = {}) {
     <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-bg-border">
         <span className="text-xs font-mono uppercase tracking-[0.12em] text-ink-secondary">
-          Liquidaciones · Futuros BTC/ETH
+          Liquidaciones · Futuros BTC/ETH/SOL
         </span>
         <span
           className={clsx(

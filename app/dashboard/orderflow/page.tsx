@@ -10,10 +10,11 @@ import { DerivativesPanel, type DerivativesSnapshot } from '@/components/orderfl
 const SYMBOLS = [
   { label: 'BTC/USDT', value: 'btcusdt' },
   { label: 'ETH/USDT', value: 'ethusdt' },
+  { label: 'SOL/USDT', value: 'solusdt' },
 ]
 
-const BRIEF_REFRESH_MS = 60_000
-const BRIEF_FIRST_RUN_DELAY_MS = 8_000
+const MANU_REFRESH_MS = 60_000
+const MANU_FIRST_RUN_DELAY_MS = 8_000
 
 const BACKTEST_HORIZONS = [5, 15, 60]
 
@@ -25,9 +26,46 @@ interface BacktestStats {
   hitRatePct: number | null
   avgReturnPctWhenBullish: number | null
   avgReturnPctWhenBearish: number | null
+  medianReturnPctWhenBullish: number | null
+  medianReturnPctWhenBearish: number | null
+  maxFavorableExcursionPctWhenBullish: number | null
+  maxAdverseExcursionPctWhenBullish: number | null
+  maxFavorableExcursionPctWhenBearish: number | null
+  maxAdverseExcursionPctWhenBearish: number | null
   bullishCount: number
   bearishCount: number
   neutralCount: number
+}
+
+type ManuStatus = 'STABLE' | 'DEVELOPING' | 'ACTIVE' | 'EVENT'
+type Severity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+
+interface ManuEvent {
+  type: string
+  severity: Severity
+  evidence: string
+}
+
+interface HorizonStats {
+  gradedCount: number
+  positiveRatePct: number | null
+  meanReturnPct: number | null
+  medianReturnPct: number | null
+  maxFavorableExcursionPct: number | null
+  maxAdverseExcursionPct: number | null
+}
+
+interface HistoricalValidation {
+  sampleSize: number
+  sampleLabel: 'INSUFFICIENT_SAMPLE' | 'LIMITED_SAMPLE' | 'USABLE_SAMPLE' | 'ROBUST_SAMPLE'
+  horizons: { '5m': HorizonStats; '15m': HorizonStats; '60m': HorizonStats }
+}
+
+const SAMPLE_LABEL_ES: Record<HistoricalValidation['sampleLabel'], string> = {
+  INSUFFICIENT_SAMPLE: 'muestra insuficiente',
+  LIMITED_SAMPLE: 'muestra limitada',
+  USABLE_SAMPLE: 'muestra usable',
+  ROBUST_SAMPLE: 'muestra robusta',
 }
 
 interface FlowBucket {
@@ -53,10 +91,16 @@ export default function OrderFlowPage() {
   const [liquidations, setLiquidations] = useState<LiquidationsSnapshot | null>(null)
   const [derivatives, setDerivatives] = useState<DerivativesSnapshot | null>(null)
 
-  const [brief, setBrief] = useState<string | null>(null)
-  const [briefError, setBriefError] = useState<string | null>(null)
-  const [briefLoading, setBriefLoading] = useState(false)
-  const [lastBriefAt, setLastBriefAt] = useState<Date | null>(null)
+  const [manuStatus, setManuStatus] = useState<ManuStatus | null>(null)
+  const [manuKeyChange, setManuKeyChange] = useState<string | null>(null)
+  const [manuNarrative, setManuNarrative] = useState<string | null>(null)
+  const [manuConfidence, setManuConfidence] = useState<'LOW' | 'MEDIUM' | 'HIGH' | null>(null)
+  const [manuEvents, setManuEvents] = useState<ManuEvent[]>([])
+  const [manuHistorical, setManuHistorical] = useState<HistoricalValidation | null>(null)
+  const [manuError, setManuError] = useState<string | null>(null)
+  const [manuLoading, setManuLoading] = useState(false)
+  const [lastManuAt, setLastManuAt] = useState<Date | null>(null)
+  const previousBookRef = useRef<OrderBookSnapshot | null>(null)
 
   const [backtestHorizon, setBacktestHorizon] = useState(15)
   const [backtestLoading, setBacktestLoading] = useState(false)
@@ -80,13 +124,18 @@ export default function OrderFlowPage() {
     latestRef.current = { symbol, book, tape, liquidations, derivatives }
   }, [symbol, book, tape, liquidations, derivatives])
 
-  const generateBrief = useCallback(async () => {
+  const handleBookSnapshot = useCallback((snapshot: OrderBookSnapshot) => {
+    previousBookRef.current = latestRef.current.book
+    setBook(snapshot)
+  }, [])
+
+  const generateManuAnalysis = useCallback(async () => {
     const current = latestRef.current
     if (!current.book && !current.tape && !current.liquidations && !current.derivatives) return
 
-    setBriefLoading(true)
+    setManuLoading(true)
     try {
-      const response = await fetch('/api/oracle/orderflow-brief', {
+      const response = await fetch('/api/manu/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -95,20 +144,26 @@ export default function OrderFlowPage() {
           tape: current.tape,
           liquidations: current.liquidations,
           derivatives: current.derivatives,
+          previousBook: previousBookRef.current,
         }),
       })
       const result = await response.json()
-      if (result.success) {
-        setBrief(result.data.brief)
-        setBriefError(null)
-      } else {
-        setBriefError(result.error ?? 'No se pudo generar el brief.')
+      if (result.success && !result.data?.skipped) {
+        setManuStatus(result.data.status)
+        setManuKeyChange(result.data.keyChange)
+        setManuNarrative(result.data.narrative)
+        setManuConfidence(result.data.confidence)
+        setManuEvents(result.data.events ?? [])
+        setManuHistorical(result.data.historicalValidation ?? null)
+        setManuError(null)
+      } else if (!result.success) {
+        setManuError(result.error ?? 'No se pudo generar el análisis de M.A.N.U.')
       }
     } catch {
-      setBriefError('Error de conexión al generar el brief.')
+      setManuError('Error de conexión al generar el análisis.')
     } finally {
-      setBriefLoading(false)
-      setLastBriefAt(new Date())
+      setManuLoading(false)
+      setLastManuAt(new Date())
     }
   }, [])
 
@@ -173,14 +228,20 @@ export default function OrderFlowPage() {
     [],
   )
 
-  // Symbol-specific snapshots (and the brief itself) reset on symbol switch.
-  // Liquidations stay — that feed already covers BTC+ETH globally.
+  // Symbol-specific snapshots (and M.A.N.U.'s analysis) reset on symbol
+  // switch. Liquidations stay — that feed already covers BTC+ETH globally.
   useEffect(() => {
     setBook(null)
     setTape(null)
     setDerivatives(null)
-    setBrief(null)
-    setBriefError(null)
+    previousBookRef.current = null
+    setManuStatus(null)
+    setManuKeyChange(null)
+    setManuNarrative(null)
+    setManuConfidence(null)
+    setManuEvents([])
+    setManuHistorical(null)
+    setManuError(null)
     setBacktestStats(null)
     setBacktestNarrative(null)
     setBacktestError(null)
@@ -192,18 +253,35 @@ export default function OrderFlowPage() {
 
   // Auto-refresh while the page is open. This is a live analysis of what's
   // on screen right now, not a persistent background agent — Order Flow's
-  // data lives in the browser's WebSocket connections, so the brief runs
+  // data lives in the browser's WebSocket connections, so M.A.N.U. runs
   // only while someone is actually watching this page.
   useEffect(() => {
-    const initial = setTimeout(generateBrief, BRIEF_FIRST_RUN_DELAY_MS)
-    const interval = setInterval(generateBrief, BRIEF_REFRESH_MS)
+    const initial = setTimeout(generateManuAnalysis, MANU_FIRST_RUN_DELAY_MS)
+    const interval = setInterval(generateManuAnalysis, MANU_REFRESH_MS)
     return () => {
       clearTimeout(initial)
       clearInterval(interval)
     }
-  }, [generateBrief])
+  }, [generateManuAnalysis])
 
-  const briefMissingKey = briefError?.includes('ANTHROPIC_API_KEY')
+  const STATUS_LABEL_ES: Record<ManuStatus, string> = {
+    STABLE: 'ESTABLE',
+    DEVELOPING: 'EN DESARROLLO',
+    ACTIVE: 'ACTIVO',
+    EVENT: 'EVENTO',
+  }
+  const statusColor = (status: ManuStatus | null) => {
+    if (status === 'EVENT') return 'text-bear'
+    if (status === 'ACTIVE') return 'text-bear'
+    if (status === 'DEVELOPING') return 'text-oracle'
+    return 'text-ink-secondary'
+  }
+  const severityColor = (severity: Severity) => {
+    if (severity === 'CRITICAL' || severity === 'HIGH') return 'border-bear/40 bg-bear/10 text-bear'
+    if (severity === 'MEDIUM') return 'border-oracle/40 bg-oracle/10 text-oracle'
+    return 'border-bg-border text-ink-dim'
+  }
+  const h15 = manuHistorical?.horizons['15m']
 
   return (
     <div className="animate-fade-in pb-20 max-w-[1040px]">
@@ -232,40 +310,130 @@ export default function OrderFlowPage() {
       </div>
 
       <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-bg-border">
-          <span className="text-xs font-mono uppercase tracking-[0.12em] text-oracle">Brief de IA · MANDO</span>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-bg-border flex-wrap gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xs font-mono uppercase tracking-[0.12em] text-oracle">M.A.N.U. · Market Intelligence</span>
+            <span className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-atlas">
+              <span className="w-1.5 h-1.5 rounded-full bg-atlas animate-pulse" />
+              Live intelligence
+            </span>
+            {manuStatus && (
+              <span className={clsx('text-[10px] font-mono uppercase tracking-wider', statusColor(manuStatus))}>
+                {STATUS_LABEL_ES[manuStatus]}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3">
-            {lastBriefAt && (
+            {lastManuAt && (
               <span className="text-[10px] font-mono text-ink-dim">
-                Actualizado {lastBriefAt.toLocaleTimeString('es-ES', { hour12: false, timeZone: 'UTC' })} UTC
+                Actualizado {lastManuAt.toLocaleTimeString('es-ES', { hour12: false, timeZone: 'UTC' })} UTC
               </span>
             )}
             <button
               type="button"
-              onClick={generateBrief}
-              disabled={briefLoading}
+              onClick={generateManuAnalysis}
+              disabled={manuLoading}
               className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-ink-muted transition-colors disabled:opacity-50"
             >
-              {briefLoading ? 'Analizando…' : 'Actualizar'}
+              {manuLoading ? 'Analizando…' : 'Actualizar'}
             </button>
           </div>
         </div>
-        <div className="px-5 py-4">
-          {briefLoading && !brief && <p className="text-xs font-sans text-ink-secondary">Analizando order flow…</p>}
-          {brief && <p className="text-sm font-sans leading-relaxed text-ink-primary whitespace-pre-wrap">{brief}</p>}
-          {!briefLoading && !brief && (
-            <p className="text-xs font-sans text-ink-dim">
-              {briefMissingKey
-                ? 'Desactivado — falta la clave de Anthropic (ANTHROPIC_API_KEY).'
-                : (briefError ?? 'Esperando suficientes datos en vivo para el primer análisis…')}
-            </p>
+        <div className="px-5 py-4 space-y-4">
+          {manuLoading && !manuNarrative && <p className="text-xs font-sans text-ink-secondary">Analizando order flow…</p>}
+
+          {manuKeyChange && (
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Key change</p>
+              <p className="text-sm font-sans text-ink-primary">{manuKeyChange}</p>
+            </div>
+          )}
+
+          {manuNarrative && <p className="text-sm font-sans leading-relaxed text-ink-primary whitespace-pre-wrap">{manuNarrative}</p>}
+
+          {!manuLoading && !manuNarrative && (
+            <p className="text-xs font-sans text-ink-dim">{manuError ?? 'Esperando suficientes datos en vivo para el primer análisis…'}</p>
+          )}
+
+          {manuEvents.length > 0 && (
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1.5">Eventos detectados</p>
+              <div className="flex flex-wrap gap-1.5">
+                {manuEvents.map((ev, i) => (
+                  <span
+                    key={i}
+                    title={ev.evidence}
+                    className={clsx('px-2 py-0.5 rounded border text-[10px] font-mono uppercase tracking-wider', severityColor(ev.severity))}
+                  >
+                    {ev.type.replace(/_/g, ' ')}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {manuHistorical && h15 && (
+            <div className="border-t border-bg-border pt-3">
+              <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-2">
+                Historical context · n={manuHistorical.sampleSize} ({SAMPLE_LABEL_ES[manuHistorical.sampleLabel]})
+              </p>
+              {manuHistorical.sampleLabel === 'INSUFFICIENT_SAMPLE' ? (
+                <p className="text-xs font-sans text-ink-dim">Historical validation unavailable: insufficient observations.</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Tasa positiva (15m)</p>
+                    <p className="text-sm font-mono tabular-nums text-ink-primary">
+                      {h15.positiveRatePct !== null ? `${h15.positiveRatePct.toFixed(1)}%` : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Mediana (15m)</p>
+                    <p className="text-sm font-mono tabular-nums text-ink-primary">
+                      {h15.medianReturnPct !== null ? `${h15.medianReturnPct.toFixed(3)}%` : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Media (15m)</p>
+                    <p className="text-sm font-mono tabular-nums text-ink-primary">
+                      {h15.meanReturnPct !== null ? `${h15.meanReturnPct.toFixed(3)}%` : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Casos evaluados</p>
+                    <p className="text-sm font-mono tabular-nums text-ink-primary">{h15.gradedCount}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {manuConfidence && (
+            <div className="flex items-center gap-2 border-t border-bg-border pt-3">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary">Confidence</span>
+              <span
+                className={clsx(
+                  'text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border',
+                  manuConfidence === 'HIGH'
+                    ? 'border-atlas/40 bg-atlas/10 text-atlas'
+                    : manuConfidence === 'MEDIUM'
+                      ? 'border-oracle/40 bg-oracle/10 text-oracle'
+                      : 'border-bg-border text-ink-dim',
+                )}
+              >
+                {manuConfidence}
+              </span>
+            </div>
           )}
         </div>
       </div>
 
       <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
         <div className="flex items-center justify-between px-5 py-3 border-b border-bg-border flex-wrap gap-2">
-          <span className="text-xs font-mono uppercase tracking-[0.12em] text-oracle">Backtest de sesgo</span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-xs font-mono uppercase tracking-[0.12em] text-oracle">Flow Validation</span>
+            <span className="text-[10px] font-mono text-ink-dim">· backtest de sesgo</span>
+          </div>
           <div className="flex items-center gap-2">
             <div className="flex gap-1">
               {BACKTEST_HORIZONS.map((h) => (
@@ -364,6 +532,36 @@ export default function OrderFlowPage() {
                   <p className="text-[10px] font-mono text-ink-dim mt-1">{backtestStats.neutralCount} neutrales</p>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-bg-border pt-3">
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Mediana alcista</p>
+                  <p className="text-sm font-mono tabular-nums text-ink-primary">
+                    {backtestStats.medianReturnPctWhenBullish !== null ? `${backtestStats.medianReturnPctWhenBullish.toFixed(3)}%` : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Mediana bajista</p>
+                  <p className="text-sm font-mono tabular-nums text-ink-primary">
+                    {backtestStats.medianReturnPctWhenBearish !== null ? `${backtestStats.medianReturnPctWhenBearish.toFixed(3)}%` : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">MFE / MAE alcista</p>
+                  <p className="text-sm font-mono tabular-nums text-ink-primary">
+                    {backtestStats.maxFavorableExcursionPctWhenBullish !== null ? `+${backtestStats.maxFavorableExcursionPctWhenBullish.toFixed(2)}%` : '—'} /{' '}
+                    {backtestStats.maxAdverseExcursionPctWhenBullish !== null ? `${backtestStats.maxAdverseExcursionPctWhenBullish.toFixed(2)}%` : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">MFE / MAE bajista</p>
+                  <p className="text-sm font-mono tabular-nums text-ink-primary">
+                    {backtestStats.maxFavorableExcursionPctWhenBearish !== null ? `+${backtestStats.maxFavorableExcursionPctWhenBearish.toFixed(2)}%` : '—'} /{' '}
+                    {backtestStats.maxAdverseExcursionPctWhenBearish !== null ? `${backtestStats.maxAdverseExcursionPctWhenBearish.toFixed(2)}%` : '—'}
+                  </p>
+                </div>
+              </div>
+
               {backtestNarrative && (
                 <p className="text-sm font-sans leading-relaxed text-ink-primary whitespace-pre-wrap border-t border-bg-border pt-3">
                   {backtestNarrative}
@@ -484,7 +682,7 @@ export default function OrderFlowPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-        <OrderBookHeatmap symbol={symbol} levels={10} onSnapshot={setBook} />
+        <OrderBookHeatmap symbol={symbol} levels={10} onSnapshot={handleBookSnapshot} />
         <TradeTape symbol={symbol} onSnapshot={setTape} />
         <DerivativesPanel symbol={symbol} onSnapshot={setDerivatives} />
       </div>
@@ -499,10 +697,12 @@ export default function OrderFlowPage() {
         open interest sondeado cada 30s — Binance no transmite open interest por WebSocket) y liquidaciones
         de futuros (mayores a $1,000), todo en vivo de Binance — conexión directa desde el navegador, sin
         intermediarios. El heatmap, la cinta y el panel de derivados siguen al símbolo seleccionado arriba; las
-        liquidaciones muestran BTC y ETH juntos, sin importar cuál elijas. El brief de IA de arriba lee estos
-        cuatro paneles y se actualiza solo cada 60s mientras tengas esta página abierta. Por ahora solo cripto:
-        futuros tradicionales (oro, índices, petróleo) y forex requieren un feed de datos Level 2 de pago
-        (Databento, Rithmic, CQG) que todavía no está conectado.
+        liquidaciones muestran BTC, ETH y SOL juntos, sin importar cuál elijas. M.A.N.U. lee estos cuatro
+        paneles, compara contra el historial guardado y se actualiza solo cada 60s mientras tengas esta página
+        abierta — nunca convierte lo que observa en una recomendación de compra o venta, solo describe qué
+        cambió y qué tan seguido salió bien en el pasado. Por ahora solo cripto: futuros tradicionales (oro,
+        índices, petróleo) y forex requieren un feed de datos Level 2 de pago (Databento, Rithmic, CQG) que
+        todavía no está conectado.
       </p>
     </div>
   )

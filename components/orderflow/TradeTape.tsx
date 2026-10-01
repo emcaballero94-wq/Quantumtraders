@@ -23,6 +23,12 @@ const SNAPSHOT_THROTTLE_MS = 5000
 export interface TradeTapeSnapshot {
   cvd: number
   lastPrice: number | null
+  /**
+   * Epoch ms marking when this CVD accumulator started (page load or last
+   * symbol change, whichever is most recent). CVD resets to 0 at that same
+   * moment, so two snapshots are only comparable if this value matches.
+   */
+  sessionStartedAt: number
 }
 
 interface TradeTapeProps {
@@ -42,12 +48,14 @@ export function TradeTape({ symbol, onSnapshot }: TradeTapeProps) {
   const lastSnapshotAt = useRef(0)
   const onSnapshotRef = useRef(onSnapshot)
   onSnapshotRef.current = onSnapshot
+  const sessionStartedAtRef = useRef(Date.now())
 
   useEffect(() => {
     let cancelled = false
     setTrades([])
     setCvdSeries([])
     cvdRef.current = 0
+    sessionStartedAtRef.current = Date.now()
 
     function connect() {
       setStatus('connecting')
@@ -83,7 +91,7 @@ export function TradeTape({ symbol, onSnapshot }: TradeTapeProps) {
           const now = Date.now()
           if (onSnapshotRef.current && now - lastSnapshotAt.current >= SNAPSHOT_THROTTLE_MS) {
             lastSnapshotAt.current = now
-            onSnapshotRef.current({ cvd: cvdNow, lastPrice: price })
+            onSnapshotRef.current({ cvd: cvdNow, lastPrice: price, sessionStartedAt: sessionStartedAtRef.current })
           }
         } catch {
           // Ignore a single malformed frame — the next tick corrects it.

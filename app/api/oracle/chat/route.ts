@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
-import { fetchMarketQuotes, MARKET_SYMBOL_MAP } from '@/lib/market-data'
+import { fetchMarketQuotes, fetchMarketHistory, detectTrendFromCandles, MARKET_SYMBOL_MAP } from '@/lib/market-data'
 import { buildOracleState } from '@/lib/oracle/live-state'
+import { getLatestOrderFlowBrief } from '@/lib/oracle/orderflow-persistence'
+import { listGexBriefs } from '@/lib/manu-gex/brief-persistence'
+import { orderFlowSymbolForCurrency, type CryptoCurrency } from '@/lib/manu/crypto-symbol-mapping'
 import type { RadarAsset } from '@/lib/oracle/types'
 import { logAiUsage } from '@/lib/ai-usage/usage-log'
 
@@ -83,6 +86,100 @@ function utcTimestamp(): string {
   return `${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`
 }
 
+function fmtPrice(value: number): string {
+  return Number.isFinite(value) ? value.toLocaleString('en-US', { maximumFractionDigits: 5 }) : 'sin dato'
+}
+
+function formatCandleTime(timestamp: number): string {
+  return `${new Date(timestamp).toISOString().slice(5, 16).replace('T', ' ')} UTC`
+}
+
+// Only these four — they're the ones lib/market-data.ts maps correctly for
+// every provider (Binance/OANDA default to H1 for anything else).
+const TIMEFRAME_KEYWORDS: { pattern: RegExp; interval: string; label: string }[] = [
+  { pattern: /\bM15\b/, interval: '15m', label: 'M15' },
+  { pattern: /\bH1\b/, interval: '1h', label: 'H1' },
+  { pattern: /\bH4\b/, interval: '4h', label: 'H4' },
+  { pattern: /\b(D1|DIARIO|DAILY)\b/, interval: '1d', label: 'D1' },
+]
+
+function detectTimeframeFromText(text: string): { interval: string; label: string } {
+  const upper = text.toUpperCase()
+  for (const tf of TIMEFRAME_KEYWORDS) {
+    if (tf.pattern.test(upper)) return { interval: tf.interval, label: tf.label }
+  }
+  return { interval: '1h', label: 'H1' }
+}
+
+// Gives M.A.N.U. real OHLC candles to read instead of just a single quote —
+// enough to describe recent trend/range/structure honestly, without us having
+// to implement a full support/resistance-detection algorithm ourselves.
+async function buildCandleContext(symbol: string, userText: string): Promise<string | null> {
+  const timeframe = detectTimeframeFromText(userText)
+  const candles = await withTimeout(fetchMarketHistory(symbol, { interval: timeframe.interval, range: '1mo' }), 7000)
+  if (!candles || candles.length < 10) return null
+
+  const recent = candles.slice(-15)
+  const rangeWindow = candles.slice(-50)
+  const rangeHigh = Math.max(...rangeWindow.map((c) => c.high))
+  const rangeLow = Math.min(...rangeWindow.map((c) => c.low))
+  const trend = detectTrendFromCandles(candles)
+  const trendLabel = trend === 'uptrend' ? 'alcista' : trend === 'downtrend' ? 'bajista' : 'lateral'
+  const last = recent[recent.length - 1]
+
+  const rows = recent
+    .map((c) => `${formatCandleTime(c.timestamp)} — O:${fmtPrice(c.open)} H:${fmtPrice(c.high)} L:${fmtPrice(c.low)} C:${fmtPrice(c.close)}`)
+    .join('\n')
+
+  return [
+    `Velas ${timeframe.label} de ${symbol} — últimas ${recent.length} (de ${candles.length} disponibles):`,
+    rows,
+    `Última vela ${timeframe.label} cerrada: ${formatCandleTime(last.timestamp)}, cierre ${fmtPrice(last.close)}.`,
+    `Rango de las últimas ${rangeWindow.length} velas ${timeframe.label}: máximo ${fmtPrice(rangeHigh)}, mínimo ${fmtPrice(rangeLow)}.`,
+    `Tendencia ${timeframe.label} (cierre actual vs. cierre de hace 20 velas): ${trendLabel}.`,
+  ].join('\n')
+}
+
+const GEX_CROSS_MAX_AGE_MS = 24 * 60 * 60_000
+const ORDERFLOW_CROSS_MAX_AGE_SECONDS = 5 * 60
+const CHAT_SYMBOL_TO_CRYPTO_CURRENCY: Record<string, CryptoCurrency> = { BTCUSD: 'BTC', ETHUSD: 'ETH' }
+
+// For BTC/ETH, reuse the same persisted briefs the GEX↔Order Flow cross-talk
+// already reads (lib/manu/crypto-symbol-mapping.ts) — a cheap DB read, not a
+// live Deribit/Binance call, so the general chat can cite GEX levels and
+// order flow without the cost or latency of recomputing them.
+async function buildCryptoCrossContext(symbol: string): Promise<string | null> {
+  const currency = CHAT_SYMBOL_TO_CRYPTO_CURRENCY[symbol]
+  if (!currency) return null
+
+  const parts: string[] = []
+
+  const gexBriefs = await withTimeout(listGexBriefs('crypto', currency, 1), 6000)
+  const latestGex = gexBriefs?.[0]
+  if (latestGex) {
+    const ageMs = Date.now() - new Date(latestGex.createdAt).getTime()
+    if (ageMs <= GEX_CROSS_MAX_AGE_MS) {
+      const f = latestGex.facts
+      parts.push(
+        `Opciones (GEX) de ${currency}, brief de hace ${(ageMs / 60_000).toFixed(0)} min: régimen ${f.regime === 'POSITIVE' ? 'positivo' : 'negativo'}, Net GEX ${f.netGex.toLocaleString('en-US')}, Call Wall ${f.callWallStrike !== null ? fmtPrice(f.callWallStrike) : 'sin dato'}, Put Wall ${f.putWallStrike !== null ? fmtPrice(f.putWallStrike) : 'sin dato'}, Gamma Flip ${f.gammaFlip !== null ? fmtPrice(f.gammaFlip) : 'sin dato'}, Max Pain ${f.maxPainStrike !== null ? fmtPrice(f.maxPainStrike) : 'sin dato'}, Put/Call ratio ${f.chain.putCallVolumeRatio ?? 'sin dato'}.`,
+      )
+    }
+  }
+
+  const orderFlowSymbol = orderFlowSymbolForCurrency(currency)
+  const brief = await withTimeout(getLatestOrderFlowBrief(orderFlowSymbol), 6000)
+  if (brief) {
+    const ageSeconds = (Date.now() - new Date(brief.createdAt).getTime()) / 1000
+    if (ageSeconds <= ORDERFLOW_CROSS_MAX_AGE_SECONDS) {
+      parts.push(
+        `Order Flow de ${orderFlowSymbol}, hace ${ageSeconds.toFixed(0)}s: CVD ${brief.cvd ?? 'sin dato'}, funding ${brief.fundingRate ?? 'sin dato'}, open interest ${brief.openInterest ?? 'sin dato'}, desequilibrio de libro ${brief.bookImbalance ?? 'sin dato'}.`,
+      )
+    }
+  }
+
+  return parts.length > 0 ? parts.join('\n') : null
+}
+
 // Never throws — any failure (timeout, provider outage, no symbol detected)
 // yields null so the caller falls back to the base system prompt, and M.A.N.U.
 // honestly says it has no real-time data for that query (per its own
@@ -104,19 +201,38 @@ async function buildRealTimeContext(userText: string): Promise<string | null> {
     const symbol = detectSymbolFromText(userText)
     if (!symbol) return null
 
+    const parts: string[] = []
+
     if (RADAR_SYMBOLS.has(symbol)) {
       const state = await withTimeout(buildOracleState(), 8000)
       const asset = state?.radar.find((item) => item.symbol === symbol)
-      if (!asset) return null
-      return `Datos de ${symbol} (${utcTimestamp()}):\n${formatRadarAsset(asset)}`
+      if (asset) parts.push(`Datos de ${symbol} (${utcTimestamp()}):\n${formatRadarAsset(asset)}`)
+    } else {
+      const quotes = await withTimeout(fetchMarketQuotes([symbol]), 6000)
+      const quote = quotes?.[0]
+      if (quote && quote.price !== null) {
+        const changeSign = (quote.changePct ?? 0) >= 0 ? '+' : ''
+        parts.push(
+          `Cotización de ${symbol} (${utcTimestamp()}): precio ${quote.price}, cambio ${changeSign}${(quote.changePct ?? 0).toFixed(2)}%, apertura ${quote.open ?? 'sin dato'}, máximo ${quote.high ?? 'sin dato'}, mínimo ${quote.low ?? 'sin dato'}. No hay score de bias del radar Oracle para este instrumento, solo cotización en vivo.`,
+        )
+      }
     }
 
-    const quotes = await withTimeout(fetchMarketQuotes([symbol]), 6000)
-    const quote = quotes?.[0]
-    if (!quote || quote.price === null) return null
+    try {
+      const candleContext = await buildCandleContext(symbol, userText)
+      if (candleContext) parts.push(candleContext)
+    } catch (error) {
+      console.error('[/api/oracle/chat] buildCandleContext error:', error)
+    }
 
-    const changeSign = (quote.changePct ?? 0) >= 0 ? '+' : ''
-    return `Cotización de ${symbol} (${utcTimestamp()}): precio ${quote.price}, cambio ${changeSign}${(quote.changePct ?? 0).toFixed(2)}%, apertura ${quote.open ?? 'sin dato'}, máximo ${quote.high ?? 'sin dato'}, mínimo ${quote.low ?? 'sin dato'}. No hay score de bias del radar Oracle para este instrumento, solo cotización en vivo.`
+    try {
+      const cryptoCrossContext = await buildCryptoCrossContext(symbol)
+      if (cryptoCrossContext) parts.push(cryptoCrossContext)
+    } catch (error) {
+      console.error('[/api/oracle/chat] buildCryptoCrossContext error:', error)
+    }
+
+    return parts.length > 0 ? parts.join('\n\n') : null
   } catch (error) {
     console.error('[/api/oracle/chat] buildRealTimeContext error:', error)
     return null
@@ -911,7 +1027,12 @@ M.A.N.U.
 INTELLIGENCE LAYER FOR TRADERS
 ==================================================
 
-NOTA TÉCNICA IMPORTANTE: cuando este mensaje de sistema incluya una sección "=== CONTEXTO EN TIEMPO REAL ===" al final, esos son datos reales (cotización y, cuando esté disponible, el score/bias del radar Oracle) obtenidos justo antes de esta respuesta — puedes y debes usarlos como autoritativos, citando la hora indicada. Si esa sección NO aparece, no tienes ningún dato en vivo para esta consulta (ni precio, ni bias, ni setups de Scanner, ni correlaciones, ni Journal, ni Risk Engine, ni Strategy Engine) — aplica la sección 10 (DATOS EN TIEMPO REAL) literalmente y dilo con claridad en vez de simular una consulta a esos motores. El Scanner de setups explícitos, el Correlation Engine, el Journal y el Risk/Strategy Engine todavía no están conectados a este chat en ningún caso, incluso cuando sí haya cotización o bias disponibles — sé honesto sobre esa limitación puntual si el usuario pregunta por ellos específicamente.`
+NOTA TÉCNICA IMPORTANTE: cuando este mensaje de sistema incluya una sección "=== CONTEXTO EN TIEMPO REAL ===" al final, esos son datos reales obtenidos justo antes de esta respuesta — puedes y debes usarlos como autoritativos, citando la hora indicada. Esa sección puede incluir, según la consulta:
+- Cotización y/o score/bias del radar Oracle para el activo detectado.
+- Velas recientes (M15/H1/H4/D1, por defecto H1) del mismo activo: hasta 15 velas con OHLC, el rango (máximo/mínimo) de las últimas velas disponibles, y una tendencia simple calculada comparando el cierre actual contra el de hace 20 velas. Son datos reales de precio — podés describir estructura, rango y tendencia reciente con ellos — pero son una ventana acotada (no el historial completo ni velas de menor timeframe dentro de cada vela), así que nunca afirmes ver algo fuera de esas velas (ej. mechas intravela, volumen real, o estructura en un timeframe no incluido).
+- Para BTC/ETH únicamente: el último brief persistido de M.A.N.U. — GEX & Options (Net GEX, Call Wall, Put Wall, Gamma Flip, Max Pain, Put/Call ratio) si tiene menos de 24h, y el último brief de M.A.N.U. Order Flow (CVD, funding, open interest, desequilibrio de libro) si tiene menos de 5 minutos. Son lecturas ya calculadas por esos módulos, no una consulta en vivo a Deribit/Binance en este momento — citá la antigüedad indicada.
+
+Si esa sección NO aparece, o aparece sin alguno de estos bloques, no tienes ese dato para esta consulta — aplica la sección 10 (DATOS EN TIEMPO REAL) literalmente y dilo con claridad en vez de simular que lo tenés o de inventar niveles. El Scanner de setups explícitos, el Correlation Engine, el Journal y el Risk/Strategy Engine todavía no están conectados a este chat en ningún caso — sé honesto sobre esa limitación puntual si el usuario pregunta por ellos específicamente.`
 
 export async function POST(request: Request) {
   const blocked = rejectIfRateLimited(request, {

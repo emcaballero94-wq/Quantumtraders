@@ -788,19 +788,21 @@ export async function fetchMarketHistory(
     }
   }
 
-  const providerSymbol = symbolToProviderSymbol(symbol)
-  if (!providerSymbol) return []
-
   const interval = options?.interval ?? '1h'
   const range = options?.range ?? '1mo'
 
-  const candles = await fetchYahooHistoryCandles(providerSymbol, interval, range)
-  if (candles.length > 0) return candles
+  // XAUUSD=X and XAGUSD=X are known to 404 on Yahoo's chart endpoint — go
+  // straight to the documented fallback (the futures contract) instead of
+  // making a request we already know will fail on every call.
+  const knownFallbackSymbol = FALLBACK_PROVIDER_SYMBOL[normalizedSymbol]
+  if (knownFallbackSymbol) {
+    return fetchYahooHistoryCandles(knownFallbackSymbol, interval, range)
+  }
 
-  const fallbackProviderSymbol = FALLBACK_PROVIDER_SYMBOL[normalizedSymbol]
-  if (fallbackProviderSymbol) return fetchYahooHistoryCandles(fallbackProviderSymbol, interval, range)
+  const providerSymbol = symbolToProviderSymbol(symbol)
+  if (!providerSymbol) return []
 
-  return []
+  return fetchYahooHistoryCandles(providerSymbol, interval, range)
 }
 
 export function resampleCandles(candles: Candle[], chunkSize: number): Candle[] {

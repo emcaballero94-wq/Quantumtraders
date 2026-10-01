@@ -352,9 +352,15 @@ async function buildOracleStateFresh(): Promise<OracleState> {
   await upsertOracleAlerts(alerts).catch(() => undefined)
 
   const [calendarFeed, centralBankRates] = await Promise.all([
-    fetchMacroCalendar(60).catch(() => [] as EconomicEvent[]),
+    fetchMacroCalendar(60).catch((error) => {
+      console.error('[live-state] fetchMacroCalendar threw:', error)
+      return [] as EconomicEvent[]
+    }),
     fetchCentralBankRatesFromCalendar().catch(() => []),
   ])
+  if (calendarFeed.length === 0) {
+    console.error('[live-state] Macro calendar feed returned 0 events (TradingEconomics + ForexFactory both empty) — falling back to alerts-derived calendar.')
+  }
   const calendar = calendarFeed.length > 0 ? calendarFeed : buildCalendarFromAlerts(alerts)
   const sectorStrength = await computeSectorStrength()
 

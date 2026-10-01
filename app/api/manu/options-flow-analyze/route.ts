@@ -5,20 +5,7 @@ import { deriveOptionsFlowLean, keyChangeText, buildDeterministicOptionsFlowNarr
 import { insertOptionsFlowBrief, listOptionsFlowBriefs } from '@/lib/manu-options-flow/brief-persistence'
 import type { OptionsFlowBriefFacts } from '@/lib/manu-options-flow/types'
 import { logAiUsage } from '@/lib/ai-usage/usage-log'
-import { fetchMarketQuotes } from '@/lib/market-data'
 import type { CryptoCurrency } from '@/lib/manu/crypto-symbol-mapping'
-
-const SPOT_QUOTE_SYMBOL: Record<CryptoCurrency, string> = { BTC: 'BTCUSD', ETH: 'ETHUSD' }
-
-async function fetchSpotPriceUsd(currency: CryptoCurrency): Promise<number | null> {
-  try {
-    const [quote] = await fetchMarketQuotes([SPOT_QUOTE_SYMBOL[currency]])
-    return quote?.price ?? null
-  } catch (error) {
-    console.error(`[/api/manu/options-flow-analyze] Failed to fetch spot price for ${currency}:`, error)
-    return null
-  }
-}
 
 const MAX_LARGE_TRADES_FOR_PROMPT = 5
 
@@ -32,15 +19,12 @@ function fmtUsd(value: number | null): string {
 }
 
 async function buildFacts(currency: CryptoCurrency): Promise<OptionsFlowBriefFacts | null> {
-  const [snapshot, underlyingPriceUsd] = await Promise.all([
-    computeOptionsFlowSnapshot(currency),
-    fetchSpotPriceUsd(currency),
-  ])
+  const snapshot = await computeOptionsFlowSnapshot(currency)
   if (snapshot.tradeCount === 0) return null
 
   return {
     currency,
-    underlyingPriceUsd,
+    underlyingPriceUsd: snapshot.spotPriceUsd,
     tradeCount: snapshot.tradeCount,
     score: snapshot.score.value,
     scoreConfidence: snapshot.score.confidence,
@@ -50,6 +34,10 @@ async function buildFacts(currency: CryptoCurrency): Promise<OptionsFlowBriefFac
     callPremium: snapshot.totals.callPremium,
     putPremium: snapshot.totals.putPremium,
     callPutRatio: snapshot.totals.callPutRatioByPremium,
+    noiseContractsPct: snapshot.noise.noiseContractsPct,
+    adjustedCallPremium: snapshot.noise.adjustedTotals.callPremium,
+    adjustedPutPremium: snapshot.noise.adjustedTotals.putPremium,
+    adjustedCallPutRatio: snapshot.noise.adjustedTotals.callPutRatioByPremium,
     acceleration: snapshot.acceleration
       ? {
           direction: snapshot.acceleration.direction,

@@ -19,6 +19,10 @@ function makeFacts(overrides: Partial<OptionsFlowBriefFacts> = {}): OptionsFlowB
     largeTradeCount: 0,
     topLargeTrades: [],
     keyStrikes: [],
+    noiseContractsPct: 0,
+    adjustedCallPremium: 1_500_000,
+    adjustedPutPremium: 500_000,
+    adjustedCallPutRatio: 3,
     ...overrides,
   }
 }

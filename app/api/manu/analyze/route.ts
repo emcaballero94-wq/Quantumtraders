@@ -185,17 +185,7 @@ async function generateAiNarrative(
     `Factores de riesgo calculados por el backend: ${risks.join(' ')}`,
   ].join('\n')
 
-  const prompt = `Eres M.A.N.U. (Market Analysis & Navigation Unit) de Quantum Traders. Con base EXCLUSIVAMENTE en los datos ya calculados abajo (no inventes ni recalcules ninguna cifra, ninguna estadística, ningún porcentaje — todos ya vienen calculados por el backend), redacta el brief completo usando EXACTAMENTE este formato, reproduciendo los valores de STATUS, KEY CHANGE, HISTORICAL CONTEXT y CONFIDENCE tal cual se te dan, y escribiendo en prosa natural solo las secciones FLOW, LEVEL 2, DERIVATIVES, RELATIONSHIPS, INTERPRETATION y RISK a partir de esos mismos datos:
-
-M.A.N.U. — MARKET INTELLIGENCE
-
-[símbolo y hora]
-
-STATUS
-[reproduce el status dado]
-
-KEY CHANGE
-[reproduce el key change dado]
+  const prompt = `Eres M.A.N.U. (Market Analysis & Navigation Unit) de Quantum Traders. La interfaz ya le muestra al trader, por separado y antes de tu texto, el símbolo, la hora, el STATUS y el KEY CHANGE — NO los repitas ni les pongas título propio. Con base EXCLUSIVAMENTE en los datos ya calculados abajo (no inventes ni recalcules ninguna cifra, ninguna estadística, ningún porcentaje — todos ya vienen calculados por el backend), redacta SOLO estas secciones, en este orden y con estos títulos exactos:
 
 FLOW
 [1-2 líneas sobre CVD / flujo agresivo]
@@ -218,13 +208,10 @@ INTERPRETATION
 RISK
 [1-2 líneas basadas en los factores de riesgo dados]
 
-CONFIDENCE
-[reproduce el confidence dado]
-
-DATOS:
+DATOS (STATUS y KEY CHANGE son solo contexto, no los repitas en tu respuesta):
 ${facts}
 
-Responde en español. Devuelve solo el texto del brief en ese formato exacto, sin markdown adicional.`
+Responde en español. Devuelve solo esas ocho secciones con su título, sin markdown adicional, sin repetir STATUS, KEY CHANGE ni CONFIDENCE (la interfaz ya los muestra aparte).`
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {

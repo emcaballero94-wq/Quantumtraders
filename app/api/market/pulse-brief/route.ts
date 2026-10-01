@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
+import { logAiUsage } from '@/lib/ai-usage/usage-log'
 
 interface PulseBriefRequestBody {
   biasLabel: string
@@ -85,6 +86,7 @@ Devuelve solo el texto del resumen, sin títulos ni markdown.`
     }
 
     const result = await response.json()
+    await logAiUsage({ route: 'market-pulse-brief', model: 'claude-haiku-4-5-20251001', usage: result?.usage })
     const text = result?.content?.[0]?.text
     if (typeof text !== 'string' || !text.trim()) {
       return NextResponse.json({ success: false, error: 'Empty response from Claude API' }, { status: 502 })

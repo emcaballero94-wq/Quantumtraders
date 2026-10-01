@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
+import { logAiUsage } from '@/lib/ai-usage/usage-log'
 
 export async function POST(request: Request) {
   const blocked = rejectIfRateLimited(request, {
@@ -59,6 +60,7 @@ Devuelve SOLO el JSON válido, sin markdown ni explicaciones.
     }
 
     const result = await response.json()
+    await logAiUsage({ route: 'oracle-parse-trade-voice', model: 'claude-haiku-4-5-20251001', usage: result?.usage })
     const content = result.content[0].text
     
     const jsonMatch = content.match(/\{[\s\S]*\}/)

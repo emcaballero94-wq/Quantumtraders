@@ -8,6 +8,7 @@ import { buildRelationships } from '@/lib/manu/relationships'
 import { buildEvents, type LiquidationDeltas, type PreviousLiveSnapshot } from '@/lib/manu/event-engine'
 import { currentFingerprintFromState, findSimilarConditions } from '@/lib/manu/historical-validation'
 import { deriveConfidence, deriveStatus, keyChangeText, riskFactors, buildDeterministicNarrative, type GexCrossContext } from '@/lib/manu/brief-formatter'
+import { logAiUsage } from '@/lib/ai-usage/usage-log'
 import { withAssetLock, shouldSkipBrief } from '@/lib/manu/asset-lock'
 import { currencyForOrderFlowSymbol } from '@/lib/manu/crypto-symbol-mapping'
 import { listGexBriefs } from '@/lib/manu-gex/brief-persistence'
@@ -275,6 +276,7 @@ Responde en español. Devuelve solo esas nueve secciones con su título, sin mar
     }
 
     const result = await response.json()
+    await logAiUsage({ route: 'manu-analyze', model: 'claude-haiku-4-5-20251001', usage: result?.usage })
     const text = result?.content?.[0]?.text
     return typeof text === 'string' && text.trim() ? text.trim() : null
   } catch (error) {

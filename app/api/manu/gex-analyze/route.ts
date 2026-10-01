@@ -10,6 +10,7 @@ import { insertGexBrief, listGexBriefs } from '@/lib/manu-gex/brief-persistence'
 import { getLatestOrderFlowBrief } from '@/lib/oracle/orderflow-persistence'
 import { orderFlowSymbolForCurrency, type CryptoCurrency } from '@/lib/manu/crypto-symbol-mapping'
 import type { GexBriefFacts, GexRegime, OrderFlowCrossContext } from '@/lib/manu-gex/types'
+import { logAiUsage } from '@/lib/ai-usage/usage-log'
 
 // Order Flow briefs are only written while someone has that page open (one
 // every ~60s) — past this age, the row describes a session that's probably
@@ -162,6 +163,7 @@ Responde en español. Devuelve solo esas siete secciones con su título, sin mar
     }
 
     const result = await response.json()
+    await logAiUsage({ route: 'manu-gex-analyze', model: 'claude-haiku-4-5-20251001', usage: result?.usage })
     const text = result?.content?.[0]?.text
     return typeof text === 'string' && text.trim() ? text.trim() : null
   } catch (error) {

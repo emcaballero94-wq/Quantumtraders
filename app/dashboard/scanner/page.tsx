@@ -12,6 +12,36 @@ import { RatingBadge, BiasBadge } from '@/components/ui/StatusBadge'
 import { MarketScanner } from '@/components/scanner/MarketScanner'
 import { MarketHeatmap } from '@/components/scanner/MarketHeatmap'
 import { SCANNER_ASSETS } from '@/lib/scanner/conditions'
+import { Tour, type TourStep } from '@/components/tour/Tour'
+import { useTour } from '@/lib/tour/use-tour'
+
+const SCANNER_TOUR_STEPS: TourStep[] = [
+  {
+    target: '[data-tour="scanner-tabs"]',
+    title: 'Tres vistas del mismo universo',
+    description: 'Radar rankea activos por score, Scanner busca patrones técnicos puntuales y Mapa de calor te da una foto rápida de todo el universo. Cambiá entre ellas según lo que necesites.',
+  },
+  {
+    target: '[data-tour="scanner-radar-list"]',
+    title: 'El ranking del radar',
+    description: 'Cada activo tiene un score de 0 a 100 combinando macro, técnico y timing. Está ordenado de mayor a menor — tocá cualquier fila para ver su detalle a la derecha.',
+  },
+  {
+    target: '[data-tour="scanner-score-legend"]',
+    title: 'De qué está hecho el score',
+    description: 'La barra de composición muestra cuánto aporta cada componente: naranja es contexto macro, verde es análisis técnico, celeste es timing de entrada.',
+  },
+  {
+    target: '[data-tour="scanner-detail"]',
+    title: 'Detalle del activo',
+    description: 'Precio en vivo, bias, estado y las señales que el scanner técnico detectó en H1 para este símbolo — si tiene opciones listadas, desde acá podés saltar directo a analizarlo con ATLAS.',
+  },
+  {
+    target: '[data-tour="scanner-context"]',
+    title: 'Contexto operativo',
+    description: 'Sesiones abiertas, kill zones, alertas activas y el calendario económico — todo lo que puede mover el mercado hoy, en un solo bloque.',
+  },
+]
 
 interface OracleStateResponse {
   success: boolean
@@ -101,7 +131,7 @@ function DetailPanel({ asset, rank }: { asset: RadarAsset; rank: number }) {
   ]
 
   return (
-    <aside className="bg-bg-card px-7 py-6 flex flex-col gap-6 overflow-y-auto">
+    <aside data-tour="scanner-detail" className="bg-bg-card px-7 py-6 flex flex-col gap-6 overflow-y-auto">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1 min-w-0">
           <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-ink-secondary">#{rank} del radar</p>
@@ -194,6 +224,7 @@ export default function OraclePage() {
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('radar')
   const [selected, setSelected] = useState<string | null>(null)
+  const { active: tourActive, start: startTour, close: closeTour } = useTour('scanner')
 
   useEffect(() => {
     let mounted = true
@@ -257,8 +288,9 @@ export default function OraclePage() {
               Activo
             </span>
           </div>
-          <div className="flex gap-1 p-[3px] border border-bg-border rounded-lg text-xs font-sans" role="tablist">
-            {TABS.map((t) => (
+          <div className="flex items-center gap-2">
+            <div data-tour="scanner-tabs" className="flex gap-1 p-[3px] border border-bg-border rounded-lg text-xs font-sans" role="tablist">
+              {TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -272,7 +304,15 @@ export default function OraclePage() {
               >
                 {t.label}
               </button>
-            ))}
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={startTour}
+              className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-oracle/50 hover:text-oracle transition-colors"
+            >
+              Ver tutorial
+            </button>
           </div>
         </div>
 
@@ -286,7 +326,7 @@ export default function OraclePage() {
                 <span className="text-right">Total</span>
                 <span className="text-right">Estado</span>
               </div>
-              <div className="overflow-y-auto min-h-0 flex-1" role="listbox" aria-label="Radar de activos">
+              <div data-tour="scanner-radar-list" className="overflow-y-auto min-h-0 flex-1" role="listbox" aria-label="Radar de activos">
                 {rankedAssets.map((asset) => {
                   const isSel = asset.symbol === selectedAsset.symbol
                   const up = asset.change24h >= 0
@@ -317,7 +357,7 @@ export default function OraclePage() {
                   )
                 })}
               </div>
-              <div className="flex gap-[18px] px-7 py-3 border-t border-bg-border text-[11px] font-mono text-ink-secondary">
+              <div data-tour="scanner-score-legend" className="flex gap-[18px] px-7 py-3 border-t border-bg-border text-[11px] font-mono text-ink-secondary">
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-1.5 bg-oracle" />Macro</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-1.5 bg-atlas" />Técnico</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-1.5 bg-pulse" />Timing</span>
@@ -344,7 +384,7 @@ export default function OraclePage() {
         )}
       </div>
 
-      <section className="space-y-4">
+      <section data-tour="scanner-context" className="space-y-4">
         <div className="space-y-1">
           <p className="text-[11px] font-mono uppercase tracking-[0.16em] text-pulse">Contexto operativo</p>
           <p className="text-[13px] font-sans text-ink-secondary">Sesiones · Alertas · Calendario</p>
@@ -362,6 +402,8 @@ export default function OraclePage() {
         sectorStrength={state.sectorStrength}
         calendar={state.calendar}
       />
+
+      <Tour steps={SCANNER_TOUR_STEPS} active={tourActive} onClose={closeTour} />
     </div>
   )
 }

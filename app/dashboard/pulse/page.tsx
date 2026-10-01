@@ -6,6 +6,41 @@ import { riskRegimeFromVix, computeAggregateBias } from '@/lib/oracle/risk-regim
 import type { RadarAsset, SectorStrength, EconomicEvent, EventImpact } from '@/lib/oracle/types'
 import type { RelativeStrengthResult } from '@/lib/market-relative-strength'
 import { EconomicCalendar, type DayPnl } from '@/components/pulse/EconomicCalendar'
+import { Tour, type TourStep } from '@/components/tour/Tour'
+import { useTour } from '@/lib/tour/use-tour'
+
+const PULSE_TOUR_STEPS: TourStep[] = [
+  {
+    target: '[data-tour="pulse-bias"]',
+    title: 'Bias agregado y régimen de riesgo',
+    description: 'Promedia el bias de todos los activos del radar de Oracle en un solo número, y lo cruza con el VIX para decidir el régimen de riesgo (apetito o cautela). Es el resumen más rápido de "cómo está el mercado hoy".',
+  },
+  {
+    target: '[data-tour="pulse-instruments"]',
+    title: 'Instrumentos clave',
+    description: 'Precio, variación diaria y rango de los índices, el oro y el crudo en vivo vía OANDA, y de Bitcoin vía Binance — con Yahoo Finance como respaldo si alguna fuente falla.',
+  },
+  {
+    target: '[data-tour="pulse-sectors"]',
+    title: 'Ranking sectorial',
+    description: 'Fuerza de cada sector relativa a los demás, calculada por el mismo motor de Oracle que alimenta el Scanner — te dice qué sectores están liderando y cuáles están rezagados ahora mismo.',
+  },
+  {
+    target: '[data-tour="pulse-matrix"]',
+    title: 'Matriz de activos',
+    description: 'Fuerza relativa a 20/60/90 días y drawdown desde máximos para cada instrumento. Tocá una fila para resaltarla en el gráfico de fuerza relativa de abajo.',
+  },
+  {
+    target: '[data-tour="pulse-rs"]',
+    title: 'Fuerza relativa vs. oro',
+    description: 'Compara el desempeño de cada instrumento contra el oro en los últimos 6 meses, con base 100. Útil para ver qué activo realmente lidera y cuál solo sigue la marea.',
+  },
+  {
+    target: '[data-tour="pulse-brief"]',
+    title: 'Resumen con IA',
+    description: 'Un brief generado por Claude a partir únicamente de los datos reales de este panel (bias, VIX, sectores) — no inventa cifras ni da recomendaciones de inversión.',
+  },
+]
 
 interface OracleStateResponse {
   success: boolean
@@ -128,6 +163,7 @@ export default function PulsePage() {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [agendaView, setAgendaView] = useState<'week' | 'month'>('week')
+  const { active: tourActive, start: startTour, close: closeTour } = useTour('pulse')
 
   useEffect(() => {
     let mounted = true
@@ -290,10 +326,19 @@ export default function PulsePage() {
       {/* Headline + bias */}
       <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-8 xl:gap-12 items-end">
         <div className="space-y-3.5">
-          <p className="text-[11px] font-mono uppercase tracking-[0.16em] text-pulse">
-            Pulse · Estado del mercado
-            {updatedAt && ` · ${updatedAt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`}
-          </p>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-[11px] font-mono uppercase tracking-[0.16em] text-pulse">
+              Pulse · Estado del mercado
+              {updatedAt && ` · ${updatedAt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`}
+            </p>
+            <button
+              type="button"
+              onClick={startTour}
+              className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-pulse/50 hover:text-pulse transition-colors"
+            >
+              Ver tutorial
+            </button>
+          </div>
           <h1 className="text-3xl md:text-[42px] font-sans font-medium leading-[1.15] tracking-tight text-ink-primary text-pretty">
             <span className={regime.color}>{regime.label}</span>
             {biasAgg && (biasAgg.label === 'Mixto' ? ' con sesgo mixto. ' : ` con sesgo ${biasAgg.label.toLowerCase()} ${intensityWord(biasAgg.avgScore)}. `)}
@@ -302,16 +347,18 @@ export default function PulsePage() {
               {vix != null && `, VIX en ${vix.toFixed(1)}`}.
             </span>
           </h1>
-          {brief ? (
-            <p className="text-[15px] font-sans leading-relaxed text-ink-primary/85 max-w-3xl text-pretty">{brief}</p>
-          ) : (
-            <p className="flex items-center gap-2 text-[13px] font-sans text-ink-secondary">
-              <span className="text-[10px] font-mono tracking-[0.12em] text-oracle border border-oracle/35 px-1.5 py-0.5 rounded-[3px]">IA</span>
-              {briefMissingKey ? 'Resumen en vivo desactivado — falta ANTHROPIC_API_KEY.' : 'Resumen en vivo no disponible todavía.'}
-            </p>
-          )}
+          <div data-tour="pulse-brief">
+            {brief ? (
+              <p className="text-[15px] font-sans leading-relaxed text-ink-primary/85 max-w-3xl text-pretty">{brief}</p>
+            ) : (
+              <p className="flex items-center gap-2 text-[13px] font-sans text-ink-secondary">
+                <span className="text-[10px] font-mono tracking-[0.12em] text-oracle border border-oracle/35 px-1.5 py-0.5 rounded-[3px]">IA</span>
+                {briefMissingKey ? 'Resumen en vivo desactivado — falta ANTHROPIC_API_KEY.' : 'Resumen en vivo no disponible todavía.'}
+              </p>
+            )}
+          </div>
         </div>
-        <div className="rounded-xl border border-bg-border bg-bg-card px-6 py-5 space-y-3.5">
+        <div data-tour="pulse-bias" className="rounded-xl border border-bg-border bg-bg-card px-6 py-5 space-y-3.5">
           <div className="flex items-baseline justify-between">
             <span className="text-[13px] font-sans text-ink-secondary">Bias agregado</span>
             <span className="text-[28px] font-mono text-ink-primary tabular-nums">{biasAgg ? biasAgg.avgScore.toFixed(1) : '—'}</span>
@@ -333,7 +380,7 @@ export default function PulsePage() {
       </section>
 
       {/* Instruments strip */}
-      <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 rounded-xl border border-bg-border overflow-hidden gap-px bg-bg-border">
+      <section data-tour="pulse-instruments" className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 rounded-xl border border-bg-border overflow-hidden gap-px bg-bg-border">
         {INSTRUMENTS.map((symbol) => {
           const q = quotes[symbol]
           const hist = histories[symbol] ?? []
@@ -360,7 +407,7 @@ export default function PulsePage() {
 
       {/* Sectors + VIX */}
       <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-10">
-        <div className="space-y-3">
+        <div data-tour="pulse-sectors" className="space-y-3">
           <Eyebrow right="ETFs sectoriales · -100 a +100">Ranking sectorial</Eyebrow>
           {sectorStrength.map((s, i) => {
             const v = Math.max(-100, Math.min(100, s.score))
@@ -406,7 +453,7 @@ export default function PulsePage() {
       </section>
 
       {/* Asset matrix (click to highlight in RS chart) */}
-      <section className="space-y-3.5">
+      <section data-tour="pulse-matrix" className="space-y-3.5">
         <Eyebrow right="Clic en una fila para destacarla en el gráfico">Matriz de activos</Eyebrow>
         <div className="overflow-x-auto">
           <div className="min-w-[860px]">
@@ -480,7 +527,7 @@ export default function PulsePage() {
 
       {/* Relative strength */}
       {rsChart && (
-        <section className="space-y-3.5">
+        <section data-tour="pulse-rs" className="space-y-3.5">
           <Eyebrow right="20D · 60D · 90D">Fuerza relativa vs oro · base 100 · 6 meses</Eyebrow>
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_330px] gap-7 items-start">
             <div className="relative w-full aspect-[820/250]">
@@ -624,6 +671,8 @@ export default function PulsePage() {
           </div>
         )}
       </section>
+
+      <Tour steps={PULSE_TOUR_STEPS} active={tourActive} onClose={closeTour} />
     </div>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
+import { TermHelp } from '@/components/ui/TermHelp'
 
 interface Trade {
   id: number
@@ -145,7 +146,9 @@ export function TradeTape({ symbol, onSnapshot }: TradeTapeProps) {
       {/* Cumulative Volume Delta */}
       <div className="px-5 py-3 border-b border-bg-border">
         <div className="flex items-baseline justify-between mb-1.5">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary">CVD (esta sesión)</span>
+          <span className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary">
+            CVD (esta sesión) <TermHelp term="cvd" />
+          </span>
           <span className={clsx('text-sm font-mono tabular-nums', currentCvd >= 0 ? 'text-atlas' : 'text-bear')}>
             {currentCvd >= 0 ? '+' : ''}
             {currentCvd.toFixed(3)}

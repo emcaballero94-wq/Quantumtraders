@@ -6,6 +6,7 @@ import { OrderBookHeatmap, type OrderBookSnapshot } from '@/components/orderflow
 import { TradeTape, type TradeTapeSnapshot } from '@/components/orderflow/TradeTape'
 import { LiquidationsFeed, type LiquidationsSnapshot } from '@/components/orderflow/LiquidationsFeed'
 import { DerivativesPanel, type DerivativesSnapshot } from '@/components/orderflow/DerivativesPanel'
+import { TermHelp } from '@/components/ui/TermHelp'
 
 const SYMBOLS = [
   { label: 'BTC/USDT', value: 'btcusdt' },
@@ -375,7 +376,7 @@ export default function OrderFlowPage() {
           {manuHistorical && h15 && (
             <div className="border-t border-bg-border pt-3">
               <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-2">
-                Historical context · n={manuHistorical.sampleSize} ({SAMPLE_LABEL_ES[manuHistorical.sampleLabel]})
+                Historical context · n={manuHistorical.sampleSize} <TermHelp term="sample_size" /> ({SAMPLE_LABEL_ES[manuHistorical.sampleLabel]})
               </p>
               {manuHistorical.sampleLabel === 'INSUFFICIENT_SAMPLE' ? (
                 <p className="text-xs font-sans text-ink-dim">Historical validation unavailable: insufficient observations.</p>
@@ -410,7 +411,9 @@ export default function OrderFlowPage() {
 
           {manuConfidence && (
             <div className="flex items-center gap-2 border-t border-bg-border pt-3">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary">Confidence</span>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary">
+                Confidence <TermHelp term="confidence" />
+              </span>
               <span
                 className={clsx(
                   'text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border',
@@ -547,7 +550,9 @@ export default function OrderFlowPage() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">MFE / MAE alcista</p>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">
+                    MFE / MAE alcista <TermHelp term="mfe_mae" />
+                  </p>
                   <p className="text-sm font-mono tabular-nums text-ink-primary">
                     {backtestStats.maxFavorableExcursionPctWhenBullish !== null ? `+${backtestStats.maxFavorableExcursionPctWhenBullish.toFixed(2)}%` : '—'} /{' '}
                     {backtestStats.maxAdverseExcursionPctWhenBullish !== null ? `${backtestStats.maxAdverseExcursionPctWhenBullish.toFixed(2)}%` : '—'}

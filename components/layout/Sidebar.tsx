@@ -15,9 +15,8 @@ import { useLocale } from '@/lib/i18n/LocaleProvider'
 // "advanced" tier for Correlations/Gamma once it's more than a demo) →
 // MARKET STATE (regime/bias/volatility/conditions/risk — "Pulse" survives
 // only as the internal engine name) → JOURNAL (post-trade review) → LEARN
-// (structured roadmap) → ACCOUNT (profile/billing/settings). GEX stays a
-// real route but is intentionally left out of primary nav while it's a
-// demo. Calculators has no nav slot for now (no section it cleanly fits —
+// (structured roadmap) → ACCOUNT (profile/billing/settings). Calculators
+// has no nav slot for now (no section it cleanly fits —
 // still reachable from its own URL and from Trade Audit's pointer card).
 // Labels are resolved through i18n (messages/en|es.json) — English is
 // the source-of-truth language, Spanish a full translation.
@@ -39,6 +38,7 @@ const NAV: { sectionKey: string; items: NavItem[] }[] = [
       { href: '/dashboard/nexus',   labelKey: 'nexus',   subKey: 'nexusSub',   dot: 'bg-nexus',   icon: NexusIcon,  advanced: true },
       { href: '/dashboard/orderflow', labelKey: 'orderflow', subKey: 'orderflowSub', dot: 'bg-atlas', icon: OrderFlowIcon, advanced: true },
       { href: '/dashboard/options', labelKey: 'options', subKey: 'optionsSub', dot: 'bg-oracle', icon: OptionsIcon, advanced: true },
+      { href: '/dashboard/gex', labelKey: 'gex', subKey: 'gexSub', dot: 'bg-nexus', icon: GexIcon, advanced: true },
     ],
   },
   {

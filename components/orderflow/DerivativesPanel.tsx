@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
+import { TermHelp } from '@/components/ui/TermHelp'
 
 export interface DerivativesSnapshot {
   fundingRate: number | null
@@ -194,7 +195,9 @@ export function DerivativesPanel({ symbol, onSnapshot }: DerivativesPanelProps) 
 
       <div className="grid grid-cols-2 gap-4 px-5 py-4">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Funding actual</p>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">
+            Funding actual <TermHelp term="funding_rate" />
+          </p>
           <p
             className={clsx(
               'text-lg font-mono tabular-nums',
@@ -207,7 +210,9 @@ export function DerivativesPanel({ symbol, onSnapshot }: DerivativesPanelProps) 
         </div>
 
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Open Interest</p>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">
+            Open Interest <TermHelp term="open_interest" />
+          </p>
           <p className="text-lg font-mono tabular-nums text-ink-primary">
             {openInterest !== null
               ? `${openInterest.toLocaleString('en-US', { maximumFractionDigits: 0 })} ${baseAsset}`

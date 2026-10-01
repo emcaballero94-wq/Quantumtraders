@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { clsx } from 'clsx'
 import { Tour, type TourStep } from '@/components/tour/Tour'
 import { useTour } from '@/lib/tour/use-tour'
+import { OptionsFlowPanel } from '@/components/options/OptionsFlowPanel'
 
 const OPTIONS_TOUR_STEPS: TourStep[] = [
   {
@@ -553,7 +554,7 @@ export default function OptionsPage() {
       {assetClass === 'crypto' && (
         <div data-tour="options-flow" className="mt-4 rounded-xl border border-bg-border bg-bg-base overflow-hidden">
           <div className="flex items-center justify-between px-7 py-[14px] border-b border-bg-border">
-            <h2 className="text-sm font-sans font-medium text-ink-primary">Options Flow · {cryptoCurrency}</h2>
+            <h2 className="text-[11px] font-mono uppercase tracking-[0.14em] text-ink-secondary">Flujo de opciones</h2>
             <span className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">
               {flow?.tradeCount != null ? `${flow.tradeCount} trades recientes` : ''}
             </span>
@@ -571,108 +572,8 @@ export default function OptionsPage() {
             </p>
           )}
 
-          {!flowError && flow && flow.score && flow.tradeCount && flow.tradeCount > 0 && (
-            <div className="px-7 py-5 grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="flex flex-col items-center justify-center gap-1 rounded-lg border border-bg-border py-4">
-                <span
-                  className={clsx(
-                    'text-3xl font-mono font-bold tabular-nums',
-                    flow.score.value >= 60 ? 'text-bull' : flow.score.value <= 40 ? 'text-bear' : 'text-ink-primary',
-                  )}
-                >
-                  {flow.score.value}
-                </span>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">Pressure Score</span>
-                <span className="text-[10px] font-mono text-ink-dim">
-                  Confianza {flow.score.confidence} · {flow.score.dataQuality === 'GOOD' ? 'datos OK' : 'datos limitados'}
-                </span>
-              </div>
-
-              <div className="flex flex-col justify-center gap-2 rounded-lg border border-bg-border px-4 py-4">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">Premium clasificado</span>
-                <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
-                  <span className="text-bull">{fmtUsdCompact(flow.directional?.bullishPremium ?? null)} alcista</span>
-                  <span className="text-ink-dim">/</span>
-                  <span className="text-bear">{fmtUsdCompact(flow.directional?.bearishPremium ?? null)} bajista</span>
-                </div>
-                {flow.acceleration && (
-                  <span className="text-[10px] font-mono text-ink-dim">
-                    Aceleración ({flow.acceleration.trackedDirection === 'BULLISH' ? 'alcista' : 'bajista'}):{' '}
-                    {flow.acceleration.direction === 'INCREASING' ? '↑ subiendo' : flow.acceleration.direction === 'DECREASING' ? '↓ bajando' : '→ estable'}
-                    {flow.acceleration.magnitudePct != null ? ` (${flow.acceleration.magnitudePct.toFixed(0)}%)` : ''}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex flex-col justify-center gap-2 rounded-lg border border-bg-border px-4 py-4">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">Calls vs Puts (bruto)</span>
-                <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
-                  <span className="text-atlas">{fmtUsdCompact(flow.totals?.callPremium ?? null)} calls</span>
-                  <span className="text-ink-dim">/</span>
-                  <span className="text-nexus">{fmtUsdCompact(flow.totals?.putPremium ?? null)} puts</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {!flowError && flow && flow.keyStrikes && flow.keyStrikes.length > 0 && (
-            <div className="px-7 pb-5">
-              <h3 className="text-[10px] font-mono uppercase tracking-wider text-ink-dim mb-2">Strikes clave (por premium)</h3>
-              <div className="flex flex-wrap gap-2">
-                {flow.keyStrikes.map((k) => (
-                  <div
-                    key={k.strike}
-                    className="px-3 py-1.5 rounded-md border border-bg-border text-xs font-mono tabular-nums flex items-center gap-1.5"
-                  >
-                    <span className="text-ink-primary font-bold">{k.strike.toLocaleString('en-US')}</span>
-                    <span className={k.netDirectionalPressure >= 0 ? 'text-bull' : 'text-bear'}>
-                      {fmtUsdCompact(Math.abs(k.netDirectionalPressure))} {k.netDirectionalPressure >= 0 ? 'calls' : 'puts'}
-                    </span>
-                    <span className="text-ink-dim">({(k.shareOfTotalPremium * 100).toFixed(0)}%)</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {!flowError && flow && flow.largeTrades && flow.largeTrades.length > 0 && (
-            <div className="border-t border-bg-border overflow-x-auto">
-              <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead>
-                  <tr className="border-b border-bg-border text-ink-secondary">
-                    <th className="px-4 py-2 text-left font-normal">Instrumento</th>
-                    <th className="px-3 py-2 text-right font-normal">Contratos</th>
-                    <th className="px-3 py-2 text-right font-normal">Premium</th>
-                    <th className="px-3 py-2 text-left font-normal">Lado</th>
-                    <th className="px-3 py-2 text-left font-normal">Lectura</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {flow.largeTrades.map((t) => (
-                    <tr key={`${t.symbol}-${t.timestamp}`} className="border-b border-bg-border/50">
-                      <td className="px-4 py-1.5 text-left text-ink-primary">{t.symbol}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-secondary">{t.contracts}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-primary">{fmtUsdCompact(t.premium)}</td>
-                      <td className={clsx('px-3 py-1.5 text-left', t.side === 'BUY' ? 'text-bull' : t.side === 'SELL' ? 'text-bear' : 'text-ink-dim')}>
-                        {t.side === 'BUY' ? 'Compra' : t.side === 'SELL' ? 'Venta' : '—'}
-                      </td>
-                      <td
-                        className={clsx(
-                          'px-3 py-1.5 text-left',
-                          t.classification.direction === 'BULLISH'
-                            ? 'text-bull'
-                            : t.classification.direction === 'BEARISH'
-                              ? 'text-bear'
-                              : 'text-ink-dim',
-                        )}
-                      >
-                        {t.classification.direction === 'BULLISH' ? 'Alcista' : t.classification.direction === 'BEARISH' ? 'Bajista' : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {!flowError && flow && flow.tradeCount != null && flow.tradeCount > 0 && (
+            <OptionsFlowPanel flow={flow} currency={cryptoCurrency} underlyingPrice={underlyingPrice} />
           )}
 
           <p className="px-7 py-3 text-[10px] font-sans leading-relaxed text-ink-dim border-t border-bg-border">

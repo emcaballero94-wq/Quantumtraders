@@ -243,10 +243,57 @@ create table if not exists quantumtraders.gex_briefs (
 
 create index if not exists idx_gex_briefs_symbol_created_at on quantumtraders.gex_briefs (asset_class, symbol, created_at);
 
+-- One row per generated M.A.N.U. Options Flow brief
+-- (app/api/manu/options-flow-analyze) — same on-demand cadence as
+-- gex_briefs (no fixed polling loop), crypto-only (BTC/ETH via Deribit).
+-- "lean" is derived from the score (60/40 thresholds), not a day-over-day
+-- regime diff like gex_briefs' "status", since this endpoint recomputes
+-- from scratch per request rather than comparing against a daily snapshot.
+create table if not exists quantumtraders.options_flow_briefs (
+  id uuid primary key default gen_random_uuid(),
+  currency text not null check (currency in ('BTC', 'ETH')),
+  lean text not null check (lean in ('BULLISH', 'BEARISH', 'NEUTRAL')),
+  key_change text not null,
+  narrative text not null,
+  narrative_source text not null check (narrative_source in ('ai', 'deterministic')),
+  facts jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_options_flow_briefs_currency_created_at on quantumtraders.options_flow_briefs (currency, created_at);
+
+-- Tracks whether a brief's directional lean was actually right, scored once
+-- the horizon has passed (app/api/cron/options-flow-outcomes, daily via
+-- Vercel Cron). "engine" exists so GEX/Order Flow could join in later, but
+-- only options_flow_briefs has an honest BULLISH/BEARISH/NEUTRAL lean today
+-- (GEX's "status" is a gamma-regime read, not a directional call; Order Flow
+-- briefs are free-text with no structured lean) — see docs/mando-v2-roadmap.md
+-- §3 for why this starts scoped to Options Flow only. Unique on
+-- (engine, brief_id) makes the daily cron idempotent against re-runs.
+create table if not exists quantumtraders.brief_outcomes (
+  id uuid primary key default gen_random_uuid(),
+  engine text not null check (engine in ('gex', 'orderflow', 'options_flow')),
+  brief_id uuid not null,
+  symbol text not null,
+  lean text not null check (lean in ('BULLISH', 'BEARISH', 'NEUTRAL')),
+  price_at_brief double precision not null,
+  brief_created_at timestamptz not null,
+  horizon_hours integer not null default 24,
+  price_at_outcome double precision not null,
+  price_change_pct double precision not null,
+  actual_direction text not null check (actual_direction in ('up', 'down', 'flat')),
+  correct boolean not null,
+  recorded_at timestamptz not null default now(),
+  unique (engine, brief_id)
+);
+
+create index if not exists idx_brief_outcomes_engine_symbol_recorded_at on quantumtraders.brief_outcomes (engine, symbol, recorded_at);
+
 -- One row per Claude API call across every M.A.N.U./Oracle route (chat,
--- Order Flow brief/memory/backtest, GEX & Options brief, Market State brief,
--- Pulse brief, voice trade parsing) — lets spend be audited by route and over
--- time instead of only showing up as a surprise low-credit email.
+-- Order Flow brief/memory/backtest, GEX & Options brief, Options Flow brief,
+-- Market State brief, Pulse brief, voice trade parsing) — lets spend be
+-- audited by route and over time instead of only showing up as a surprise
+-- low-credit email.
 create table if not exists quantumtraders.ai_usage_log (
   id uuid primary key default gen_random_uuid(),
   route text not null,

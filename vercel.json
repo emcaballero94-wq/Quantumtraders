@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/gex-snapshot",
       "schedule": "30 21 * * *"
+    },
+    {
+      "path": "/api/cron/options-flow-outcomes",
+      "schedule": "0 22 * * *"
     }
   ]
 }

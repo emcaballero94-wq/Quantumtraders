@@ -31,6 +31,7 @@ const ROUTE_LABELS: Record<string, string> = {
   'oracle-orderflow-backtest': 'Order Flow · Backtest',
   'manu-analyze': 'M.A.N.U. Order Flow',
   'manu-gex-analyze': 'M.A.N.U. GEX & Options',
+  'manu-options-flow-analyze': 'M.A.N.U. Options Flow',
   'market-brief': 'Market State · Brief',
   'market-pulse-brief': 'Pulse · Brief',
   'oracle-parse-trade-voice': 'Trade Audit · Voz',

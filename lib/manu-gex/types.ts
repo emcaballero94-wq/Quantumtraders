@@ -35,6 +35,20 @@ export interface DayOverDayComparison {
 
 export type DataQuality = 'GOOD' | 'DEGRADED'
 
+// The live Order Flow read for the same underlying (BTC/ETH only — see
+// lib/manu/crypto-symbol-mapping.ts), pulled from the most recent
+// orderflow_briefs row. Order Flow briefs are only written while someone has
+// that page open, so this is only attached when one exists and is recent
+// enough to still describe "now" rather than a stale session.
+export interface OrderFlowCrossContext {
+  symbol: string
+  ageSeconds: number
+  fundingRate: number | null
+  openInterest: number | null
+  cvd: number | null
+  bookImbalance: number | null
+}
+
 export interface GexBriefFacts {
   assetClass: 'equity' | 'crypto'
   symbol: string
@@ -50,4 +64,5 @@ export interface GexBriefFacts {
   dataQuality: DataQuality
   chain: OptionsChainSummary
   dayOverDay: DayOverDayComparison | null
+  crossAsset: OrderFlowCrossContext | null
 }

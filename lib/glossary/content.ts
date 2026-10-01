@@ -84,6 +84,56 @@ export const GLOSSARY: Record<string, GlossaryTerm> = {
     whyItMatters:
       'Confidence baja no significa "mercado bajista", significa "hay poca evidencia todavía" — por datos en vivo incompletos o por una muestra histórica insuficiente.',
   },
+  net_gex: {
+    id: 'net_gex',
+    term: 'Net GEX',
+    definition:
+      'Estimación de cuánta gamma neta tienen los dealers de opciones sobre todo el open interest de un vencimiento, bajo la convención de que las calls aportan gamma positiva y las puts negativa.',
+    whyItMatters:
+      'Es una aproximación de mercado, no la posición real de los market makers (eso no es dato público). Positivo sugiere que el hedging de dealers amortigua el movimiento del precio; negativo, que puede amplificarlo.',
+  },
+  call_wall: {
+    id: 'call_wall',
+    term: 'Call Wall',
+    definition: 'El strike con mayor exposición gamma del lado calls — donde se concentra más open interest de calls ponderado por gamma.',
+    whyItMatters:
+      'Se suele leer como una zona de resistencia porque ahí el hedging de dealers (si net GEX es positivo) tiende a vender a medida que el precio sube hacia ese nivel — no es una garantía, solo una tendencia estadística.',
+  },
+  put_wall: {
+    id: 'put_wall',
+    term: 'Put Wall',
+    definition: 'El strike con mayor exposición gamma del lado puts — donde se concentra más open interest de puts ponderado por gamma.',
+    whyItMatters:
+      'Se suele leer como una zona de soporte por la misma lógica que el call wall, pero del lado contrario — tampoco es garantía, solo una tendencia estadística del hedging de dealers.',
+  },
+  gamma_flip: {
+    id: 'gamma_flip',
+    term: 'Gamma Flip',
+    definition: 'El strike donde el GEX acumulado cambia de signo — de negativo a positivo o viceversa, a medida que se recorren los strikes.',
+    whyItMatters:
+      'Por encima o por debajo de ese nivel el régimen de hedging de dealers cambia de carácter (amortiguador vs. amplificador) — cruzarlo suele coincidir con cambios en cómo se comporta la volatilidad intradía.',
+  },
+  max_pain: {
+    id: 'max_pain',
+    term: 'Max Pain',
+    definition: 'El strike donde el pago total a los tenedores de opciones (calls + puts, ponderado por open interest) sería mínimo si el vencimiento liquidara ahí.',
+    whyItMatters:
+      'Es una teoría popular, no un dato garantizado — algunos traders lo usan como imán de precio cerca del vencimiento, pero la evidencia de que el precio "busca" ese nivel es mixta.',
+  },
+  put_call_ratio: {
+    id: 'put_call_ratio',
+    term: 'Put/Call Ratio',
+    definition: 'Volumen (o open interest) de puts dividido por el de calls en una cadena de opciones.',
+    whyItMatters:
+      'Un ratio alto sugiere más actividad en puts (cobertura o apuesta bajista), uno bajo sugiere más actividad en calls — pero un volumen alto de puts puede ser cobertura de una posición larga, no necesariamente una apuesta direccional.',
+  },
+  iv_skew: {
+    id: 'iv_skew',
+    term: 'Skew de volatilidad implícita',
+    definition: 'Diferencia entre la volatilidad implícita promedio de las puts y la de las calls en la misma cadena.',
+    whyItMatters:
+      'Un skew positivo (puts más caras) es lo habitual en índices y refleja demanda de cobertura bajista; un cambio brusco en el skew puede anticipar un cambio en cómo el mercado está precificando el riesgo, sin decir hacia dónde va el precio.',
+  },
 }
 
 export function getGlossaryTerm(id: string): GlossaryTerm | null {

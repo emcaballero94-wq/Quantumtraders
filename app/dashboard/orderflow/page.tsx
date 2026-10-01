@@ -583,7 +583,7 @@ export default function OrderFlowPage() {
         </div>
         <div className="px-5 py-4 space-y-3">
           <p className="text-xs font-sans text-ink-dim">
-            Pregúntale a MANDO cómo evolucionó el order flow de {symbol.replace('usdt', '').toUpperCase()} en lo que
+            Pregúntale a M.A.N.U. cómo evolucionó el order flow de {symbol.replace('usdt', '').toUpperCase()} en lo que
             va del día, usando el historial de briefs ya guardados.
           </p>
           <form

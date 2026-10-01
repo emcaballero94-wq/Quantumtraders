@@ -3,6 +3,20 @@ import type { HistoricalPatternMatch, MarketEvent, MarketState, RelationshipObse
 export type ManuStatus = 'STABLE' | 'DEVELOPING' | 'ACTIVE' | 'EVENT'
 export type Confidence = 'LOW' | 'MEDIUM' | 'HIGH'
 
+// The most recent M.A.N.U. — GEX & Options brief for the same underlying
+// (BTC/ETH only — see lib/manu/crypto-symbol-mapping.ts), so Order Flow can
+// note how options positioning lines up with live perp flow. Unlike Order
+// Flow's own briefs (every ~60s), GEX briefs are only generated on demand, so
+// this can be stale — ageSeconds is always reported rather than hidden.
+export interface GexCrossContext {
+  currency: 'BTC' | 'ETH'
+  ageSeconds: number
+  regime: 'POSITIVE' | 'NEGATIVE'
+  netGex: number
+  putCallVolumeRatio: number | null
+  ivSkew: number | null
+}
+
 const SEVERITY_RANK: Record<Severity, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 }
 
 export function topEvent(events: MarketEvent[]): MarketEvent | null {
@@ -87,12 +101,13 @@ export function buildDeterministicNarrative(input: {
   relationships: RelationshipObservation[]
   historical: HistoricalPatternMatch
   confidence: Confidence
+  gexCrossContext?: GexCrossContext | null
 }): string {
   // status/keyChange/confidence are rendered separately by the UI (badge +
   // dedicated "Key change" block) — this narrative only covers the prose
   // sections, to match what generateAiNarrative asks Claude for, and to
   // avoid showing the same STATUS/KEY CHANGE/CONFIDENCE twice on screen.
-  const { state, relationships, historical } = input
+  const { state, relationships, historical, gexCrossContext } = input
   const h15 = historical.horizons['15m']
 
   const lines = [
@@ -104,6 +119,11 @@ export function buildDeterministicNarrative(input: {
     '',
     'DERIVATIVES',
     `OI Δ5m: ${state.openInterestChange5m !== null ? `${state.openInterestChange5m.toFixed(2)}%` : 'sin dato'}. Funding: ${state.funding !== null ? `${(state.funding * 100).toFixed(4)}%` : 'sin dato'}.`,
+    '',
+    'OPCIONES (GEX)',
+    gexCrossContext
+      ? `${gexCrossContext.currency} hace ${Math.round(gexCrossContext.ageSeconds / 60)}min: régimen ${gexCrossContext.regime === 'POSITIVE' ? 'positivo' : 'negativo'} (net GEX ${gexCrossContext.netGex.toFixed(0)}), put/call volumen ${gexCrossContext.putCallVolumeRatio?.toFixed(2) ?? 'sin dato'}, skew IV ${gexCrossContext.ivSkew !== null ? `${(gexCrossContext.ivSkew * 100).toFixed(2)}pp` : 'sin dato'}.`
+      : 'Sin brief de GEX reciente para este símbolo.',
     '',
     'RELATIONSHIPS',
     relationships.length > 0 ? relationships.map((r) => r.detail).join(' ') : 'Sin relaciones destacadas en este ciclo.',

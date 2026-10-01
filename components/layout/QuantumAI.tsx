@@ -1,12 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { clsx } from 'clsx'
+import type { AcademyLevel } from '@/lib/academy/content'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
 }
+
+const LEVEL_LABELS: Record<AcademyLevel, string> = {
+  beginner: 'Principiante',
+  intermediate: 'Intermedio',
+  advanced: 'Avanzado',
+}
+
+const LEVEL_STORAGE_KEY = 'qt_mando_level'
 
 const QUICK_ACTIONS: { label: string; prompt: string }[] = [
   { label: 'NASDAQ', prompt: 'Analiza NASDAQ' },
@@ -19,10 +28,29 @@ const QUICK_ACTIONS: { label: string; prompt: string }[] = [
 export function QuantumAI() {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'assistant', content: 'MANDO AI ONLINE.\n\n¿Qué quieres analizar?' },
+    { role: 'assistant', content: 'M.A.N.U. ONLINE.\n\n¿Qué quieres analizar?' },
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [level, setLevel] = useState<AcademyLevel>('intermediate')
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LEVEL_STORAGE_KEY)
+      if (saved === 'beginner' || saved === 'intermediate' || saved === 'advanced') setLevel(saved)
+    } catch {
+      // Private browsing / blocked storage — just keep the default.
+    }
+  }, [])
+
+  const handleLevelChange = (next: AcademyLevel) => {
+    setLevel(next)
+    try {
+      localStorage.setItem(LEVEL_STORAGE_KEY, next)
+    } catch {
+      // Ignore — worst case it resets to Intermedio next visit.
+    }
+  }
 
   const handleSend = async (overrideText?: string) => {
     const text = (overrideText ?? input).trim()
@@ -37,17 +65,17 @@ export function QuantumAI() {
       const response = await fetch('/api/oracle/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: newMessages, level }),
       })
       const result = await response.json()
 
       const reply = result?.success
         ? result.data.reply
-        : result?.error ?? 'No se pudo obtener respuesta del sistema MANDO.'
+        : result?.error ?? 'No se pudo obtener respuesta del sistema M.A.N.U.'
 
       setMessages([...newMessages, { role: 'assistant', content: reply }])
     } catch {
-      setMessages([...newMessages, { role: 'assistant', content: 'Error de conexión con el sistema MANDO.' }])
+      setMessages([...newMessages, { role: 'assistant', content: 'Error de conexión con el sistema M.A.N.U..' }])
     } finally {
       setIsLoading(false)
     }
@@ -84,7 +112,7 @@ export function QuantumAI() {
                 <span className="text-oracle text-xs font-mono font-bold">Q</span>
               </div>
               <div>
-                <h3 className="text-sm font-mono font-bold text-ink-primary">MANDO AI</h3>
+                <h3 className="text-sm font-mono font-bold text-ink-primary">M.A.N.U.</h3>
                 <p className="text-2xs font-mono text-atlas flex items-center gap-1.5">
                   <span className="w-1 h-1 bg-atlas rounded-full animate-pulse" />
                   ONLINE
@@ -99,6 +127,22 @@ export function QuantumAI() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
+          </div>
+
+          {/* Level selector — same vocabulary as Academy (lib/academy/content.ts), tunes how much M.A.N.U. explains before using a term. */}
+          <div className="px-6 py-2.5 border-b border-bg-border flex items-center justify-between gap-3">
+            <span className="text-2xs font-mono uppercase tracking-wider text-ink-dim">Nivel</span>
+            <select
+              value={level}
+              onChange={(e) => handleLevelChange(e.target.value as AcademyLevel)}
+              className="bg-bg-deep border border-bg-border rounded-md px-2.5 py-1 text-2xs font-mono text-ink-primary focus:outline-none focus:border-oracle/50 transition-colors"
+            >
+              {(Object.keys(LEVEL_LABELS) as AcademyLevel[]).map((lvl) => (
+                <option key={lvl} value={lvl}>
+                  {LEVEL_LABELS[lvl]}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Messages */}
@@ -147,7 +191,7 @@ export function QuantumAI() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Pregúntale algo a MANDO..."
+                placeholder="Pregúntale algo a M.A.N.U..."
                 disabled={isLoading}
                 className="w-full bg-bg-deep border border-bg-border rounded-lg pl-4 pr-12 py-3 text-xs font-mono text-ink-primary focus:outline-none focus:border-oracle/50 transition-colors placeholder:text-ink-dim disabled:opacity-50"
               />

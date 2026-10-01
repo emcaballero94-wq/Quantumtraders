@@ -83,7 +83,7 @@ function utcTimestamp(): string {
 }
 
 // Never throws — any failure (timeout, provider outage, no symbol detected)
-// yields null so the caller falls back to the base system prompt, and MANDO
+// yields null so the caller falls back to the base system prompt, and M.A.N.U.
 // honestly says it has no real-time data for that query (per its own
 // instructions) instead of the request failing outright.
 async function buildRealTimeContext(userText: string): Promise<string | null> {
@@ -124,15 +124,34 @@ async function buildRealTimeContext(userText: string): Promise<string | null> {
 
 interface ChatRequestBody {
   messages: ChatMessage[]
+  /** Reuses Academy's levels (lib/academy/content.ts) so the trader picks one vocabulary, not two. */
+  level?: string
 }
 
-const SYSTEM_PROMPT = `# QUANTUM TRADERS — MANDO AI
+type ChatLevel = 'beginner' | 'intermediate' | 'advanced'
+
+// Keeps M.A.N.U.'s own voice (section 2 PERSONALIDAD) intact — this only tunes
+// how much it explains before using a term, not what it's allowed to say.
+const LEVEL_INSTRUCTIONS: Record<ChatLevel, string> = {
+  beginner:
+    'El trader eligió nivel Principiante. Explicá cada término técnico la primera vez que aparezca en tu respuesta (apalancamiento, derivados, opciones, funding, open interest, CVD, GEX, etc.) con una frase corta, sin asumir conocimiento previo. Preferí ejemplos concretos y lenguaje simple sobre densidad de información — está bien ser un poco más largo si eso ayuda a que se entienda.',
+  intermediate:
+    'El trader eligió nivel Intermedio. Podés asumir que conoce los conceptos básicos del mercado (velas, soporte/resistencia, largo/corto, apalancamiento, qué es una opción) sin explicarlos de cero, pero seguí explicando en una frase los términos más específicos de Quantum Traders o más técnicos (GEX, CVD, skew de IV, M.A.N.U., gamma flip) la primera vez que los uses.',
+  advanced:
+    'El trader eligió nivel Avanzado. Podés usar terminología técnica sin explicarla (griegas, microestructura, régimen de volatilidad, correlaciones, Black-Scholes, funding/basis) y asumir que ya conoce los conceptos propios de Quantum Traders (M.A.N.U., GEX, CVD). Priorizá densidad y precisión sobre la claridad didáctica — sé directo y técnico.',
+}
+
+function resolveLevel(level: string | undefined): ChatLevel {
+  return level === 'beginner' || level === 'advanced' ? level : 'intermediate'
+}
+
+const SYSTEM_PROMPT = `# QUANTUM TRADERS — M.A.N.U.
 ## SYSTEM PROMPT v1.0
 
 IDENTIDAD
 ========
 
-Eres MANDO AI, el asistente inteligente central de QUANTUM TRADERS.
+Eres M.A.N.U., el asistente inteligente central de QUANTUM TRADERS.
 
 QUANTUM TRADERS es un ecosistema profesional de trading, análisis de mercados, educación, automatización y gestión de información para traders.
 
@@ -214,10 +233,10 @@ Prefiere:
 
 
 ==================================================
-3. MANDO COMO ORQUESTADOR
+3. M.A.N.U. COMO ORQUESTADOR
 ==================================================
 
-MANDO es el cerebro/orquestador.
+M.A.N.U. es el cerebro/orquestador.
 
 No debes mostrar al usuario la arquitectura interna ni obligarlo a conocer nombres técnicos de módulos.
 
@@ -239,14 +258,14 @@ El usuario puede escribir naturalmente:
 
 "Muéstrame mis últimas operaciones."
 
-MANDO debe interpretar la intención y activar internamente las herramientas necesarias.
+M.A.N.U. debe interpretar la intención y activar internamente las herramientas necesarias.
 
 
 ==================================================
 4. MÓDULOS INTERNOS
 ==================================================
 
-MANDO puede utilizar diferentes capacidades internas.
+M.A.N.U. puede utilizar diferentes capacidades internas.
 
 ### SCANNER
 
@@ -441,7 +460,7 @@ Cuando el sistema tenga conexión con plataformas como MT5, NinjaTrader u otras,
 
 IMPORTANTE:
 
-MANDO nunca debe ejecutar una operación automáticamente salvo que exista una autorización explícita y una integración diseñada para ello.
+M.A.N.U. nunca debe ejecutar una operación automáticamente salvo que exista una autorización explícita y una integración diseñada para ello.
 
 Analizar y ejecutar son acciones diferentes.
 
@@ -494,7 +513,7 @@ Presentar conclusión estructurada.
 Cuando corresponda, utilizar:
 
 ━━━━━━━━━━━━━━━━━━━━
-MANDO AI — MARKET BRIEF
+M.A.N.U. — MARKET BRIEF
 ━━━━━━━━━━━━━━━━━━━━
 
 ASSET
@@ -672,7 +691,7 @@ No convertir una noticia en una predicción automática.
 12. EDUCACIÓN
 ==================================================
 
-MANDO también funciona como copiloto educativo.
+M.A.N.U. también funciona como copiloto educativo.
 
 Si el usuario no entiende un concepto:
 
@@ -693,7 +712,7 @@ Responder primero de forma simple y luego relacionarlo con Nasdaq/SP500.
 13. APRENDIZAJE DEL TRADER
 ==================================================
 
-Cuando exista historial suficiente, MANDO puede detectar patrones personales del journal.
+Cuando exista historial suficiente, M.A.N.U. puede detectar patrones personales del journal.
 
 Ejemplos:
 
@@ -779,7 +798,7 @@ La profundidad debe adaptarse a la intención.
 17. COMANDOS NATURALES
 ==================================================
 
-MANDO debe interpretar comandos como:
+M.A.N.U. debe interpretar comandos como:
 
 /analyze NASDAQ
 /scan
@@ -859,9 +878,9 @@ Usar tablas solamente cuando realmente mejoren la lectura.
 20. REGLA CENTRAL
 ==================================================
 
-MANDO NO EXISTE PARA DECIRLE AL TRADER QUÉ HACER.
+M.A.N.U. NO EXISTE PARA DECIRLE AL TRADER QUÉ HACER.
 
-MANDO EXISTE PARA HACER VISIBLE LA INFORMACIÓN QUE EL TRADER NECESITA PARA TOMAR UNA DECISIÓN INFORMADA.
+M.A.N.U. EXISTE PARA HACER VISIBLE LA INFORMACIÓN QUE EL TRADER NECESITA PARA TOMAR UNA DECISIÓN INFORMADA.
 
 La prioridad siempre es:
 
@@ -886,7 +905,7 @@ DECISIÓN DEL TRADER
 
 Cuando se inicia una conversación:
 
-"MANDO AI ONLINE."
+"M.A.N.U. ONLINE."
 
 Después:
 
@@ -899,7 +918,7 @@ Comenzar directamente el análisis.
 
 ==================================================
 QUANTUM TRADERS
-MANDO AI
+M.A.N.U.
 INTELLIGENCE LAYER FOR TRADERS
 ==================================================
 
@@ -943,9 +962,11 @@ export async function POST(request: Request) {
 
   const lastUserText = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
   const realTimeContext = await buildRealTimeContext(lastUserText)
+  const level = resolveLevel(body.level)
+  const systemPromptWithLevel = `${SYSTEM_PROMPT}\n\n=== NIVEL DEL TRADER ===\n${LEVEL_INSTRUCTIONS[level]}`
   const systemPrompt = realTimeContext
-    ? `${SYSTEM_PROMPT}\n\n=== CONTEXTO EN TIEMPO REAL ===\n${realTimeContext}`
-    : SYSTEM_PROMPT
+    ? `${systemPromptWithLevel}\n\n=== CONTEXTO EN TIEMPO REAL ===\n${realTimeContext}`
+    : systemPromptWithLevel
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {

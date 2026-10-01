@@ -82,10 +82,17 @@ async function fetchTradingEconomicsCalendar(): Promise<TradingEconomicsCalendar
     },
     next: { revalidate: 0 },
   })
-  if (!response.ok) return []
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    console.error(`[fetchTradingEconomicsCalendar] HTTP ${response.status} (auth=${auth === 'guest:guest' ? 'guest' : 'configured'}): ${body.slice(0, 300)}`)
+    return []
+  }
 
   const data = await response.json()
-  if (!Array.isArray(data)) return []
+  if (!Array.isArray(data)) {
+    console.error('[fetchTradingEconomicsCalendar] Unexpected payload shape (not an array):', JSON.stringify(data).slice(0, 300))
+    return []
+  }
   return data as TradingEconomicsCalendarRow[]
 }
 
@@ -98,10 +105,17 @@ async function fetchForexFactoryCalendar(): Promise<ForexFactoryRow[]> {
     },
     next: { revalidate: 0 },
   })
-  if (!response.ok) return []
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    console.error(`[fetchForexFactoryCalendar] HTTP ${response.status}: ${body.slice(0, 300)}`)
+    return []
+  }
 
   const data = await response.json()
-  if (!Array.isArray(data)) return []
+  if (!Array.isArray(data)) {
+    console.error('[fetchForexFactoryCalendar] Unexpected payload shape (not an array):', JSON.stringify(data).slice(0, 300))
+    return []
+  }
   return data as ForexFactoryRow[]
 }
 
@@ -114,8 +128,14 @@ function normalizeCountryToCurrency(country: string | undefined): string {
 
 export async function fetchMacroCalendar(limit = 40): Promise<EconomicEvent[]> {
   const [teRows, ffRows] = await Promise.all([
-    fetchTradingEconomicsCalendar().catch(() => []),
-    fetchForexFactoryCalendar().catch(() => []),
+    fetchTradingEconomicsCalendar().catch((error) => {
+      console.error('[fetchMacroCalendar] TradingEconomics fetch threw:', error)
+      return []
+    }),
+    fetchForexFactoryCalendar().catch((error) => {
+      console.error('[fetchMacroCalendar] ForexFactory fetch threw:', error)
+      return []
+    }),
   ])
 
   const teEvents = teRows.map((row, index) => {

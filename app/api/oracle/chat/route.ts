@@ -124,6 +124,25 @@ async function buildRealTimeContext(userText: string): Promise<string | null> {
 
 interface ChatRequestBody {
   messages: ChatMessage[]
+  /** Reuses Academy's levels (lib/academy/content.ts) so the trader picks one vocabulary, not two. */
+  level?: string
+}
+
+type ChatLevel = 'beginner' | 'intermediate' | 'advanced'
+
+// Keeps MANDO's own voice (section 2 PERSONALIDAD) intact — this only tunes
+// how much it explains before using a term, not what it's allowed to say.
+const LEVEL_INSTRUCTIONS: Record<ChatLevel, string> = {
+  beginner:
+    'El trader eligió nivel Principiante. Explicá cada término técnico la primera vez que aparezca en tu respuesta (apalancamiento, derivados, opciones, funding, open interest, CVD, GEX, etc.) con una frase corta, sin asumir conocimiento previo. Preferí ejemplos concretos y lenguaje simple sobre densidad de información — está bien ser un poco más largo si eso ayuda a que se entienda.',
+  intermediate:
+    'El trader eligió nivel Intermedio. Podés asumir que conoce los conceptos básicos del mercado (velas, soporte/resistencia, largo/corto, apalancamiento, qué es una opción) sin explicarlos de cero, pero seguí explicando en una frase los términos más específicos de Quantum Traders o más técnicos (GEX, CVD, skew de IV, M.A.N.U., gamma flip) la primera vez que los uses.',
+  advanced:
+    'El trader eligió nivel Avanzado. Podés usar terminología técnica sin explicarla (griegas, microestructura, régimen de volatilidad, correlaciones, Black-Scholes, funding/basis) y asumir que ya conoce los conceptos propios de Quantum Traders (M.A.N.U., GEX, CVD). Priorizá densidad y precisión sobre la claridad didáctica — sé directo y técnico.',
+}
+
+function resolveLevel(level: string | undefined): ChatLevel {
+  return level === 'beginner' || level === 'advanced' ? level : 'intermediate'
 }
 
 const SYSTEM_PROMPT = `# QUANTUM TRADERS — MANDO AI
@@ -943,9 +962,11 @@ export async function POST(request: Request) {
 
   const lastUserText = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
   const realTimeContext = await buildRealTimeContext(lastUserText)
+  const level = resolveLevel(body.level)
+  const systemPromptWithLevel = `${SYSTEM_PROMPT}\n\n=== NIVEL DEL TRADER ===\n${LEVEL_INSTRUCTIONS[level]}`
   const systemPrompt = realTimeContext
-    ? `${SYSTEM_PROMPT}\n\n=== CONTEXTO EN TIEMPO REAL ===\n${realTimeContext}`
-    : SYSTEM_PROMPT
+    ? `${systemPromptWithLevel}\n\n=== CONTEXTO EN TIEMPO REAL ===\n${realTimeContext}`
+    : systemPromptWithLevel
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {

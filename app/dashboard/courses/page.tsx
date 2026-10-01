@@ -5,6 +5,36 @@ import Link from 'next/link'
 import { clsx } from 'clsx'
 import type { PublicAcademyRoute } from '@/lib/academy/content'
 import { LESSON_EXTRAS, readMinutes } from '@/lib/academy/lesson-extras'
+import { Tour, type TourStep } from '@/components/tour/Tour'
+import { useTour } from '@/lib/tour/use-tour'
+
+const COURSES_TOUR_STEPS: TourStep[] = [
+  {
+    target: '[data-tour="courses-levels"]',
+    title: 'Elegí tu nivel',
+    description: 'Tres rutas — Fundamentos, Ejecución y riesgo, Edge profesional. Cada una se desbloquea al certificar la anterior, así que avanzás en orden.',
+  },
+  {
+    target: '[data-tour="courses-syllabus"]',
+    title: 'El temario',
+    description: 'Las lecciones de la unidad en curso, agrupadas por bloque. Las que ya completaste quedan marcadas con un check; las bloqueadas esperan a que termines las anteriores.',
+  },
+  {
+    target: '[data-tour="courses-lesson"]',
+    title: 'Lección y examen',
+    description: 'Leé la lección y marcala como leída para avanzar a la siguiente. Al terminar todas las de un bloque, se habilita su examen — hay que aprobarlo para seguir.',
+  },
+  {
+    target: '[data-tour="courses-check"]',
+    title: 'Comprobá lo aprendido',
+    description: 'Una pregunta rápida de repaso por lección, con la respuesta correcta explicada al toque — antes de llegar al examen de la unidad.',
+  },
+  {
+    target: '[data-tour="courses-badges"]',
+    title: 'Certificados verificables',
+    description: 'Al completar una ruta recibís un código de certificación único, verificable acá mismo por cualquiera (por ejemplo, un empleador) sin necesitar tu cuenta.',
+  },
+]
 
 type Level = 'beginner' | 'intermediate' | 'advanced'
 
@@ -67,6 +97,7 @@ function StatusDot({ state, level, small }: { state: NodeState; level: Level; sm
 }
 
 export default function CoursesPage() {
+  const { active: tourActive, start: startTour, close: closeTour } = useTour('courses')
   const [learnerId, setLearnerId] = useState('')
   const [routes, setRoutes] = useState<PublicAcademyRoute[]>([])
   const [progress, setProgress] = useState<AcademyProgress[]>([])
@@ -243,9 +274,18 @@ export default function CoursesPage() {
           <p className="text-[11px] font-mono uppercase tracking-[0.16em] text-pulse">Academia · Trader development roadmap</p>
           <h1 className="text-2xl md:text-[28px] font-sans font-semibold tracking-tight text-ink-primary">De principiante a trader sistemático</h1>
         </div>
-        <span className="text-[11px] font-mono text-ink-muted">Learner ID: {learnerId}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] font-mono text-ink-muted">Learner ID: {learnerId}</span>
+          <button
+            type="button"
+            onClick={startTour}
+            className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-pulse/50 hover:text-pulse transition-colors"
+          >
+            Ver tutorial
+          </button>
+        </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div data-tour="courses-levels" className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {(['beginner', 'intermediate', 'advanced'] as const).map((lvl) => {
           const r = routes.find((x) => x.level === lvl)
           const st = r ? statusMap.get(r.id) : null
@@ -287,7 +327,7 @@ export default function CoursesPage() {
       {/* Aula */}
       <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_320px] lg:min-h-[760px]">
         {/* Syllabus */}
-        <nav className="bg-bg-deep border-b lg:border-b-0 lg:border-r border-bg-border px-5 py-6 flex flex-col gap-4 overflow-y-auto lg:max-h-[860px]" aria-label="Temario">
+        <nav data-tour="courses-syllabus" className="bg-bg-deep border-b lg:border-b-0 lg:border-r border-bg-border px-5 py-6 flex flex-col gap-4 overflow-y-auto lg:max-h-[860px]" aria-label="Temario">
           <div className="space-y-2">
             <p className={clsx('text-[10px] font-mono uppercase tracking-[0.14em]', meta.text)}>{meta.label}</p>
             <p className="text-[17px] font-sans font-semibold text-ink-primary">{route.title}</p>
@@ -340,7 +380,7 @@ export default function CoursesPage() {
         </nav>
 
         {/* Reader / exam */}
-        <main className="px-6 md:px-14 py-10 flex flex-col gap-6 overflow-y-auto lg:max-h-[860px]">
+        <main data-tour="courses-lesson" className="px-6 md:px-14 py-10 flex flex-col gap-6 overflow-y-auto lg:max-h-[860px]">
           {activeLesson && (
             <>
               <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-ink-secondary">
@@ -447,7 +487,7 @@ export default function CoursesPage() {
         </main>
 
         {/* Right panel */}
-        <aside className="hidden xl:flex bg-bg-card border-l border-bg-border px-6 py-7 flex-col gap-[18px]">
+        <aside data-tour="courses-check" className="hidden xl:flex bg-bg-card border-l border-bg-border px-6 py-7 flex-col gap-[18px]">
           {activeLesson && extras?.check ? (
             <>
               <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-ink-secondary">Comprueba lo aprendido</p>
@@ -509,7 +549,7 @@ export default function CoursesPage() {
       </div>
 
       {/* Badges */}
-      <section className="rounded-xl border border-bg-border px-5 py-5 space-y-3">
+      <section data-tour="courses-badges" className="rounded-xl border border-bg-border px-5 py-5 space-y-3">
         <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-ink-secondary">Certificados verificables</p>
         <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_200px] gap-3">
           <input
@@ -538,6 +578,8 @@ export default function CoursesPage() {
           </div>
         )}
       </section>
+
+      <Tour steps={COURSES_TOUR_STEPS} active={tourActive} onClose={closeTour} />
     </div>
   )
 }

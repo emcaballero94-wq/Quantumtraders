@@ -3,6 +3,36 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { clsx } from 'clsx'
+import { Tour, type TourStep } from '@/components/tour/Tour'
+import { useTour } from '@/lib/tour/use-tour'
+
+const MIND_TOUR_STEPS: TourStep[] = [
+  {
+    target: '[data-tour="mind-tilt"]',
+    title: 'Monitor de tilt',
+    description: 'Un score de 0 a 100 calculado en vivo a partir de tus reglas de hoy — pérdidas seguidas, operaciones acumuladas y el tiempo que esperás después de perder.',
+  },
+  {
+    target: '[data-tour="mind-rules"]',
+    title: 'Tus reglas de hoy',
+    description: 'Definí tus propios límites (pérdida diaria, racha de pérdidas, operaciones por día, tiempo de espera) — cada barra muestra qué tan cerca estás de incumplirla.',
+  },
+  {
+    target: '[data-tour="mind-timeline"]',
+    title: 'Línea de tiempo del día',
+    description: 'Cada operación de hoy en orden, con su resultado neto, para que veas de un vistazo el ritmo con el que estuviste operando.',
+  },
+  {
+    target: '[data-tour="mind-mirror"]',
+    title: 'Espejo — emoción vs. resultado',
+    description: 'Cruza la emoción que etiquetaste en cada operación (en Trade Audit) contra el P/L de ese día, de los últimos 20 días operados.',
+  },
+  {
+    target: '[data-tour="mind-patterns"]',
+    title: 'Patrones detectados',
+    description: 'Lecturas automáticas sobre tu comportamiento: cómo te va después de perder dos veces seguidas, tu mejor sesión y tu error más caro — aparecen cuando hay suficientes datos.',
+  },
+]
 
 type ApiTrade = {
   id: string
@@ -65,6 +95,7 @@ function RuleRow({ label, value, pct, state }: { label: string; value: string; p
 }
 
 export default function MindPage() {
+  const { active: tourActive, start: startTour, close: closeTour } = useTour('mind')
   const [trades, setTrades] = useState<ApiTrade[]>([])
   const [loading, setLoading] = useState(true)
   const [rules, setRules] = useState<Rules>(DEFAULT_RULES)
@@ -280,7 +311,7 @@ export default function MindPage() {
 
       {/* Tilt monitor */}
       <section className="rounded-xl border border-bg-border bg-bg-deep overflow-hidden grid grid-cols-1 lg:grid-cols-[400px_minmax(0,1fr)]">
-        <div className="px-8 py-9 lg:border-r border-bg-border flex flex-col gap-5 bg-[radial-gradient(320px_260px_at_50%_38%,rgba(249,115,22,0.08),transparent_70%)]">
+        <div data-tour="mind-tilt" className="px-8 py-9 lg:border-r border-bg-border flex flex-col gap-5 bg-[radial-gradient(320px_260px_at_50%_38%,rgba(249,115,22,0.08),transparent_70%)]">
           <p className="text-[11px] font-mono uppercase tracking-[0.16em] text-atlas">Mind · Monitor de tilt · hoy</p>
           <div className="relative w-[220px] h-[220px] self-center">
             <svg width="220" height="220" viewBox="0 0 220 220" aria-hidden>
@@ -330,12 +361,21 @@ export default function MindPage() {
           </div>
         </div>
 
-        <div className="px-8 py-8 flex flex-col gap-2 min-w-0">
+        <div data-tour="mind-rules" className="px-8 py-8 flex flex-col gap-2 min-w-0">
           <div className="flex justify-between items-baseline pb-2">
             <h1 className="text-[22px] font-sans font-medium text-ink-primary">Reglas de hoy</h1>
-            <button type="button" onClick={() => setEditing((e) => !e)} className="text-[13px] font-sans text-ink-secondary hover:text-ink-primary">
-              {editing ? 'Listo' : 'Editar reglas →'}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={startTour}
+                className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-atlas/50 hover:text-atlas transition-colors"
+              >
+                Ver tutorial
+              </button>
+              <button type="button" onClick={() => setEditing((e) => !e)} className="text-[13px] font-sans text-ink-secondary hover:text-ink-primary">
+                {editing ? 'Listo' : 'Editar reglas →'}
+              </button>
+            </div>
           </div>
           {editing && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pb-3">
@@ -362,7 +402,7 @@ export default function MindPage() {
             <RuleRow key={r.label} {...r} />
           ))}
 
-          <div className="pt-4 space-y-2.5">
+          <div data-tour="mind-timeline" className="pt-4 space-y-2.5">
             <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-ink-secondary">Línea de tiempo · hoy</p>
             {today.list.length === 0 ? (
               <p className="text-[13px] font-sans text-ink-muted">Sin operaciones registradas hoy.</p>
@@ -405,7 +445,7 @@ export default function MindPage() {
         </div>
 
         {mirror.days.length > 0 && (
-          <div className="overflow-x-auto">
+          <div data-tour="mind-mirror" className="overflow-x-auto">
             <div className="min-w-[640px] space-y-2.5">
               <div className="grid gap-1 items-center" style={{ gridTemplateColumns: `72px repeat(${mirror.days.length}, minmax(0, 1fr))` }}>
                 <span className="text-[11px] font-sans text-ink-secondary">Estado</span>
@@ -441,7 +481,7 @@ export default function MindPage() {
         )}
 
         {mirror.patterns.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div data-tour="mind-patterns" className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {mirror.patterns.map((p) => (
               <div key={p.k} className="rounded-xl border border-bg-border bg-bg-card p-[22px] space-y-2.5">
                 <p className={clsx('text-[11px] font-mono uppercase tracking-[0.14em]', p.tone)}>{p.k}</p>
@@ -452,6 +492,8 @@ export default function MindPage() {
           </div>
         )}
       </section>
+
+      <Tour steps={MIND_TOUR_STEPS} active={tourActive} onClose={closeTour} />
     </div>
   )
 }

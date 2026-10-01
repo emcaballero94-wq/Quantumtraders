@@ -44,6 +44,7 @@ const FEATURES: FeatureCardDef[] = [
     chipText: 'text-atlas',
     title: 'Order Flow',
     description: 'Profundidad de mercado en vivo, CVD, liquidaciones y M.A.N.U. analizando todo en tiempo real.',
+    tourHref: '/dashboard/orderflow?tour=orderflow',
   },
   {
     href: '/dashboard/options',
@@ -52,6 +53,7 @@ const FEATURES: FeatureCardDef[] = [
     chipText: 'text-oracle',
     title: 'Options',
     description: 'Cadena de opciones con griegas — acciones vía Tradier, cripto vía Deribit.',
+    tourHref: '/dashboard/options?tour=options',
   },
   {
     href: '/dashboard/atlas',
@@ -60,6 +62,7 @@ const FEATURES: FeatureCardDef[] = [
     chipText: 'text-atlas',
     title: 'Charts',
     description: 'Gráficos en vivo con múltiples timeframes para tu watchlist.',
+    tourHref: '/dashboard/atlas?tour=atlas',
   },
   {
     href: '/dashboard/nexus',
@@ -68,6 +71,7 @@ const FEATURES: FeatureCardDef[] = [
     chipText: 'text-nexus',
     title: 'Correlations',
     description: 'Cómo se mueven los activos entre sí — el DXY, el oro, los índices.',
+    tourHref: '/dashboard/nexus?tour=nexus',
   },
   {
     href: '/dashboard/scanner',
@@ -76,6 +80,7 @@ const FEATURES: FeatureCardDef[] = [
     chipText: 'text-oracle',
     title: 'Scanner',
     description: 'Brief diario y escaneo de condiciones técnicas sobre tu lista de activos.',
+    tourHref: '/dashboard/scanner?tour=scanner',
   },
   {
     href: '/dashboard/pulse',
@@ -84,6 +89,7 @@ const FEATURES: FeatureCardDef[] = [
     chipText: 'text-pulse',
     title: 'Market State',
     description: 'Régimen de mercado y contexto macro — qué está pasando y por qué.',
+    tourHref: '/dashboard/pulse?tour=pulse',
   },
   {
     href: '/dashboard/tools',
@@ -92,6 +98,7 @@ const FEATURES: FeatureCardDef[] = [
     chipText: 'text-ink-secondary',
     title: 'Trade Audit',
     description: 'Registrá tus operaciones y revisá tu historial con ayuda de IA.',
+    tourHref: '/dashboard/tools?tour=tools',
   },
   {
     href: '/dashboard/mind',
@@ -100,6 +107,7 @@ const FEATURES: FeatureCardDef[] = [
     chipText: 'text-atlas',
     title: 'Mind',
     description: 'Psicología del trading — hábitos, sesgos y disciplina.',
+    tourHref: '/dashboard/mind?tour=mind',
   },
   {
     href: '/dashboard/courses',
@@ -108,6 +116,7 @@ const FEATURES: FeatureCardDef[] = [
     chipText: 'text-oracle',
     title: 'Academia',
     description: 'Ruta de principiante a trader sistemático, con certificación verificable.',
+    tourHref: '/dashboard/courses?tour=courses',
   },
 ]
 

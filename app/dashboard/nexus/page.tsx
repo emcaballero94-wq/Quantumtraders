@@ -4,6 +4,31 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { clsx } from 'clsx'
 import type { SectorStrength } from '@/lib/oracle/types'
+import { Tour, type TourStep } from '@/components/tour/Tour'
+import { useTour } from '@/lib/tour/use-tour'
+
+const NEXUS_TOUR_STEPS: TourStep[] = [
+  {
+    target: '[data-tour="nexus-matrix"]',
+    title: 'La matriz de correlación',
+    description: 'Cada celda es la correlación de Pearson entre dos activos, calculada sobre velas horarias de Yahoo Finance del último mes. Tocá cualquier celda para ver el detalle de ese par a la derecha.',
+  },
+  {
+    target: '[data-tour="nexus-scale"]',
+    title: 'Cómo leer el color',
+    description: 'Verde es correlación directa (se mueven juntos), rojo es inversa (se mueven en contra). Cuanto más saturado el color, más fuerte la relación — los valores cercanos a 0 casi no se resaltan.',
+  },
+  {
+    target: '[data-tour="nexus-pair"]',
+    title: 'Detalle del par seleccionado',
+    description: 'Acá se traduce el coeficiente del par elegido a lenguaje simple: qué tan fuerte es la relación, qué significa en la práctica y cómo podés usarla (confirmación, cobertura o diversificación).',
+  },
+  {
+    target: '[data-tour="nexus-sectors"]',
+    title: 'Rotación sectorial',
+    description: 'Los dos sectores con mejor y peor flujo de las últimas 4 horas, según el motor de fuerza sectorial de Oracle — útil para ver hacia dónde está rotando el dinero ahora mismo.',
+  },
+]
 
 interface CorrelationResponse {
   symbols: string[]
@@ -68,6 +93,7 @@ export default function NexusPage() {
   const [loading, setLoading] = useState(true)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [selected, setSelected] = useState<[number, number] | null>(null)
+  const { active: tourActive, start: startTour, close: closeTour } = useTour('nexus')
 
   useEffect(() => {
     let mounted = true
@@ -135,12 +161,21 @@ export default function NexusPage() {
     <div className="animate-fade-in pb-20 max-w-[1280px]">
       <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden">
         {/* Header */}
-        <div className="flex items-baseline gap-3.5 flex-wrap px-7 py-[18px] border-b border-bg-border">
-          <h1 className="text-[22px] font-sans font-medium text-ink-primary">Nexus</h1>
-          <span className="text-xs font-mono text-ink-secondary">
-            Correlación intermercado
-            {correlations && ` · ${symbols.length} activos · ${correlations.sampleSize} muestras`}
-          </span>
+        <div className="flex items-baseline justify-between gap-3.5 flex-wrap px-7 py-[18px] border-b border-bg-border">
+          <div className="flex items-baseline gap-3.5 flex-wrap">
+            <h1 className="text-[22px] font-sans font-medium text-ink-primary">Nexus</h1>
+            <span className="text-xs font-mono text-ink-secondary">
+              Correlación intermercado
+              {correlations && ` · ${symbols.length} activos · ${correlations.sampleSize} muestras`}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={startTour}
+            className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-nexus/50 hover:text-nexus transition-colors"
+          >
+            Ver tutorial
+          </button>
         </div>
 
         {!correlations && (
@@ -150,7 +185,7 @@ export default function NexusPage() {
         {correlations && sel && info && selA && selB && (
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
             {/* Full matrix */}
-            <section className="px-7 py-6 lg:border-r border-bg-border space-y-3 overflow-x-auto">
+            <section data-tour="nexus-matrix" className="px-7 py-6 lg:border-r border-bg-border space-y-3 overflow-x-auto">
               <div
                 className="grid gap-[3px] min-w-[560px]"
                 style={{ gridTemplateColumns: `72px repeat(${symbols.length}, minmax(0, 1fr))` }}
@@ -206,7 +241,7 @@ export default function NexusPage() {
                   </div>
                 ))}
               </div>
-              <div className="flex items-center gap-2.5 pl-[75px] text-[10px] font-mono text-ink-secondary">
+              <div data-tour="nexus-scale" className="flex items-center gap-2.5 pl-[75px] text-[10px] font-mono text-ink-secondary">
                 <span>-1</span>
                 <div className="w-[200px] h-1.5 rounded bg-gradient-to-r from-bear via-bg-elevated to-atlas" />
                 <span>+1</span>
@@ -219,7 +254,7 @@ export default function NexusPage() {
             </section>
 
             {/* Pair detail */}
-            <aside className="bg-bg-card px-7 py-6 flex flex-col gap-[22px]">
+            <aside data-tour="nexus-pair" className="bg-bg-card px-7 py-6 flex flex-col gap-[22px]">
               <div className="space-y-1.5">
                 <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-nexus">Par seleccionado</p>
                 <p className="text-[26px] font-mono font-semibold text-ink-primary">
@@ -271,7 +306,7 @@ export default function NexusPage() {
 
         {/* Sector flow strip */}
         {flows.length > 0 && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 border-t border-bg-border">
+          <div data-tour="nexus-sectors" className="grid grid-cols-2 lg:grid-cols-4 border-t border-bg-border">
             {flows.map((f) => {
               const up = f.change4h >= 0
               return (
@@ -292,6 +327,8 @@ export default function NexusPage() {
           </div>
         )}
       </div>
+
+      <Tour steps={NEXUS_TOUR_STEPS} active={tourActive} onClose={closeTour} />
     </div>
   )
 }

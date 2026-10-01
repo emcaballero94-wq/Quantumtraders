@@ -8,6 +8,36 @@ import { TradeLogPanel } from '@/components/journal/TradeLogPanel'
 import { TradeAuditPanel } from '@/components/journal/TradeAuditPanel'
 import { computeTradeAudit } from '@/lib/journal/audit-engine'
 import type { TradeJournalEntry, TradeChecklist as PersistedChecklist } from '@/lib/oracle/persistence'
+import { Tour, type TourStep } from '@/components/tour/Tour'
+import { useTour } from '@/lib/tour/use-tour'
+
+const TOOLS_TOUR_STEPS: TourStep[] = [
+  {
+    target: '[data-tour="tools-calendar"]',
+    title: 'Calendario de trading',
+    description: 'Cada celda es un día con operaciones cerradas — el color y la intensidad reflejan el P/L neto. Tocá cualquier día para ver el detalle debajo.',
+  },
+  {
+    target: '[data-tour="tools-log-panel"]',
+    title: 'Registrá una operación',
+    description: 'El flujo tiene 3 pasos: checklist pre-trade, datos de la operación (con cálculo de R:R en vivo) y, al cerrar, cómo te sentiste. Todo queda guardado en tu journal.',
+  },
+  {
+    target: '[data-tour="tools-voice"]',
+    title: 'Dictado por voz',
+    description: 'Si preferís no tipear, tocá el micrófono y contá la operación en voz alta — se parsea automáticamente a los mismos campos del formulario.',
+  },
+  {
+    target: '[data-tour="tools-day-list"]',
+    title: 'Detalle del día',
+    description: 'Lista cada operación del día seleccionado con su R múltiple y resultado neto — incluye comisiones y swap, no solo el P/L bruto.',
+  },
+  {
+    target: '[data-tour="tools-audit"]',
+    title: 'Trade Audit',
+    description: 'Un análisis automático de tu historial completo: win rate, profit factor, drawdown máximo y patrones detectados (ej. sobreoperar tras una pérdida) una vez que tengas suficientes operaciones cerradas.',
+  },
+]
 
 type ApiTrade = {
   id: string
@@ -51,6 +81,7 @@ function rMultiple(t: Trade): number | null {
 }
 
 export default function ToolsPage() {
+  const { active: tourActive, start: startTour, close: closeTour } = useTour('tools')
   const [trades, setTrades] = useState<Trade[]>([])
   const [loading, setLoading] = useState(true)
   const today = useMemo(() => new Date(), [])
@@ -226,7 +257,7 @@ export default function ToolsPage() {
     <div className="space-y-8 animate-fade-in pb-20 max-w-[1400px]">
       <div className="rounded-xl border border-bg-border bg-bg-deep overflow-hidden grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px]">
         {/* Calendar + day detail */}
-        <section className="px-5 md:px-8 py-7 flex flex-col gap-[22px] xl:border-r border-bg-border min-w-0">
+        <section data-tour="tools-calendar" className="px-5 md:px-8 py-7 flex flex-col gap-[22px] xl:border-r border-bg-border min-w-0">
           <div className="flex flex-wrap justify-between items-end gap-5">
             <div className="space-y-1.5">
               <p className="text-[11px] font-mono uppercase tracking-[0.16em] text-pulse">Diario de trading</p>
@@ -234,6 +265,13 @@ export default function ToolsPage() {
                 <button type="button" onClick={() => shiftMonth(-1)} aria-label="Mes anterior" className="w-7 h-7 rounded-md border border-bg-border text-ink-secondary hover:text-ink-primary">←</button>
                 <h1 className="text-[26px] font-sans font-medium text-ink-primary capitalize">{monthLabel}</h1>
                 <button type="button" onClick={() => shiftMonth(1)} aria-label="Mes siguiente" className="w-7 h-7 rounded-md border border-bg-border text-ink-secondary hover:text-ink-primary">→</button>
+                <button
+                  type="button"
+                  onClick={startTour}
+                  className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-pulse/50 hover:text-pulse transition-colors"
+                >
+                  Ver tutorial
+                </button>
               </div>
             </div>
             <div className="flex gap-7 font-mono">
@@ -293,7 +331,7 @@ export default function ToolsPage() {
             })}
           </div>
 
-          <div className="flex flex-col gap-2.5 pt-1.5">
+          <div data-tour="tools-day-list" className="flex flex-col gap-2.5 pt-1.5">
             <div className="flex justify-between items-baseline">
               <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-ink-secondary">
                 {selectedDay.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })} · {dayTrades.length} operaciones
@@ -333,10 +371,14 @@ export default function ToolsPage() {
           </div>
         </section>
 
-        <TradeLogPanel onCreated={addTrade} />
+        <div data-tour="tools-log-panel">
+          <TradeLogPanel onCreated={addTrade} />
+        </div>
       </div>
 
-      <TradeAuditPanel stats={auditStats} />
+      <div data-tour="tools-audit">
+        <TradeAuditPanel stats={auditStats} />
+      </div>
 
       <div className="flex items-center justify-between rounded-xl border border-bg-border px-5 py-4">
         <div>
@@ -345,6 +387,8 @@ export default function ToolsPage() {
         </div>
         <Link href="/dashboard/calculators" className="text-[13px] font-sans text-pulse hover:text-pulse/80">Abrir →</Link>
       </div>
+
+      <Tour steps={TOOLS_TOUR_STEPS} active={tourActive} onClose={closeTour} />
     </div>
   )
 }

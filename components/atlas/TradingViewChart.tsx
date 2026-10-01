@@ -4,6 +4,7 @@ import { useEffect, useRef, memo } from 'react'
 
 const TV_SYMBOL_MAP: Record<string, string> = {
   SPX500:  'OANDA:SPX500USD',
+  MES:     'CME_MINI:MES1!',
   NAS100:  'OANDA:NAS100USD',
   US30:    'OANDA:US30USD',
   QQQ:     'NASDAQ:QQQ',

@@ -53,6 +53,9 @@ export const MARKET_SYMBOL_MAP: Record<string, string> = {
   US30: '^DJI',
   VIX: '^VIX',
   USOIL: 'CL=F',
+  // Micro E-mini S&P 500 futures — unlike ^GSPC (the cash index), this
+  // trades nearly 24/5, so it keeps moving outside NYSE cash-session hours.
+  MES: 'MES=F',
   // Broad-market ETFs — same tickers on Yahoo, no suffix needed
   QQQ: 'QQQ',
   SPY: 'SPY',

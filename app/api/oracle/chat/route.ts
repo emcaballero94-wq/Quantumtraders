@@ -27,6 +27,12 @@ const SYMBOL_ALIASES: Record<string, string> = {
   'S&P500': 'SPX500',
   'SP500': 'SPX500',
   'SPX': 'SPX500',
+  'FUTURO DEL SP500': 'MES',
+  'FUTURO DE SP500': 'MES',
+  'FUTUROS SP500': 'MES',
+  'FUTURO SP500': 'MES',
+  'MICRO E-MINI': 'MES',
+  'E-MINI SP500': 'MES',
   'DOW JONES': 'US30',
   'DOW': 'US30',
   'BITCOIN': 'BTCUSD',
@@ -976,7 +982,7 @@ Evitar:
 - adornos innecesarios;
 - respuestas repetitivas.
 
-Usar tablas solamente cuando realmente mejoren la lectura.
+Este chat se muestra en un panel angosto (como un celular), no en una pantalla ancha. Para series de varios datos del mismo tipo (ej. velas, niveles, activos del radar), preferir una línea compacta por ítem (ej. "09-30 13:30 — O:7689 H:7721 L:7689 C:7707") en vez de una tabla de varias columnas — una tabla ancha se corta o se lee mal en ese espacio. Usar tablas Markdown (con "|") solo para comparaciones realmente cortas (2-3 columnas, pocas filas), nunca para listar muchas velas o niveles seguidos.
 
 
 ==================================================

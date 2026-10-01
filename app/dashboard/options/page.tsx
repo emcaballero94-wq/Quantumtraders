@@ -38,7 +38,13 @@ interface ChainResponse {
   underlyingPrice: number | null
 }
 
+type AssetClass = 'equity' | 'crypto'
+
 const QUICK_SYMBOLS = ['SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA']
+const CRYPTO_CURRENCIES: { label: string; value: 'BTC' | 'ETH' }[] = [
+  { label: 'BTC', value: 'BTC' },
+  { label: 'ETH', value: 'ETH' },
+]
 
 function fmt(value: number | null, decimals = 2): string {
   return value === null ? '—' : value.toFixed(decimals)
@@ -49,8 +55,12 @@ function fmtInt(value: number | null): string {
 }
 
 export default function OptionsPage() {
+  const [assetClass, setAssetClass] = useState<AssetClass>('equity')
+
   const [symbolInput, setSymbolInput] = useState('SPY')
   const [symbol, setSymbol] = useState('SPY')
+  const [cryptoCurrency, setCryptoCurrency] = useState<'BTC' | 'ETH'>('BTC')
+
   const [expirations, setExpirations] = useState<string[]>([])
   const [selectedExpiration, setSelectedExpiration] = useState<string | null>(null)
   const [contracts, setContracts] = useState<OptionContract[]>([])
@@ -60,7 +70,9 @@ export default function OptionsPage() {
   const [loadingChain, setLoadingChain] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Equity (Tradier) expirations.
   useEffect(() => {
+    if (assetClass !== 'equity') return
     let cancelled = false
     setLoadingExpirations(true)
     setExpirations([])
@@ -94,10 +106,11 @@ export default function OptionsPage() {
     return () => {
       cancelled = true
     }
-  }, [symbol])
+  }, [assetClass, symbol])
 
+  // Equity (Tradier) chain.
   useEffect(() => {
-    if (!selectedExpiration) return
+    if (assetClass !== 'equity' || !selectedExpiration) return
     let cancelled = false
     setLoadingChain(true)
 
@@ -118,7 +131,67 @@ export default function OptionsPage() {
     return () => {
       cancelled = true
     }
-  }, [symbol, selectedExpiration])
+  }, [assetClass, symbol, selectedExpiration])
+
+  // Crypto (Deribit) expirations — no API key needed, so there's no
+  // "missing key" state to handle here.
+  useEffect(() => {
+    if (assetClass !== 'crypto') return
+    let cancelled = false
+    setLoadingExpirations(true)
+    setExpirations([])
+    setSelectedExpiration(null)
+    setContracts([])
+    setError(null)
+    setMissingKey(false)
+
+    fetch(`/api/market/crypto-options/expirations?currency=${cryptoCurrency}`)
+      .then((r) => r.json() as Promise<ExpirationsResponse>)
+      .then((payload) => {
+        if (cancelled) return
+        if (payload.expirations.length === 0) {
+          setError(`Sin fechas de vencimiento disponibles para ${cryptoCurrency}.`)
+          return
+        }
+        setExpirations(payload.expirations)
+        setSelectedExpiration(payload.expirations[0])
+      })
+      .catch(() => {
+        if (!cancelled) setError('No se pudo conectar con Deribit.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingExpirations(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [assetClass, cryptoCurrency])
+
+  // Crypto (Deribit) chain.
+  useEffect(() => {
+    if (assetClass !== 'crypto' || !selectedExpiration) return
+    let cancelled = false
+    setLoadingChain(true)
+
+    fetch(`/api/market/crypto-options/chain?currency=${cryptoCurrency}&expiration=${encodeURIComponent(selectedExpiration)}`)
+      .then((r) => r.json() as Promise<ChainResponse>)
+      .then((payload) => {
+        if (cancelled) return
+        setContracts(payload.contracts)
+        setUnderlyingPrice(payload.underlyingPrice)
+      })
+      .catch(() => {
+        if (!cancelled) setError('No se pudo cargar la cadena de opciones.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingChain(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [assetClass, cryptoCurrency, selectedExpiration])
 
   const strikes = Array.from(new Set(contracts.map((c) => c.strike))).sort((a, b) => a - b)
   const byStrike = new Map<number, { call?: OptionContract; put?: OptionContract }>()
@@ -140,53 +213,105 @@ export default function OptionsPage() {
     if (next && next !== symbol) setSymbol(next)
   }
 
+  const priceDecimals = assetClass === 'crypto' ? 4 : 2
+  const priceSuffix = assetClass === 'crypto' ? ` ${cryptoCurrency}` : ''
+
   return (
     <div className="animate-fade-in pb-20 max-w-[1040px]">
       <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
         <div className="flex items-baseline gap-3.5 flex-wrap px-7 py-[18px] border-b border-bg-border">
           <h1 className="text-[22px] font-sans font-medium text-ink-primary">Options Chain</h1>
-          <span className="text-xs font-mono text-ink-secondary">Cadena de opciones en vivo · Tradier</span>
+          <span className="text-xs font-mono text-ink-secondary">
+            Cadena de opciones en vivo · {assetClass === 'equity' ? 'Tradier' : 'Deribit'}
+          </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 px-7 py-4">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={symbolInput}
-              onChange={(e) => setSymbolInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSymbolSubmit()}
-              placeholder="Símbolo (ej. SPY)"
-              className="w-32 bg-bg-deep border border-bg-border rounded-lg px-3 py-1.5 text-xs font-mono uppercase text-ink-primary focus:outline-none focus:border-oracle/50 transition-colors"
-            />
-            <button
-              type="button"
-              onClick={handleSymbolSubmit}
-              className="px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-ink-muted transition-colors"
-            >
-              Buscar
-            </button>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            {QUICK_SYMBOLS.map((s) => (
+        <div className="flex gap-2 px-7 pt-4">
+          <button
+            type="button"
+            onClick={() => setAssetClass('equity')}
+            className={clsx(
+              'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
+              assetClass === 'equity'
+                ? 'border-oracle/50 bg-oracle/10 text-oracle'
+                : 'border-bg-border text-ink-secondary hover:border-ink-muted',
+            )}
+          >
+            Acciones
+          </button>
+          <button
+            type="button"
+            onClick={() => setAssetClass('crypto')}
+            className={clsx(
+              'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
+              assetClass === 'crypto'
+                ? 'border-atlas/50 bg-atlas/10 text-atlas'
+                : 'border-bg-border text-ink-secondary hover:border-ink-muted',
+            )}
+          >
+            Cripto
+          </button>
+        </div>
+
+        {assetClass === 'equity' ? (
+          <div className="flex flex-wrap items-center gap-3 px-7 py-4">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={symbolInput}
+                onChange={(e) => setSymbolInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSymbolSubmit()}
+                placeholder="Símbolo (ej. SPY)"
+                className="w-32 bg-bg-deep border border-bg-border rounded-lg px-3 py-1.5 text-xs font-mono uppercase text-ink-primary focus:outline-none focus:border-oracle/50 transition-colors"
+              />
               <button
-                key={s}
                 type="button"
-                onClick={() => {
-                  setSymbolInput(s)
-                  setSymbol(s)
-                }}
+                onClick={handleSymbolSubmit}
+                className="px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-ink-muted transition-colors"
+              >
+                Buscar
+              </button>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {QUICK_SYMBOLS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => {
+                    setSymbolInput(s)
+                    setSymbol(s)
+                  }}
+                  className={clsx(
+                    'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
+                    symbol === s
+                      ? 'border-oracle/50 bg-oracle/10 text-oracle'
+                      : 'border-bg-border text-ink-secondary hover:border-ink-muted',
+                  )}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-2 flex-wrap px-7 py-4">
+            {CRYPTO_CURRENCIES.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => setCryptoCurrency(c.value)}
                 className={clsx(
                   'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
-                  symbol === s
-                    ? 'border-oracle/50 bg-oracle/10 text-oracle'
+                  cryptoCurrency === c.value
+                    ? 'border-atlas/50 bg-atlas/10 text-atlas'
                     : 'border-bg-border text-ink-secondary hover:border-ink-muted',
                 )}
               >
-                {s}
+                {c.label}
               </button>
             ))}
           </div>
-        </div>
+        )}
 
         {expirations.length > 0 && (
           <div className="flex gap-2 flex-wrap px-7 pb-4 overflow-x-auto">
@@ -209,7 +334,7 @@ export default function OptionsPage() {
         )}
       </div>
 
-      {missingKey && (
+      {assetClass === 'equity' && missingKey && (
         <div className="rounded-xl border border-bg-border bg-bg-base px-7 py-10 text-center">
           <p className="text-sm font-sans text-ink-secondary">Desactivado — falta la clave de Tradier.</p>
           <p className="text-xs font-sans text-ink-dim mt-1.5">
@@ -218,21 +343,24 @@ export default function OptionsPage() {
         </div>
       )}
 
-      {!missingKey && error && (
+      {!(assetClass === 'equity' && missingKey) && error && (
         <div className="rounded-xl border border-bg-border bg-bg-base px-7 py-10 text-center">
           <p className="text-sm font-sans text-ink-secondary">{error}</p>
         </div>
       )}
 
-      {!missingKey && !error && (loadingExpirations || loadingChain) && strikes.length === 0 && (
+      {!(assetClass === 'equity' && missingKey) && !error && (loadingExpirations || loadingChain) && strikes.length === 0 && (
         <div className="h-[420px] bg-bg-elevated rounded-xl animate-pulse" />
       )}
 
-      {!missingKey && !error && strikes.length > 0 && (
+      {!(assetClass === 'equity' && missingKey) && !error && strikes.length > 0 && (
         <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden">
           {underlyingPrice !== null && (
             <div className="px-5 py-2.5 border-b border-bg-border text-xs font-mono text-ink-secondary">
-              Subyacente: <span className="text-ink-primary tabular-nums">${underlyingPrice.toFixed(2)}</span>
+              Subyacente:{' '}
+              <span className="text-ink-primary tabular-nums">
+                ${underlyingPrice.toLocaleString('en-US', { maximumFractionDigits: assetClass === 'crypto' ? 0 : 2 })}
+              </span>
             </div>
           )}
           <div className="overflow-x-auto">
@@ -264,18 +392,30 @@ export default function OptionsPage() {
                     >
                       <td className="px-3 py-1.5 text-right text-ink-secondary">{fmtInt(call?.openInterest ?? null)}</td>
                       <td className="px-3 py-1.5 text-right text-ink-secondary">{fmtInt(call?.volume ?? null)}</td>
-                      <td className="px-3 py-1.5 text-right text-atlas">{fmt(call?.bid ?? null)}</td>
-                      <td className="px-3 py-1.5 text-right text-atlas">{fmt(call?.ask ?? null)}</td>
+                      <td className="px-3 py-1.5 text-right text-atlas">
+                        {fmt(call?.bid ?? null, priceDecimals)}
+                        {call?.bid !== null && call?.bid !== undefined ? priceSuffix : ''}
+                      </td>
+                      <td className="px-3 py-1.5 text-right text-atlas">
+                        {fmt(call?.ask ?? null, priceDecimals)}
+                        {call?.ask !== null && call?.ask !== undefined ? priceSuffix : ''}
+                      </td>
                       <td
                         className={clsx(
                           'px-3 py-1.5 text-center font-bold',
                           isAtm ? 'text-oracle' : 'text-ink-primary',
                         )}
                       >
-                        {strike}
+                        {strike.toLocaleString('en-US')}
                       </td>
-                      <td className="px-3 py-1.5 text-left text-bear">{fmt(put?.bid ?? null)}</td>
-                      <td className="px-3 py-1.5 text-left text-bear">{fmt(put?.ask ?? null)}</td>
+                      <td className="px-3 py-1.5 text-left text-bear">
+                        {fmt(put?.bid ?? null, priceDecimals)}
+                        {put?.bid !== null && put?.bid !== undefined ? priceSuffix : ''}
+                      </td>
+                      <td className="px-3 py-1.5 text-left text-bear">
+                        {fmt(put?.ask ?? null, priceDecimals)}
+                        {put?.ask !== null && put?.ask !== undefined ? priceSuffix : ''}
+                      </td>
                       <td className="px-3 py-1.5 text-left text-ink-secondary">{fmtInt(put?.volume ?? null)}</td>
                       <td className="px-3 py-1.5 text-left text-ink-secondary">{fmtInt(put?.openInterest ?? null)}</td>
                     </tr>
@@ -288,10 +428,21 @@ export default function OptionsPage() {
       )}
 
       <p className="mt-4 text-xs font-sans leading-relaxed text-ink-dim">
-        Cadena de opciones completa (strikes, bid/ask, volumen, open interest) vía Tradier. Calls a la izquierda,
-        puts a la derecha, strike resaltado = el más cercano al precio actual del subyacente. Si tu cuenta de
-        Tradier todavía está en revisión, puedes obtener un token de sandbox gratis e instantáneo en{' '}
-        developer.tradier.com mientras esperas la aprobación (datos con 15 min de retraso).
+        {assetClass === 'equity' ? (
+          <>
+            Cadena de opciones completa (strikes, bid/ask, volumen, open interest) vía Tradier. Calls a la izquierda,
+            puts a la derecha, strike resaltado = el más cercano al precio actual del subyacente. Si tu cuenta de
+            Tradier todavía está en revisión, puedes obtener un token de sandbox gratis e instantáneo en{' '}
+            developer.tradier.com mientras esperas la aprobación (datos con 15 min de retraso).
+          </>
+        ) : (
+          <>
+            Cadena de opciones de {cryptoCurrency} vía Deribit (sin necesidad de API key — es el exchange de opciones
+            cripto con más liquidez para BTC y ETH). Importante: bid/ask/último están denominados en {cryptoCurrency},
+            no en dólares — Deribit liquida sus opciones en la cripto subyacente, no en USD. Calls a la izquierda,
+            puts a la derecha, strike resaltado = el más cercano al precio actual del subyacente.
+          </>
+        )}
       </p>
     </div>
   )

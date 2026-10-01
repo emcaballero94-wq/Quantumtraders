@@ -88,19 +88,14 @@ export function buildDeterministicNarrative(input: {
   historical: HistoricalPatternMatch
   confidence: Confidence
 }): string {
-  const { status, keyChange, state, relationships, historical, confidence } = input
+  // status/keyChange/confidence are rendered separately by the UI (badge +
+  // dedicated "Key change" block) — this narrative only covers the prose
+  // sections, to match what generateAiNarrative asks Claude for, and to
+  // avoid showing the same STATUS/KEY CHANGE/CONFIDENCE twice on screen.
+  const { state, relationships, historical } = input
   const h15 = historical.horizons['15m']
 
   const lines = [
-    'M.A.N.U. — MARKET INTELLIGENCE',
-    '',
-    `${state.asset}`,
-    '',
-    `STATUS: ${status}`,
-    '',
-    'KEY CHANGE',
-    keyChange,
-    '',
     'FLOW',
     `CVD: ${state.cvd !== null ? state.cvd.toFixed(3) : 'sin dato'} (Δ1m ${state.cvdDelta1m !== null ? state.cvdDelta1m.toFixed(3) : 'sin dato'}).`,
     '',
@@ -117,9 +112,6 @@ export function buildDeterministicNarrative(input: {
     historical.sampleLabel === 'INSUFFICIENT_SAMPLE'
       ? 'Historical validation unavailable: insufficient observations.'
       : `n=${historical.sampleSize} (${historical.sampleLabel}). 15m: tasa positiva ${h15.positiveRatePct?.toFixed(1) ?? 'sin dato'}%, mediana ${h15.medianReturnPct?.toFixed(3) ?? 'sin dato'}%, media ${h15.meanReturnPct?.toFixed(3) ?? 'sin dato'}%.`,
-    '',
-    'CONFIDENCE',
-    confidence,
   ]
 
   return lines.join('\n')

@@ -10,6 +10,8 @@ export interface GexContract {
   iv: number | null
   /** Last traded price, used to solve IV when the source didn't report gamma or IV. */
   last: number | null
+  /** Not used by the GEX math itself — carried through for callers that also need a chain-level summary (e.g. the GEX & Options brief's put/call volume ratio). */
+  volume?: number | null
 }
 
 export interface GexProfilePoint {
@@ -90,7 +92,9 @@ export function resolveGamma({
 // the profile merely LEAVING the flat zero region it was already in, not a
 // sign change. Chains with nothing listed far from the money would otherwise
 // report a flip level at the edge of the chain instead of "no flip here".
-function findGammaFlip(profile: GexProfilePoint[], spot: number): number | null {
+// Exported so the multi-expiration matrix (lib/gex/matrix.ts) can run the same
+// rule over a strike profile merged across expirations, instead of duplicating it.
+export function findGammaFlip(profile: GexProfilePoint[], spot: number): number | null {
   if (profile.length < 2) return null
 
   let cumulative = 0
@@ -150,6 +154,31 @@ function findMaxPain(contracts: GexContract[]): number | null {
   return anyOpenInterest ? bestStrike : null
 }
 
+// The call wall is the strike with the largest positive call-side exposure,
+// the put wall the strike with the largest put-side exposure magnitude.
+// Exported so the multi-expiration matrix can find the same walls over a
+// strike profile merged across expirations.
+export function findWalls(profile: GexProfilePoint[]): { callWallStrike: number | null; putWallStrike: number | null } {
+  let callWallStrike: number | null = null
+  let maxCallGex = -Infinity
+  let putWallStrike: number | null = null
+  let maxPutMagnitude = -Infinity
+
+  for (const point of profile) {
+    if (point.callGex > maxCallGex) {
+      maxCallGex = point.callGex
+      callWallStrike = point.strike
+    }
+    const putMagnitude = -point.putGex
+    if (putMagnitude > maxPutMagnitude) {
+      maxPutMagnitude = putMagnitude
+      putWallStrike = point.strike
+    }
+  }
+
+  return { callWallStrike, putWallStrike }
+}
+
 // Dealer-positioning sign convention used across public GEX tools: calls
 // contribute positive dealer gamma, puts negative ("dealers are net long
 // calls / net short puts versus retail flow"). This is a standard heuristic
@@ -176,23 +205,7 @@ export function computeGex(contracts: GexContract[], spot: number, yearsToExpiry
     .sort((a, b) => a.strike - b.strike)
 
   const netGex = profile.reduce((sum, p) => sum + p.netGex, 0)
-
-  let callWallStrike: number | null = null
-  let maxCallGex = -Infinity
-  let putWallStrike: number | null = null
-  let maxPutMagnitude = -Infinity
-
-  for (const point of profile) {
-    if (point.callGex > maxCallGex) {
-      maxCallGex = point.callGex
-      callWallStrike = point.strike
-    }
-    const putMagnitude = -point.putGex
-    if (putMagnitude > maxPutMagnitude) {
-      maxPutMagnitude = putMagnitude
-      putWallStrike = point.strike
-    }
-  }
+  const { callWallStrike, putWallStrike } = findWalls(profile)
 
   return {
     profile,

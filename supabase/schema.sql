@@ -196,4 +196,30 @@ create table if not exists quantumtraders.market_events (
   created_at timestamptz not null default now()
 );
 
+-- One row per (asset_class, symbol, snapshot_date) — a daily close-of-day GEX
+-- snapshot across the nearest N expirations, written by the
+-- /api/cron/gex-snapshot job (see app/api/cron/gex-snapshot/route.ts). This is
+-- what lets the GEX page eventually compare "today vs. the prior session"
+-- (walls/flip/regime shift) and replay a past day's heatmap — neither is
+-- possible from the live-only /api/market/gex endpoint, which has no memory.
+-- `matrix` holds the full GexMatrixResult (lib/gex/matrix.ts) as jsonb; the
+-- handful of scalar columns are pulled out for cheap day-over-day diffing
+-- without parsing jsonb on every comparison query.
+create table if not exists quantumtraders.gex_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  asset_class text not null check (asset_class in ('equity', 'crypto')),
+  symbol text not null,
+  snapshot_date date not null,
+  underlying_price double precision not null,
+  net_gex double precision not null,
+  call_wall_strike double precision null,
+  put_wall_strike double precision null,
+  gamma_flip double precision null,
+  matrix jsonb not null,
+  captured_at timestamptz not null default now(),
+  unique (asset_class, symbol, snapshot_date)
+);
+
+create index if not exists idx_gex_snapshots_symbol_date on quantumtraders.gex_snapshots (asset_class, symbol, snapshot_date);
+
 create index if not exists idx_market_events_symbol_created_at on quantumtraders.market_events (symbol, created_at);

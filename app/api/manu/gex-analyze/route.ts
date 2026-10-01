@@ -6,6 +6,7 @@ import { listGexSnapshots } from '@/lib/gex/snapshot-persistence'
 import { summarizeChain } from '@/lib/manu-gex/chain-summary'
 import { compareToSnapshot } from '@/lib/manu-gex/day-over-day'
 import { deriveGexStatus, keyChangeText, buildDeterministicGexNarrative } from '@/lib/manu-gex/narrative'
+import { insertGexBrief, listGexBriefs } from '@/lib/manu-gex/brief-persistence'
 import type { GexBriefFacts, GexRegime } from '@/lib/manu-gex/types'
 
 const EXPIRATIONS_FOR_BRIEF = 8
@@ -180,6 +181,8 @@ export async function POST(request: Request) {
       narrative = buildDeterministicGexNarrative(facts)
     }
 
+    await insertGexBrief({ assetClass: body.assetClass, symbol, status, keyChange, narrative, narrativeSource, facts })
+
     return NextResponse.json({
       success: true,
       data: { status, keyChange, narrative, narrativeSource, facts, lastUpdated: new Date().toISOString() },
@@ -188,4 +191,29 @@ export async function POST(request: Request) {
     console.error('[/api/manu/gex-analyze] Error:', error)
     return NextResponse.json({ success: false, error: 'Failed to run the GEX & Options analysis' }, { status: 502 })
   }
+}
+
+export async function GET(request: Request) {
+  const blocked = rejectIfRateLimited(request, {
+    routeKey: 'manu-gex-analyze-history',
+    limit: 30,
+    windowMs: 60_000,
+  })
+  if (blocked) return blocked
+
+  const { searchParams } = new URL(request.url)
+  const assetClass = searchParams.get('assetClass')
+  const symbol = searchParams.get('symbol')?.trim().toUpperCase()
+  const limitParam = Number.parseInt(searchParams.get('limit') ?? '', 10)
+  const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 20) : 10
+
+  if (assetClass !== 'equity' && assetClass !== 'crypto') {
+    return NextResponse.json({ success: false, error: 'assetClass must be equity or crypto' }, { status: 400 })
+  }
+  if (!symbol) {
+    return NextResponse.json({ success: false, error: 'symbol is required' }, { status: 400 })
+  }
+
+  const briefs = await listGexBriefs(assetClass, symbol, limit)
+  return NextResponse.json({ success: true, data: { briefs } })
 }

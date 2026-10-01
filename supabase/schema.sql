@@ -223,3 +223,22 @@ create table if not exists quantumtraders.gex_snapshots (
 create index if not exists idx_gex_snapshots_symbol_date on quantumtraders.gex_snapshots (asset_class, symbol, snapshot_date);
 
 create index if not exists idx_market_events_symbol_created_at on quantumtraders.market_events (symbol, created_at);
+
+-- One row per generated M.A.N.U. GEX & Options brief (app/api/manu/gex-analyze)
+-- — unlike orderflow_briefs this isn't written on a fixed cadence, only
+-- whenever someone opens/refreshes the GEX page, since options chains don't
+-- move tick-by-tick. Lets the page show "briefs anteriores" the same way
+-- Order Flow does, instead of losing the narrative on every page reload.
+create table if not exists quantumtraders.gex_briefs (
+  id uuid primary key default gen_random_uuid(),
+  asset_class text not null check (asset_class in ('equity', 'crypto')),
+  symbol text not null,
+  status text not null,
+  key_change text not null,
+  narrative text not null,
+  narrative_source text not null check (narrative_source in ('ai', 'deterministic')),
+  facts jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_gex_briefs_symbol_created_at on quantumtraders.gex_briefs (asset_class, symbol, created_at);

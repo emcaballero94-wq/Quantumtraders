@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { clsx } from 'clsx'
+import { TermHelp } from '@/components/ui/TermHelp'
 
 interface GexProfilePoint {
   strike: number
@@ -170,15 +171,15 @@ export function GexHeatmap({ assetClass, symbolOrCurrency, priceUnit }: GexHeatm
             </p>
           </div>
           <div>
-            <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Call Wall</p>
+            <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Call Wall <TermHelp term="call_wall" /></p>
             <p className="text-lg font-mono tabular-nums text-atlas">{fmtStrike(data.aggregate?.callWallStrike)}</p>
           </div>
           <div>
-            <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Put Wall</p>
+            <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Put Wall <TermHelp term="put_wall" /></p>
             <p className="text-lg font-mono tabular-nums text-bear">{fmtStrike(data.aggregate?.putWallStrike)}</p>
           </div>
           <div>
-            <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Gamma Flip</p>
+            <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Gamma Flip <TermHelp term="gamma_flip" /></p>
             <p className="text-lg font-mono tabular-nums text-oracle">{fmtStrike(data.aggregate?.gammaFlip)}</p>
           </div>
           <div>

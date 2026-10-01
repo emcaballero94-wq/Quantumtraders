@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
+import { TermHelp } from '@/components/ui/TermHelp'
 
 interface OrderBookLevel {
   price: number
@@ -153,7 +154,9 @@ export function OrderBookHeatmap({ symbol, levels = 10, onSnapshot }: OrderBookH
 
         {/* Spread marker */}
         <div className="flex items-center justify-between px-2 py-1.5 my-1.5 rounded bg-oracle/10 border border-oracle/30">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-oracle">Spread</span>
+          <span className="text-[10px] font-mono uppercase tracking-wider text-oracle">
+            Spread <TermHelp term="spread" />
+          </span>
           <span className="text-xs font-mono tabular-nums text-oracle">
             {spread !== null ? spread.toFixed(decimals) : 'sin dato'}
           </span>

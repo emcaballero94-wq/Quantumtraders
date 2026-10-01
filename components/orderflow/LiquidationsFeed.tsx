@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
+import { TermHelp } from '@/components/ui/TermHelp'
 
 interface LiquidationEvent {
   id: string
@@ -124,7 +125,7 @@ export function LiquidationsFeed({ onSnapshot }: LiquidationsFeedProps = {}) {
     <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-bg-border">
         <span className="text-xs font-mono uppercase tracking-[0.12em] text-ink-secondary">
-          Liquidaciones · Futuros BTC/ETH/SOL
+          Liquidaciones · Futuros BTC/ETH/SOL <TermHelp term="liquidation" />
         </span>
         <span
           className={clsx(

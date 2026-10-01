@@ -2,6 +2,31 @@
 
 import { useEffect, useState } from 'react'
 import { clsx } from 'clsx'
+import { Tour, type TourStep } from '@/components/tour/Tour'
+import { useTour } from '@/lib/tour/use-tour'
+
+const OPTIONS_TOUR_STEPS: TourStep[] = [
+  {
+    target: '[data-tour="options-asset-toggle"]',
+    title: 'Elegí el mercado',
+    description: 'Acciones usa Tradier; Cripto usa la API pública de Deribit (BTC/ETH), sin necesidad de API key. Cada uno trae su propio set de símbolos, vencimientos y convención de precios.',
+  },
+  {
+    target: '[data-tour="options-symbol"]',
+    title: 'Elegí el símbolo o la moneda',
+    description: 'Para acciones, buscá cualquier ticker con opciones listadas o usá los accesos rápidos. Para cripto, elegí BTC o ETH — ahí bid/ask/último quedan denominados en la cripto, no en dólares.',
+  },
+  {
+    target: '[data-tour="options-expirations"]',
+    title: 'Vencimiento',
+    description: 'La cadena completa de strikes se arma para el vencimiento que elijas acá.',
+  },
+  {
+    target: '[data-tour="options-chain"]',
+    title: 'La cadena de opciones',
+    description: 'Calls a la izquierda, puts a la derecha, con bid/ask/volumen/open interest de cada lado. El strike resaltado es el más cercano al precio actual del subyacente.',
+  },
+]
 
 interface OptionGreeks {
   delta: number | null
@@ -55,6 +80,7 @@ function fmtInt(value: number | null): string {
 }
 
 export default function OptionsPage() {
+  const { active: tourActive, start: startTour, close: closeTour } = useTour('options')
   const [assetClass, setAssetClass] = useState<AssetClass>('equity')
 
   const [symbolInput, setSymbolInput] = useState('SPY')
@@ -219,14 +245,23 @@ export default function OptionsPage() {
   return (
     <div className="animate-fade-in pb-20 max-w-[1040px]">
       <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
-        <div className="flex items-baseline gap-3.5 flex-wrap px-7 py-[18px] border-b border-bg-border">
-          <h1 className="text-[22px] font-sans font-medium text-ink-primary">Options Chain</h1>
-          <span className="text-xs font-mono text-ink-secondary">
-            Cadena de opciones en vivo · {assetClass === 'equity' ? 'Tradier' : 'Deribit'}
-          </span>
+        <div className="flex items-baseline justify-between gap-3.5 flex-wrap px-7 py-[18px] border-b border-bg-border">
+          <div className="flex items-baseline gap-3.5 flex-wrap">
+            <h1 className="text-[22px] font-sans font-medium text-ink-primary">Options Chain</h1>
+            <span className="text-xs font-mono text-ink-secondary">
+              Cadena de opciones en vivo · {assetClass === 'equity' ? 'Tradier' : 'Deribit'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={startTour}
+            className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-oracle/50 hover:text-oracle transition-colors"
+          >
+            Ver tutorial
+          </button>
         </div>
 
-        <div className="flex gap-2 px-7 pt-4">
+        <div data-tour="options-asset-toggle" className="flex gap-2 px-7 pt-4">
           <button
             type="button"
             onClick={() => setAssetClass('equity')}
@@ -254,7 +289,7 @@ export default function OptionsPage() {
         </div>
 
         {assetClass === 'equity' ? (
-          <div className="flex flex-wrap items-center gap-3 px-7 py-4">
+          <div data-tour="options-symbol" className="flex flex-wrap items-center gap-3 px-7 py-4">
             <div className="flex gap-2">
               <input
                 type="text"
@@ -294,7 +329,7 @@ export default function OptionsPage() {
             </div>
           </div>
         ) : (
-          <div className="flex gap-2 flex-wrap px-7 py-4">
+          <div data-tour="options-symbol" className="flex gap-2 flex-wrap px-7 py-4">
             {CRYPTO_CURRENCIES.map((c) => (
               <button
                 key={c.value}
@@ -314,7 +349,7 @@ export default function OptionsPage() {
         )}
 
         {expirations.length > 0 && (
-          <div className="flex gap-2 flex-wrap px-7 pb-4 overflow-x-auto">
+          <div data-tour="options-expirations" className="flex gap-2 flex-wrap px-7 pb-4 overflow-x-auto">
             {expirations.slice(0, 10).map((exp) => (
               <button
                 key={exp}
@@ -354,7 +389,7 @@ export default function OptionsPage() {
       )}
 
       {!(assetClass === 'equity' && missingKey) && !error && strikes.length > 0 && (
-        <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden">
+        <div data-tour="options-chain" className="rounded-xl border border-bg-border bg-bg-base overflow-hidden">
           {underlyingPrice !== null && (
             <div className="px-5 py-2.5 border-b border-bg-border text-xs font-mono text-ink-secondary">
               Subyacente:{' '}
@@ -444,6 +479,8 @@ export default function OptionsPage() {
           </>
         )}
       </p>
+
+      <Tour steps={OPTIONS_TOUR_STEPS} active={tourActive} onClose={closeTour} />
     </div>
   )
 }

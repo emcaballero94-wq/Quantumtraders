@@ -178,6 +178,7 @@ export function TradeLogPanel({ onCreated }: { onCreated: (trade: Trade) => void
         <h2 className="text-lg font-sans font-medium text-ink-primary">Registrar operación</h2>
         <button
           type="button"
+          data-tour="tools-voice"
           onClick={() => setVoiceMode((v) => !v)}
           aria-pressed={voiceMode}
           aria-label="Dictar por voz"

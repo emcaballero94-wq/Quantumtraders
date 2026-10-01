@@ -7,6 +7,41 @@ import { TradeTape, type TradeTapeSnapshot } from '@/components/orderflow/TradeT
 import { LiquidationsFeed, type LiquidationsSnapshot } from '@/components/orderflow/LiquidationsFeed'
 import { DerivativesPanel, type DerivativesSnapshot } from '@/components/orderflow/DerivativesPanel'
 import { TermHelp } from '@/components/ui/TermHelp'
+import { Tour, type TourStep } from '@/components/tour/Tour'
+import { useTour } from '@/lib/tour/use-tour'
+
+const ORDERFLOW_TOUR_STEPS: TourStep[] = [
+  {
+    target: '[data-tour="orderflow-symbol"]',
+    title: 'Elegí el símbolo',
+    description: 'BTC, ETH y SOL contra USDT, vía WebSocket directo a Binance sin intermediarios. Cambiar de símbolo reinicia el libro, la cinta y el panel de derivados (las liquidaciones siguen mostrando los tres juntos).',
+  },
+  {
+    target: '[data-tour="orderflow-live"]',
+    title: 'Libro, cinta y derivados en vivo',
+    description: 'El heatmap del libro de órdenes (top 20 niveles, cada 100ms), la cinta de operaciones con CVD y el funding/open interest de futuros se actualizan en tiempo real desde Binance, todo en la conexión de tu navegador.',
+  },
+  {
+    target: '[data-tour="orderflow-liquidations"]',
+    title: 'Liquidaciones de futuros',
+    description: 'Liquidaciones mayores a $1,000 en BTC, ETH y SOL, sin importar qué símbolo tengas seleccionado arriba — útil para detectar cascadas de stops.',
+  },
+  {
+    target: '[data-tour="orderflow-backtest"]',
+    title: 'Flow Validation',
+    description: 'Corre un backtest sobre los briefs de M.A.N.U. ya guardados: compara el sesgo que detectó cada uno contra lo que el precio hizo realmente después, a 5, 15 o 60 minutos.',
+  },
+  {
+    target: '[data-tour="orderflow-memory"]',
+    title: 'Memoria intradía',
+    description: 'Preguntale a M.A.N.U. cómo evolucionó el flujo en lo que va del día — usa el historial de briefs ya guardados, no un stream en vivo, así que responde con contexto de las últimas horas.',
+  },
+  {
+    target: '[data-tour="orderflow-manu"]',
+    title: 'M.A.N.U. — Market Intelligence',
+    description: 'Un brief con IA que lee los cuatro paneles de arriba (libro, cinta, derivados, liquidaciones) y describe qué cambió y qué tan seguido ese tipo de señal acertó en el pasado. Nunca es una recomendación de compra o venta, y se actualiza solo cada 60s mientras tengas la página abierta.',
+  },
+]
 
 const SYMBOLS = [
   { label: 'BTC/USDT', value: 'btcusdt' },
@@ -85,6 +120,7 @@ interface FlowBucket {
 const MEMORY_PRESETS = ['¿Cómo evolucionó el flujo desde las 08:00 UTC?', '¿Qué pasó en la última hora?', '¿Cómo va el flujo hoy?']
 
 export default function OrderFlowPage() {
+  const { active: tourActive, start: startTour, close: closeTour } = useTour('orderflow')
   const [symbol, setSymbol] = useState(SYMBOLS[0].value)
 
   const [book, setBook] = useState<OrderBookSnapshot | null>(null)
@@ -287,11 +323,20 @@ export default function OrderFlowPage() {
   return (
     <div className="animate-fade-in pb-20 max-w-[1040px]">
       <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
-        <div className="flex items-baseline gap-3.5 flex-wrap px-7 py-[18px] border-b border-bg-border">
-          <h1 className="text-[22px] font-sans font-medium text-ink-primary">Order Flow</h1>
-          <span className="text-xs font-mono text-ink-secondary">Profundidad de mercado en vivo · Binance</span>
+        <div className="flex items-baseline justify-between gap-3.5 flex-wrap px-7 py-[18px] border-b border-bg-border">
+          <div className="flex items-baseline gap-3.5 flex-wrap">
+            <h1 className="text-[22px] font-sans font-medium text-ink-primary">Order Flow</h1>
+            <span className="text-xs font-mono text-ink-secondary">Profundidad de mercado en vivo · Binance</span>
+          </div>
+          <button
+            type="button"
+            onClick={startTour}
+            className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-oracle/50 hover:text-oracle transition-colors"
+          >
+            Ver tutorial
+          </button>
         </div>
-        <div className="flex gap-2 px-7 py-4">
+        <div data-tour="orderflow-symbol" className="flex gap-2 px-7 py-4">
           {SYMBOLS.map((s) => (
             <button
               key={s.value}
@@ -310,7 +355,7 @@ export default function OrderFlowPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
+      <div data-tour="orderflow-manu" className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
         <div className="flex items-center justify-between px-5 py-3 border-b border-bg-border flex-wrap gap-2">
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-xs font-mono uppercase tracking-[0.12em] text-oracle">M.A.N.U. · Market Intelligence</span>
@@ -431,7 +476,7 @@ export default function OrderFlowPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
+      <div data-tour="orderflow-backtest" className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
         <div className="flex items-center justify-between px-5 py-3 border-b border-bg-border flex-wrap gap-2">
           <div className="flex items-baseline gap-2">
             <span className="text-xs font-mono uppercase tracking-[0.12em] text-oracle">Flow Validation</span>
@@ -577,7 +622,7 @@ export default function OrderFlowPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
+      <div data-tour="orderflow-memory" className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
         <div className="flex items-center justify-between px-5 py-3 border-b border-bg-border">
           <span className="text-xs font-mono uppercase tracking-[0.12em] text-oracle">Memoria intradía</span>
         </div>
@@ -686,13 +731,13 @@ export default function OrderFlowPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+      <div data-tour="orderflow-live" className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         <OrderBookHeatmap symbol={symbol} levels={10} onSnapshot={handleBookSnapshot} />
         <TradeTape symbol={symbol} onSnapshot={setTape} />
         <DerivativesPanel symbol={symbol} onSnapshot={setDerivatives} />
       </div>
 
-      <div className="mt-4">
+      <div data-tour="orderflow-liquidations" className="mt-4">
         <LiquidationsFeed onSnapshot={setLiquidations} />
       </div>
 
@@ -709,6 +754,8 @@ export default function OrderFlowPage() {
         índices, petróleo) y forex requieren un feed de datos Level 2 de pago (Databento, Rithmic, CQG) que
         todavía no está conectado.
       </p>
+
+      <Tour steps={ORDERFLOW_TOUR_STEPS} active={tourActive} onClose={closeTour} />
     </div>
   )
 }

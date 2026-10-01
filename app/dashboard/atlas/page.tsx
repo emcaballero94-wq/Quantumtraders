@@ -7,6 +7,41 @@ import { clsx } from 'clsx'
 import { useTVQuote } from '@/hooks/useTVQuote'
 import { MarketNewsPanel } from '@/components/pulse/MarketNewsPanel'
 import type { OracleAlert, RadarAsset } from '@/lib/oracle/types'
+import { Tour, type TourStep } from '@/components/tour/Tour'
+import { useTour } from '@/lib/tour/use-tour'
+
+const ATLAS_TOUR_STEPS: TourStep[] = [
+  {
+    target: '[data-tour="atlas-watchlist"]',
+    title: 'Tu watchlist',
+    description: 'Veinte activos en vivo (acciones, futuros, índices, BTC/USDT y XAU/USD) vía TradingView — tocá cualquiera para cambiar el gráfico y todo el panel de contexto a la derecha.',
+  },
+  {
+    target: '[data-tour="atlas-timeframe"]',
+    title: 'Temporalidad',
+    description: 'De M1 a W1 — cambia la vela del gráfico sin tocar el símbolo ni el resto del panel de contexto.',
+  },
+  {
+    target: '[data-tour="atlas-chart"]',
+    title: 'El gráfico',
+    description: 'Gráfico de TradingView embebido en vivo, con sus propias herramientas de dibujo e indicadores.',
+  },
+  {
+    target: '[data-tour="atlas-scanner"]',
+    title: 'Scanner',
+    description: 'El puntaje de Oracle Scanner para este activo (macro + técnico + timing) cuando está en el radar — tocá "Ver →" para el detalle completo.',
+  },
+  {
+    target: '[data-tour="atlas-zones"]',
+    title: 'Zonas JARVIS',
+    description: 'Niveles de precio relevantes que JARVIS detectó para este símbolo; en rojo, las zonas marcadas como críticas.',
+  },
+  {
+    target: '[data-tour="atlas-news"]',
+    title: 'Noticias del mercado',
+    description: 'Noticias filtradas para el símbolo seleccionado, para entender qué puede estar moviendo el precio además del order flow y el técnico.',
+  },
+]
 
 const TradingViewChart = dynamic(() => import('@/components/atlas/TradingViewChart').then((m) => m.TradingViewChart), {
   ssr: false,
@@ -59,6 +94,7 @@ function fmtPct(v: number | null | undefined) {
 const scoreText = (v: number) => (v >= 70 ? 'text-atlas' : v >= 50 ? 'text-oracle' : v >= 30 ? 'text-pulse' : 'text-bear')
 
 export default function AtlasPage() {
+  const { active: tourActive, start: startTour, close: closeTour } = useTour('atlas')
   const [symbol, setSymbol] = useState('SPX500')
   const [interval, setInterval_] = useState('60')
   const [alerts, setAlerts] = useState<OracleAlert[]>([])
@@ -133,7 +169,7 @@ export default function AtlasPage() {
         style={{ height: 'calc(100vh - 110px)', minHeight: 620 }}
       >
         {/* Watchlist */}
-        <nav className="hidden lg:flex flex-col min-h-0 border-r border-bg-border" aria-label="Watchlist">
+        <nav data-tour="atlas-watchlist" className="hidden lg:flex flex-col min-h-0 border-r border-bg-border" aria-label="Watchlist">
           <p className="px-4 py-3.5 text-[10px] tracking-[0.14em] text-ink-secondary border-b border-bg-border">WATCHLIST</p>
           <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
             {SYMBOLS.map((s) => {
@@ -199,24 +235,33 @@ export default function AtlasPage() {
                 </span>
               )}
             </div>
-            <div className="flex gap-0.5 text-[11px]" role="group" aria-label="Temporalidad">
-              {TIMEFRAMES.map((tf) => (
-                <button
-                  key={tf.value}
-                  type="button"
-                  onClick={() => setInterval_(tf.value)}
-                  aria-pressed={interval === tf.value}
-                  className={clsx(
-                    'px-2.5 py-1.5 rounded-md transition-colors',
-                    interval === tf.value ? 'bg-atlas/15 text-atlas' : 'text-ink-secondary hover:text-ink-primary',
-                  )}
-                >
-                  {tf.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <div data-tour="atlas-timeframe" className="flex gap-0.5 text-[11px]" role="group" aria-label="Temporalidad">
+                {TIMEFRAMES.map((tf) => (
+                  <button
+                    key={tf.value}
+                    type="button"
+                    onClick={() => setInterval_(tf.value)}
+                    aria-pressed={interval === tf.value}
+                    className={clsx(
+                      'px-2.5 py-1.5 rounded-md transition-colors',
+                      interval === tf.value ? 'bg-atlas/15 text-atlas' : 'text-ink-secondary hover:text-ink-primary',
+                    )}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={startTour}
+                className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-oracle/50 hover:text-oracle transition-colors"
+              >
+                Ver tutorial
+              </button>
             </div>
           </div>
-          <div className="flex-1 min-h-0">
+          <div data-tour="atlas-chart" className="flex-1 min-h-0">
             <TradingViewChart symbol={symbol} interval={interval} />
           </div>
         </section>
@@ -247,7 +292,7 @@ export default function AtlasPage() {
             {quoteError && <p className="pt-2 text-[10px] text-bear">Error de feed: {quoteError}</p>}
           </div>
 
-          <div className="px-[18px] py-4 border-b border-bg-border space-y-2">
+          <div data-tour="atlas-scanner" className="px-[18px] py-4 border-b border-bg-border space-y-2">
             <div className="flex justify-between items-baseline">
               <p className="text-[10px] tracking-[0.14em] text-ink-secondary">SCANNER</p>
               <Link href="/dashboard/scanner" className="font-sans text-[11px] text-atlas hover:text-atlas/80">Ver →</Link>
@@ -271,7 +316,7 @@ export default function AtlasPage() {
             )}
           </div>
 
-          <div className="px-[18px] py-4 border-b border-bg-border space-y-2">
+          <div data-tour="atlas-zones" className="px-[18px] py-4 border-b border-bg-border space-y-2">
             <p className="text-[10px] tracking-[0.14em] text-ink-secondary">ZONAS JARVIS</p>
             {zones.length === 0 && <p className="font-sans text-xs text-ink-muted">Sin zonas activas para {symbol}.</p>}
             {zones.map((z, i) => (
@@ -282,11 +327,13 @@ export default function AtlasPage() {
             ))}
           </div>
 
-          <div className="flex-1 min-h-[360px]">
+          <div data-tour="atlas-news" className="flex-1 min-h-[360px]">
             <MarketNewsPanel filterSymbols={[symbol]} />
           </div>
         </aside>
       </div>
+
+      <Tour steps={ATLAS_TOUR_STEPS} active={tourActive} onClose={closeTour} />
     </div>
   )
 }

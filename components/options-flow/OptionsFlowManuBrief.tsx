@@ -41,6 +41,18 @@ interface OptionsFlowHistoryResponse {
   data?: { briefs: OptionsFlowBriefHistoryItem[] }
 }
 
+interface AccuracySummary {
+  totalEvaluated: number
+  correctCount: number
+  accuracyRate: number | null
+}
+
+interface OptionsFlowOutcomesResponse {
+  success: boolean
+  error?: string
+  data?: AccuracySummary
+}
+
 interface OptionsFlowManuBriefProps {
   currency: 'BTC' | 'ETH'
 }
@@ -75,6 +87,7 @@ export function OptionsFlowManuBrief({ currency }: OptionsFlowManuBriefProps) {
   const [history, setHistory] = useState<OptionsFlowBriefHistoryItem[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [accuracy, setAccuracy] = useState<AccuracySummary | null>(null)
 
   const latestRef = useRef(currency)
   useEffect(() => {
@@ -89,6 +102,17 @@ export function OptionsFlowManuBrief({ currency }: OptionsFlowManuBriefProps) {
       if (result.success && result.data) setHistory(result.data.briefs)
     } catch {
       // History is a nice-to-have — a failed fetch just leaves the list empty.
+    }
+  }, [])
+
+  const loadAccuracy = useCallback(async () => {
+    const current = latestRef.current
+    try {
+      const response = await fetch(`/api/manu/options-flow-outcomes?currency=${current}`)
+      const result = (await response.json()) as OptionsFlowOutcomesResponse
+      if (result.success && result.data) setAccuracy(result.data)
+    } catch {
+      // Track record is a nice-to-have — a failed fetch just hides it.
     }
   }, [])
 
@@ -128,10 +152,12 @@ export function OptionsFlowManuBrief({ currency }: OptionsFlowManuBriefProps) {
     setError(null)
     setHistory([])
     setExpandedId(null)
+    setAccuracy(null)
     loadHistory()
+    loadAccuracy()
     const timer = setTimeout(generate, FIRST_RUN_DELAY_MS)
     return () => clearTimeout(timer)
-  }, [currency, generate, loadHistory])
+  }, [currency, generate, loadHistory, loadAccuracy])
 
   return (
     <div data-tour="options-manu-brief" className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
@@ -139,6 +165,14 @@ export function OptionsFlowManuBrief({ currency }: OptionsFlowManuBriefProps) {
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-xs font-mono uppercase tracking-[0.12em] text-oracle">M.A.N.U. · Options Flow</span>
           {lean && <span className={clsx('text-[10px] font-mono uppercase tracking-wider', leanColor(lean))}>{LEAN_LABEL[lean]}</span>}
+          {accuracy && accuracy.totalEvaluated > 0 && accuracy.accuracyRate !== null && (
+            <span
+              className="text-[10px] font-mono text-ink-dim"
+              title="De los leans de hace 24h+ con resultado evaluado, cuántos acertaron la dirección real del precio"
+            >
+              Track record: {accuracy.correctCount}/{accuracy.totalEvaluated} ({(accuracy.accuracyRate * 100).toFixed(0)}%, 24h)
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {lastAt && (

@@ -79,3 +79,28 @@ export async function listOptionsFlowBriefs(currency: 'BTC' | 'ETH', limit = 10)
   if (error || !data) return []
   return (data as OptionsFlowBriefRow[]).map(mapRow)
 }
+
+// For the outcome-tracking cron: oldest-first, so a backlog (e.g. right after
+// this feature ships) catches up gradually instead of always re-fetching the
+// same newest-eligible page. Relies on the caller (and the DB's unique
+// constraint on brief_outcomes) to skip ones already scored — this just
+// returns candidates old enough to be eligible.
+export async function listOptionsFlowBriefsOlderThan(
+  currency: 'BTC' | 'ETH',
+  cutoffIso: string,
+  limit = 50,
+): Promise<OptionsFlowBriefRecord[]> {
+  const admin = createAdminClient()
+  if (!admin) return []
+
+  const { data, error } = await admin
+    .from('options_flow_briefs')
+    .select(SELECT_COLUMNS)
+    .eq('currency', currency)
+    .lte('created_at', cutoffIso)
+    .order('created_at', { ascending: true })
+    .limit(limit)
+
+  if (error || !data) return []
+  return (data as OptionsFlowBriefRow[]).map(mapRow)
+}

@@ -32,6 +32,8 @@ export interface OptionsFlowAccelerationFact {
 
 export interface OptionsFlowBriefFacts {
   currency: 'BTC' | 'ETH'
+  /** Spot price (USD) at brief-generation time — null if the quote fetch failed. Needed to score the brief's lean against what price actually did later (see outcome-tracking.ts); never invented when unavailable. */
+  underlyingPriceUsd: number | null
   tradeCount: number
   score: number
   scoreConfidence: 'LOW' | 'MEDIUM' | 'HIGH'

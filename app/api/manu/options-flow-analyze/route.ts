@@ -5,7 +5,20 @@ import { deriveOptionsFlowLean, keyChangeText, buildDeterministicOptionsFlowNarr
 import { insertOptionsFlowBrief, listOptionsFlowBriefs } from '@/lib/manu-options-flow/brief-persistence'
 import type { OptionsFlowBriefFacts } from '@/lib/manu-options-flow/types'
 import { logAiUsage } from '@/lib/ai-usage/usage-log'
+import { fetchMarketQuotes } from '@/lib/market-data'
 import type { CryptoCurrency } from '@/lib/manu/crypto-symbol-mapping'
+
+const SPOT_QUOTE_SYMBOL: Record<CryptoCurrency, string> = { BTC: 'BTCUSD', ETH: 'ETHUSD' }
+
+async function fetchSpotPriceUsd(currency: CryptoCurrency): Promise<number | null> {
+  try {
+    const [quote] = await fetchMarketQuotes([SPOT_QUOTE_SYMBOL[currency]])
+    return quote?.price ?? null
+  } catch (error) {
+    console.error(`[/api/manu/options-flow-analyze] Failed to fetch spot price for ${currency}:`, error)
+    return null
+  }
+}
 
 const MAX_LARGE_TRADES_FOR_PROMPT = 5
 
@@ -19,11 +32,15 @@ function fmtUsd(value: number | null): string {
 }
 
 async function buildFacts(currency: CryptoCurrency): Promise<OptionsFlowBriefFacts | null> {
-  const snapshot = await computeOptionsFlowSnapshot(currency)
+  const [snapshot, underlyingPriceUsd] = await Promise.all([
+    computeOptionsFlowSnapshot(currency),
+    fetchSpotPriceUsd(currency),
+  ])
   if (snapshot.tradeCount === 0) return null
 
   return {
     currency,
+    underlyingPriceUsd,
     tradeCount: snapshot.tradeCount,
     score: snapshot.score.value,
     scoreConfidence: snapshot.score.confidence,

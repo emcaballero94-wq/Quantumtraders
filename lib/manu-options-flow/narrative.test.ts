@@ -5,6 +5,7 @@ import type { OptionsFlowBriefFacts } from './types'
 function makeFacts(overrides: Partial<OptionsFlowBriefFacts> = {}): OptionsFlowBriefFacts {
   return {
     currency: 'BTC',
+    underlyingPriceUsd: 65_000,
     tradeCount: 500,
     score: 50,
     scoreConfidence: 'HIGH',

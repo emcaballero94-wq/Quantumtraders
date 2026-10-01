@@ -18,12 +18,60 @@ const LEVEL_LABELS: Record<AcademyLevel, string> = {
 
 const LEVEL_STORAGE_KEY = 'qt_mando_level'
 
-const QUICK_ACTIONS: { label: string; prompt: string }[] = [
-  { label: 'NASDAQ', prompt: 'Analiza NASDAQ' },
-  { label: 'GOLD', prompt: 'Analiza el oro (XAUUSD)' },
-  { label: 'SP500', prompt: 'Analiza el SP500' },
-  { label: 'BTC', prompt: 'Analiza BTC' },
-  { label: 'SCAN MARKET', prompt: 'Busca oportunidades en el mercado ahora mismo' },
+interface QuickPrompt {
+  label: string
+  prompt: string
+  level: AcademyLevel
+}
+
+interface QuickActionCategory {
+  id: string
+  label: string
+  icon: string
+  prompts: QuickPrompt[]
+}
+
+// Persistent category chips above the input — grouped so the panel can offer
+// more than a handful of one-off buttons without cluttering the empty state.
+const QUICK_ACTION_CATEGORIES: QuickActionCategory[] = [
+  {
+    id: 'market-analysis',
+    label: 'Análisis de Mercado',
+    icon: '📊',
+    prompts: [
+      { label: 'Analiza NASDAQ', prompt: 'Analiza NASDAQ', level: 'intermediate' },
+      { label: 'Analiza el oro (XAUUSD)', prompt: 'Analiza el oro (XAUUSD)', level: 'beginner' },
+      { label: 'Analiza el SP500', prompt: 'Analiza el SP500', level: 'intermediate' },
+      { label: 'Analiza BTC', prompt: 'Analiza BTC', level: 'intermediate' },
+    ],
+  },
+  {
+    id: 'opportunities',
+    label: 'Encontrar Oportunidades',
+    icon: '💰',
+    prompts: [
+      {
+        label: '¿Debería comprar, vender o esperar según el mercado actual?',
+        prompt: 'Según las condiciones actuales del mercado, ¿debería comprar, vender o esperar?',
+        level: 'beginner',
+      },
+      {
+        label: 'Identifica posibles rupturas (breakouts) en el mercado actual',
+        prompt: 'Identifica posibles oportunidades de ruptura (breakout) en el mercado actual',
+        level: 'advanced',
+      },
+      {
+        label: '¿Hay buenos setups formándose ahora mismo?',
+        prompt: '¿Hay buenos setups de trading formándose ahora mismo?',
+        level: 'beginner',
+      },
+      {
+        label: '¿Cuáles son los mejores puntos de entrada para largo?',
+        prompt: '¿Cuáles son los mejores puntos de entrada para una posición larga?',
+        level: 'intermediate',
+      },
+    ],
+  },
 ]
 
 export function QuantumAI() {
@@ -34,6 +82,7 @@ export function QuantumAI() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [level, setLevel] = useState<AcademyLevel>('intermediate')
+  const [openCategory, setOpenCategory] = useState<string | null>(null)
 
   useEffect(() => {
     try {
@@ -82,7 +131,10 @@ export function QuantumAI() {
     }
   }
 
-  const showQuickActions = messages.length === 1 && !isLoading
+  const handleQuickPrompt = (prompt: string) => {
+    setOpenCategory(null)
+    handleSend(prompt)
+  }
 
   return (
     <>
@@ -169,15 +221,49 @@ export function QuantumAI() {
                 Procesando...
               </div>
             )}
-            {showQuickActions && (
-              <div className="flex flex-col gap-2 pt-2">
-                {QUICK_ACTIONS.map((action) => (
-                  <button
-                    key={action.label}
-                    onClick={() => handleSend(action.prompt)}
-                    className="w-full px-4 py-3 rounded-lg text-xs font-mono font-bold tracking-[0.08em] text-ink-primary border border-bg-border hover:border-oracle/50 hover:bg-oracle/5 transition-colors text-left"
+          </div>
+
+          {/* Quick action categories — always available, not just on the empty state */}
+          <div className="px-4 pt-3 relative border-t border-bg-border">
+            <div className="flex gap-2">
+              {QUICK_ACTION_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => setOpenCategory(openCategory === cat.id ? null : cat.id)}
+                  className={clsx(
+                    'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-full border text-2xs font-mono font-bold transition-colors disabled:opacity-50',
+                    openCategory === cat.id
+                      ? 'border-oracle/60 bg-oracle/10 text-oracle'
+                      : 'border-bg-border text-ink-secondary hover:border-oracle/40 hover:text-oracle',
+                  )}
+                >
+                  <span aria-hidden>{cat.icon}</span>
+                  <span className="truncate">{cat.label}</span>
+                  <svg
+                    className={clsx('w-3 h-3 shrink-0 transition-transform', openCategory === cat.id && 'rotate-180')}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    {action.label}
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              ))}
+            </div>
+
+            {openCategory && (
+              <div className="absolute bottom-full left-4 right-4 mb-2 rounded-xl border border-bg-border bg-bg-card shadow-xl overflow-hidden z-10">
+                {QUICK_ACTION_CATEGORIES.find((cat) => cat.id === openCategory)?.prompts.map((p, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handleQuickPrompt(p.prompt)}
+                    className="w-full text-left px-4 py-3 border-b border-bg-border last:border-b-0 hover:bg-oracle/5 transition-colors"
+                  >
+                    <p className="text-xs font-mono text-ink-primary leading-snug">{p.label}</p>
+                    <p className="text-2xs font-mono text-ink-dim mt-0.5 uppercase tracking-wider">{LEVEL_LABELS[p.level]}</p>
                   </button>
                 ))}
               </div>

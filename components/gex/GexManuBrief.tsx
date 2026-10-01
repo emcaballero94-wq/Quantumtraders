@@ -157,7 +157,7 @@ export function GexManuBrief({ assetClass, symbolOrCurrency }: GexManuBriefProps
   }, [assetClass, symbolOrCurrency, generate, loadHistory])
 
   return (
-    <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
+    <div data-tour="gex-manu" className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
       <div className="flex items-center justify-between px-5 py-3 border-b border-bg-border flex-wrap gap-2">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-xs font-mono uppercase tracking-[0.12em] text-oracle">M.A.N.U. · GEX &amp; Options</span>

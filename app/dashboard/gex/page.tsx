@@ -5,6 +5,41 @@ import { clsx } from 'clsx'
 import { GexHeatmap } from '@/components/gex/GexHeatmap'
 import { GexManuBrief } from '@/components/gex/GexManuBrief'
 import { TermHelp } from '@/components/ui/TermHelp'
+import { Tour, type TourStep } from '@/components/tour/Tour'
+import { useTour } from '@/lib/tour/use-tour'
+
+const GEX_TOUR_STEPS: TourStep[] = [
+  {
+    target: '[data-tour="gex-asset-toggle"]',
+    title: 'Elegí el mercado',
+    description: 'Acciones usa Tradier; Cripto usa la API pública de Deribit (BTC/ETH). Cada uno trae su propio set de símbolos y vencimientos.',
+  },
+  {
+    target: '[data-tour="gex-symbol"]',
+    title: 'Elegí el símbolo',
+    description: 'Buscá cualquier ticker con opciones listadas, o usá los accesos rápidos para saltar directo a los más comunes.',
+  },
+  {
+    target: '[data-tour="gex-expirations"]',
+    title: 'Vencimiento',
+    description: 'GEX se calcula para el vencimiento que elijas acá — los niveles (walls, gamma flip, max pain) cambian según la fecha.',
+  },
+  {
+    target: '[data-tour="gex-view-toggle"]',
+    title: 'Perfil vs. Mapa de calor',
+    description: 'Perfil muestra un vencimiento a la vez, strike por strike. El mapa de calor combina varios vencimientos en un grid strike × fecha.',
+  },
+  {
+    target: '[data-tour="gex-stats"]',
+    title: 'Los niveles clave',
+    description: 'Net GEX, Call Wall, Put Wall, Gamma Flip y Max Pain — tocá el "?" junto a cada uno para una explicación corta de qué es y por qué importa.',
+  },
+  {
+    target: '[data-tour="gex-manu"]',
+    title: 'M.A.N.U. — GEX & Options',
+    description: 'Un brief con IA que interpreta todo lo de arriba, lo compara contra la sesión anterior, y para BTC/ETH hasta cruza datos con Order Flow en vivo.',
+  },
+]
 
 interface GexProfilePoint {
   strike: number
@@ -61,6 +96,7 @@ type ViewMode = 'profile' | 'heatmap'
 export default function GexPage() {
   const [assetClass, setAssetClass] = useState<AssetClass>('equity')
   const [view, setView] = useState<ViewMode>('profile')
+  const { active: tourActive, start: startTour, close: closeTour } = useTour('gex')
 
   const [symbolInput, setSymbolInput] = useState('SPY')
   const [symbol, setSymbol] = useState('SPY')
@@ -204,67 +240,80 @@ export default function GexPage() {
   return (
     <div className="animate-fade-in pb-20 max-w-[1040px]">
       <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
-        <div className="flex items-baseline gap-3.5 flex-wrap px-7 py-[18px] border-b border-bg-border">
-          <h1 className="text-[22px] font-sans font-medium text-ink-primary">GEX — Gamma Exposure</h1>
-          <span className="text-xs font-mono text-ink-secondary">
-            Dealer gamma exposure en vivo · {assetClass === 'equity' ? 'Tradier' : 'Deribit'} · Black-Scholes
-          </span>
+        <div className="flex items-baseline justify-between gap-3.5 flex-wrap px-7 py-[18px] border-b border-bg-border">
+          <div className="flex items-baseline gap-3.5 flex-wrap">
+            <h1 className="text-[22px] font-sans font-medium text-ink-primary">GEX — Gamma Exposure</h1>
+            <span className="text-xs font-mono text-ink-secondary">
+              Dealer gamma exposure en vivo · {assetClass === 'equity' ? 'Tradier' : 'Deribit'} · Black-Scholes
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={startTour}
+            className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider border border-bg-border text-ink-secondary hover:border-oracle/50 hover:text-oracle transition-colors"
+          >
+            Ver tutorial
+          </button>
         </div>
 
         <div className="flex gap-2 px-7 pt-4">
-          <button
-            type="button"
-            onClick={() => setAssetClass('equity')}
-            className={clsx(
-              'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
-              assetClass === 'equity'
-                ? 'border-oracle/50 bg-oracle/10 text-oracle'
-                : 'border-bg-border text-ink-secondary hover:border-ink-muted',
-            )}
-          >
-            Acciones
-          </button>
-          <button
-            type="button"
-            onClick={() => setAssetClass('crypto')}
-            className={clsx(
-              'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
-              assetClass === 'crypto'
-                ? 'border-atlas/50 bg-atlas/10 text-atlas'
-                : 'border-bg-border text-ink-secondary hover:border-ink-muted',
-            )}
-          >
-            Cripto
-          </button>
+          <div data-tour="gex-asset-toggle" className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setAssetClass('equity')}
+              className={clsx(
+                'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
+                assetClass === 'equity'
+                  ? 'border-oracle/50 bg-oracle/10 text-oracle'
+                  : 'border-bg-border text-ink-secondary hover:border-ink-muted',
+              )}
+            >
+              Acciones
+            </button>
+            <button
+              type="button"
+              onClick={() => setAssetClass('crypto')}
+              className={clsx(
+                'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
+                assetClass === 'crypto'
+                  ? 'border-atlas/50 bg-atlas/10 text-atlas'
+                  : 'border-bg-border text-ink-secondary hover:border-ink-muted',
+              )}
+            >
+              Cripto
+            </button>
+          </div>
           <span className="w-px bg-bg-border mx-1" />
-          <button
-            type="button"
-            onClick={() => setView('profile')}
-            className={clsx(
-              'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
-              view === 'profile'
-                ? 'border-nexus/50 bg-nexus/10 text-nexus'
-                : 'border-bg-border text-ink-secondary hover:border-ink-muted',
-            )}
-          >
-            Perfil
-          </button>
-          <button
-            type="button"
-            onClick={() => setView('heatmap')}
-            className={clsx(
-              'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
-              view === 'heatmap'
-                ? 'border-nexus/50 bg-nexus/10 text-nexus'
-                : 'border-bg-border text-ink-secondary hover:border-ink-muted',
-            )}
-          >
-            Mapa de calor
-          </button>
+          <div data-tour="gex-view-toggle" className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setView('profile')}
+              className={clsx(
+                'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
+                view === 'profile'
+                  ? 'border-nexus/50 bg-nexus/10 text-nexus'
+                  : 'border-bg-border text-ink-secondary hover:border-ink-muted',
+              )}
+            >
+              Perfil
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('heatmap')}
+              className={clsx(
+                'px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider border transition-colors',
+                view === 'heatmap'
+                  ? 'border-nexus/50 bg-nexus/10 text-nexus'
+                  : 'border-bg-border text-ink-secondary hover:border-ink-muted',
+              )}
+            >
+              Mapa de calor
+            </button>
+          </div>
         </div>
 
         {assetClass === 'equity' ? (
-          <div className="flex flex-wrap items-center gap-3 px-7 py-4">
+          <div data-tour="gex-symbol" className="flex flex-wrap items-center gap-3 px-7 py-4">
             <div className="flex gap-2">
               <input
                 type="text"
@@ -304,7 +353,7 @@ export default function GexPage() {
             </div>
           </div>
         ) : (
-          <div className="flex gap-2 flex-wrap px-7 py-4">
+          <div data-tour="gex-symbol" className="flex gap-2 flex-wrap px-7 py-4">
             {CRYPTO_CURRENCIES.map((c) => (
               <button
                 key={c.value}
@@ -324,7 +373,7 @@ export default function GexPage() {
         )}
 
         {view === 'profile' && expirations.length > 0 && (
-          <div className="flex gap-2 flex-wrap px-7 pb-4 overflow-x-auto">
+          <div data-tour="gex-expirations" className="flex gap-2 flex-wrap px-7 pb-4 overflow-x-auto">
             {expirations.slice(0, 10).map((exp) => (
               <button
                 key={exp}
@@ -377,7 +426,7 @@ export default function GexPage() {
 
       {view === 'profile' && !(assetClass === 'equity' && missingKey) && !error && gex && (
         <>
-          <div className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
+          <div data-tour="gex-stats" className="rounded-xl border border-bg-border bg-bg-base overflow-hidden mb-4">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 px-5 py-4">
               <div>
                 <p className="text-[10px] font-mono uppercase tracking-wider text-ink-secondary mb-1">Subyacente</p>
@@ -487,6 +536,8 @@ export default function GexPage() {
         diario más reciente — si todavía no hay uno de un día anterior, lo dice en vez de inventar una comparación.
         Es una lectura puntual bajo pedido, no un stream en vivo: tocá "Actualizar" para recalcularla.
       </p>
+
+      <Tour steps={GEX_TOUR_STEPS} active={tourActive} onClose={closeTour} />
     </div>
   )
 }

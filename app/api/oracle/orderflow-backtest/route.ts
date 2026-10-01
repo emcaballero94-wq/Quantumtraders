@@ -166,7 +166,7 @@ export async function GET(request: Request) {
     .filter(Boolean)
     .join('\n')
 
-  const prompt = `Eres MANDO, el analista cuantitativo de Quantum Traders. Acabas de recibir los resultados de un backtest sobre tus propios briefs de order flow pasados para ${symbol}: se comparó el sesgo compuesto de cada brief (derivado de CVD, desequilibrio del libro, liquidaciones y funding) contra lo que el precio realmente hizo ${horizonMinutes} minutos después. Con base EXCLUSIVAMENTE en las siguientes cifras reales (no inventes nada), escribe un resumen de 4-6 líneas en español: si la tasa de acierto es meramente aceptable, dilo con honestidad — con este tamaño de muestra no es una prueba estadística fuerte. No des recomendaciones de inversión explícitas.
+  const prompt = `Eres M.A.N.U., el analista cuantitativo de Quantum Traders. Acabas de recibir los resultados de un backtest sobre tus propios briefs de order flow pasados para ${symbol}: se comparó el sesgo compuesto de cada brief (derivado de CVD, desequilibrio del libro, liquidaciones y funding) contra lo que el precio realmente hizo ${horizonMinutes} minutos después. Con base EXCLUSIVAMENTE en las siguientes cifras reales (no inventes nada), escribe un resumen de 4-6 líneas en español: si la tasa de acierto es meramente aceptable, dilo con honestidad — con este tamaño de muestra no es una prueba estadística fuerte. No des recomendaciones de inversión explícitas.
 
 DATOS DEL BACKTEST:
 ${facts}

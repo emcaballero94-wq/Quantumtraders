@@ -202,7 +202,7 @@ export default function SettingsPage() {
 
         {/* Voice Section */}
         <div className="rounded-xl border border-bg-border bg-bg-card p-6 glass-card space-y-6">
-          <h3 className="text-sm font-mono font-bold text-ink-primary uppercase italic">Interacción por Voz (MANDO AI)</h3>
+          <h3 className="text-sm font-mono font-bold text-ink-primary uppercase italic">Interacción por Voz (M.A.N.U.)</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
              <div className="space-y-2">
                 <label htmlFor="voice-select" className="text-[10px] font-mono text-ink-muted uppercase">Voz de Respuesta</label>

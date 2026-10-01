@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       : 'DERIVADOS: sin dato todavía.',
   ].join('\n')
 
-  const prompt = `Eres MANDO, el analista cuantitativo de Quantum Traders. Con base EXCLUSIVAMENTE en los siguientes datos reales de order flow en vivo (no inventes cifras ni hechos que no estén aquí), escribe un brief profesional de 4-6 líneas en español para un trader que está viendo esta pantalla en este momento. Cubre: sesgo del flujo de órdenes (compradores vs vendedores), qué dice el CVD sobre la presión reciente, si hay riesgo de liquidaciones en cascada dado lo que ya se liquidó, y si el funding/open interest sugiere un mercado sobre-apalancado en algún lado. Sé directo, sin relleno, sin emojis, sin recomendaciones de inversión explícitas (no digas "compra" o "vende"). Si alguna sección dice "sin dato", no la inventes — simplemente no la menciones o dilo brevemente.
+  const prompt = `Eres M.A.N.U., el analista cuantitativo de Quantum Traders. Con base EXCLUSIVAMENTE en los siguientes datos reales de order flow en vivo (no inventes cifras ni hechos que no estén aquí), escribe un brief profesional de 4-6 líneas en español para un trader que está viendo esta pantalla en este momento. Cubre: sesgo del flujo de órdenes (compradores vs vendedores), qué dice el CVD sobre la presión reciente, si hay riesgo de liquidaciones en cascada dado lo que ya se liquidó, y si el funding/open interest sugiere un mercado sobre-apalancado en algún lado. Sé directo, sin relleno, sin emojis, sin recomendaciones de inversión explícitas (no digas "compra" o "vende"). Si alguna sección dice "sin dato", no la inventes — simplemente no la menciones o dilo brevemente.
 
 DATOS:
 ${facts}

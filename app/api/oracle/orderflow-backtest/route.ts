@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
 import { listOrderFlowBriefs, type OrderFlowBriefRecord } from '@/lib/oracle/orderflow-persistence'
 import { computeForwardOutcome } from '@/lib/manu/forward-returns'
+import { logAiUsage } from '@/lib/ai-usage/usage-log'
 
 const MIN_RECORDS = 5
 const FUNDING_OVERHEATED_THRESHOLD = 0.0003 // 0.03% — a commonly-cited "hot" funding rate on Binance perps
@@ -195,6 +196,7 @@ Devuelve solo el texto del resumen, sin títulos ni markdown.`
     }
 
     const result = await response.json()
+    await logAiUsage({ route: 'oracle-orderflow-backtest', model: 'claude-haiku-4-5-20251001', usage: result?.usage })
     const text = result?.content?.[0]?.text
     const narrative = typeof text === 'string' && text.trim() ? text.trim() : null
 

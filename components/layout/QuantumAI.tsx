@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { clsx } from 'clsx'
 import type { AcademyLevel } from '@/lib/academy/content'
+import { ManuMessageContent } from './ManuMessageContent'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -157,9 +158,9 @@ export function QuantumAI() {
               ) : (
                 <div
                   key={i}
-                  className="w-full px-4 py-3 rounded-lg text-xs font-mono leading-relaxed bg-oracle/5 border border-oracle/20 text-ink-secondary whitespace-pre-wrap"
+                  className="w-full px-4 py-3 rounded-lg text-xs font-mono leading-relaxed bg-oracle/5 border border-oracle/20 text-ink-secondary"
                 >
-                  {m.content}
+                  <ManuMessageContent content={m.content} />
                 </div>
               ),
             )}

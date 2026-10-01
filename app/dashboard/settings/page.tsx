@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTheme, type Palette, type Typeface } from '@/lib/theme/ThemeProvider'
+import AiUsageCard from '@/components/settings/AiUsageCard'
 
 const STORAGE_KEY = 'qt-settings'
 
@@ -237,6 +238,8 @@ export default function SettingsPage() {
              </div>
           </div>
         </div>
+
+        <AiUsageCard />
 
         <div className="flex items-center gap-4">
           <button

@@ -279,8 +279,20 @@ async function fetchYahooSnapshotQuote(symbol: string, providerSymbolOverride?: 
 
   if (points.length === 0) return null
   const last = points[points.length - 1]
-  const prev = points.length > 1 ? points[points.length - 2] : null
-  const prevClose = prev?.close ?? last.open
+
+  // This endpoint returns hourly candles, not a daily range — using just the
+  // last candle's own open/high/low (as before) makes Apertura/Máximo/Mínimo
+  // collapse to nearly the same number whenever that one hour was quiet.
+  // Aggregate every candle from the same UTC day as the session instead.
+  const lastDay = new Date(last.timestamp * 1000).toISOString().slice(0, 10)
+  const sessionPoints = points.filter((p) => new Date(p.timestamp * 1000).toISOString().slice(0, 10) === lastDay)
+  const sessionOpen = sessionPoints[0]?.open ?? last.open
+  const sessionHigh = Math.max(...sessionPoints.map((p) => p.high))
+  const sessionLow = Math.min(...sessionPoints.map((p) => p.low))
+
+  const priorDayPoints = points.filter((p) => new Date(p.timestamp * 1000).toISOString().slice(0, 10) !== lastDay)
+  const prevClose = priorDayPoints.length > 0 ? priorDayPoints[priorDayPoints.length - 1].close : sessionOpen
+
   const change = last.close - prevClose
   const changePct = prevClose === 0 ? 0 : (change / prevClose) * 100
 
@@ -290,9 +302,9 @@ async function fetchYahooSnapshotQuote(symbol: string, providerSymbolOverride?: 
     price: last.close,
     change,
     changePct,
-    open: last.open,
-    high: last.high,
-    low: last.low,
+    open: sessionOpen,
+    high: sessionHigh,
+    low: sessionLow,
     prevClose,
     volume: last.volume,
     currency: typeof result?.meta?.currency === 'string' ? result.meta.currency : null,

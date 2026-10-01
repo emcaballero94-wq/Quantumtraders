@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
 import { listOrderFlowBriefsSince } from '@/lib/oracle/orderflow-persistence'
 import { parseTimeWindow, clampSince, buildFlowTimeline, type FlowBucket } from '@/lib/oracle/orderflow-memory'
+import { logAiUsage } from '@/lib/ai-usage/usage-log'
 
 const MIN_RECORDS = 2
 
@@ -133,6 +134,7 @@ Devuelve solo el texto de la respuesta, sin títulos ni markdown.`
     }
 
     const result = await response.json()
+    await logAiUsage({ route: 'oracle-orderflow-memory', model: 'claude-haiku-4-5-20251001', usage: result?.usage })
     const text = result?.content?.[0]?.text
     if (typeof text !== 'string' || !text.trim()) {
       return NextResponse.json({ success: false, error: 'Empty response from Claude API' }, { status: 502 })

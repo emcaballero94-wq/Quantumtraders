@@ -242,3 +242,20 @@ create table if not exists quantumtraders.gex_briefs (
 );
 
 create index if not exists idx_gex_briefs_symbol_created_at on quantumtraders.gex_briefs (asset_class, symbol, created_at);
+
+-- One row per Claude API call across every M.A.N.U./Oracle route (chat,
+-- Order Flow brief/memory/backtest, GEX & Options brief, Market State brief,
+-- Pulse brief, voice trade parsing) — lets spend be audited by route and over
+-- time instead of only showing up as a surprise low-credit email.
+create table if not exists quantumtraders.ai_usage_log (
+  id uuid primary key default gen_random_uuid(),
+  route text not null,
+  model text not null,
+  input_tokens integer not null,
+  output_tokens integer not null,
+  estimated_cost_usd numeric not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_ai_usage_log_created_at on quantumtraders.ai_usage_log (created_at desc);
+create index if not exists idx_ai_usage_log_route_created_at on quantumtraders.ai_usage_log (route, created_at);

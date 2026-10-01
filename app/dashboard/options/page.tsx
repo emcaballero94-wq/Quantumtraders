@@ -26,6 +26,11 @@ const OPTIONS_TOUR_STEPS: TourStep[] = [
     title: 'La cadena de opciones',
     description: 'Calls a la izquierda, puts a la derecha, con bid/ask/volumen/open interest de cada lado. El strike resaltado es el más cercano al precio actual del subyacente.',
   },
+  {
+    target: '[data-tour="options-flow"]',
+    title: 'Options Flow (solo cripto)',
+    description: 'Con BTC/ETH sí tenemos operaciones individuales (Deribit es público), así que acá va más allá de la cadena: score de presión 0-100, sesgo direccional, trades grandes y los strikes donde se concentra más premium. Con acciones no se muestra — ahí solo tenemos la cadena, no el flujo trade por trade.',
+  },
 ]
 
 interface OptionGreeks {
@@ -63,6 +68,50 @@ interface ChainResponse {
   underlyingPrice: number | null
 }
 
+interface FlowLargeTrade {
+  symbol: string
+  optionType: 'CALL' | 'PUT'
+  strike: number
+  expiration: string
+  dte: number
+  contracts: number
+  premium: number | null
+  side: 'BUY' | 'SELL' | 'UNKNOWN'
+  timestamp: number
+  classification: { direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | 'UNKNOWN'; confidence: 'LOW' | 'MEDIUM' | 'HIGH'; reason: string }
+}
+
+interface FlowKeyStrike {
+  strike: number
+  callPremium: number
+  putPremium: number
+  netDirectionalPressure: number
+  shareOfTotalPremium: number
+}
+
+interface FlowResponse {
+  success: boolean
+  error?: string
+  currency?: 'BTC' | 'ETH'
+  tradeCount?: number
+  totals?: { callPremium: number; putPremium: number; netPremium: number }
+  directional?: { bullishPremium: number; bearishPremium: number; neutralPremium: number; unknownPremium: number }
+  score?: {
+    value: number
+    confidence: 'LOW' | 'MEDIUM' | 'HIGH'
+    dataQuality: 'GOOD' | 'DEGRADED'
+    components: Record<string, number>
+  }
+  acceleration?: {
+    direction: 'INCREASING' | 'DECREASING' | 'FLAT'
+    magnitudePct: number | null
+    trackedDirection: 'BULLISH' | 'BEARISH'
+    confidence: 'LOW' | 'MEDIUM' | 'HIGH'
+  }
+  largeTrades?: FlowLargeTrade[]
+  keyStrikes?: FlowKeyStrike[]
+}
+
 type AssetClass = 'equity' | 'crypto'
 
 const QUICK_SYMBOLS = ['SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA']
@@ -77,6 +126,11 @@ function fmt(value: number | null, decimals = 2): string {
 
 function fmtInt(value: number | null): string {
   return value === null ? '—' : value.toLocaleString('en-US')
+}
+
+function fmtUsdCompact(value: number | null): string {
+  if (value === null) return '—'
+  return `$${value.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}`
 }
 
 export default function OptionsPage() {
@@ -95,6 +149,10 @@ export default function OptionsPage() {
   const [loadingExpirations, setLoadingExpirations] = useState(true)
   const [loadingChain, setLoadingChain] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [flow, setFlow] = useState<FlowResponse | null>(null)
+  const [loadingFlow, setLoadingFlow] = useState(false)
+  const [flowError, setFlowError] = useState<string | null>(null)
 
   // Equity (Tradier) expirations.
   useEffect(() => {
@@ -187,6 +245,36 @@ export default function OptionsPage() {
       })
       .finally(() => {
         if (!cancelled) setLoadingExpirations(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [assetClass, cryptoCurrency])
+
+  // Crypto (Deribit) options flow — independent of the chain/expiration,
+  // it runs off the most recent trade prints across all expirations.
+  useEffect(() => {
+    if (assetClass !== 'crypto') return
+    let cancelled = false
+    setLoadingFlow(true)
+    setFlowError(null)
+
+    fetch(`/api/market/crypto-options/flow?currency=${cryptoCurrency}`)
+      .then((r) => r.json() as Promise<FlowResponse>)
+      .then((payload) => {
+        if (cancelled) return
+        if (!payload.success) {
+          setFlowError('No se pudo calcular el flow de opciones.')
+          return
+        }
+        setFlow(payload)
+      })
+      .catch(() => {
+        if (!cancelled) setFlowError('No se pudo conectar con Deribit para el flow.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingFlow(false)
       })
 
     return () => {
@@ -459,6 +547,139 @@ export default function OptionsPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {assetClass === 'crypto' && (
+        <div data-tour="options-flow" className="mt-4 rounded-xl border border-bg-border bg-bg-base overflow-hidden">
+          <div className="flex items-center justify-between px-7 py-[14px] border-b border-bg-border">
+            <h2 className="text-sm font-sans font-medium text-ink-primary">Options Flow · {cryptoCurrency}</h2>
+            <span className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">
+              {flow?.tradeCount != null ? `${flow.tradeCount} trades recientes` : ''}
+            </span>
+          </div>
+
+          {flowError && <p className="px-7 py-6 text-sm font-sans text-ink-secondary text-center">{flowError}</p>}
+
+          {!flowError && loadingFlow && !flow && (
+            <div className="h-[200px] bg-bg-elevated animate-pulse" />
+          )}
+
+          {!flowError && flow && flow.tradeCount === 0 && (
+            <p className="px-7 py-6 text-sm font-sans text-ink-secondary text-center">
+              Sin trades recientes de opciones de {cryptoCurrency} en Deribit.
+            </p>
+          )}
+
+          {!flowError && flow && flow.score && flow.tradeCount && flow.tradeCount > 0 && (
+            <div className="px-7 py-5 grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="flex flex-col items-center justify-center gap-1 rounded-lg border border-bg-border py-4">
+                <span
+                  className={clsx(
+                    'text-3xl font-mono font-bold tabular-nums',
+                    flow.score.value >= 60 ? 'text-bull' : flow.score.value <= 40 ? 'text-bear' : 'text-ink-primary',
+                  )}
+                >
+                  {flow.score.value}
+                </span>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">Pressure Score</span>
+                <span className="text-[10px] font-mono text-ink-dim">
+                  Confianza {flow.score.confidence} · {flow.score.dataQuality === 'GOOD' ? 'datos OK' : 'datos limitados'}
+                </span>
+              </div>
+
+              <div className="flex flex-col justify-center gap-2 rounded-lg border border-bg-border px-4 py-4">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">Premium clasificado</span>
+                <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
+                  <span className="text-bull">{fmtUsdCompact(flow.directional?.bullishPremium ?? null)} alcista</span>
+                  <span className="text-ink-dim">/</span>
+                  <span className="text-bear">{fmtUsdCompact(flow.directional?.bearishPremium ?? null)} bajista</span>
+                </div>
+                {flow.acceleration && (
+                  <span className="text-[10px] font-mono text-ink-dim">
+                    Aceleración ({flow.acceleration.trackedDirection === 'BULLISH' ? 'alcista' : 'bajista'}):{' '}
+                    {flow.acceleration.direction === 'INCREASING' ? '↑ subiendo' : flow.acceleration.direction === 'DECREASING' ? '↓ bajando' : '→ estable'}
+                    {flow.acceleration.magnitudePct != null ? ` (${flow.acceleration.magnitudePct.toFixed(0)}%)` : ''}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-col justify-center gap-2 rounded-lg border border-bg-border px-4 py-4">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">Calls vs Puts (bruto)</span>
+                <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
+                  <span className="text-atlas">{fmtUsdCompact(flow.totals?.callPremium ?? null)} calls</span>
+                  <span className="text-ink-dim">/</span>
+                  <span className="text-nexus">{fmtUsdCompact(flow.totals?.putPremium ?? null)} puts</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!flowError && flow && flow.keyStrikes && flow.keyStrikes.length > 0 && (
+            <div className="px-7 pb-5">
+              <h3 className="text-[10px] font-mono uppercase tracking-wider text-ink-dim mb-2">Strikes clave (por premium)</h3>
+              <div className="flex flex-wrap gap-2">
+                {flow.keyStrikes.map((k) => (
+                  <div
+                    key={k.strike}
+                    className="px-3 py-1.5 rounded-md border border-bg-border text-xs font-mono tabular-nums flex items-center gap-1.5"
+                  >
+                    <span className="text-ink-primary font-bold">{k.strike.toLocaleString('en-US')}</span>
+                    <span className={k.netDirectionalPressure >= 0 ? 'text-bull' : 'text-bear'}>
+                      {fmtUsdCompact(Math.abs(k.netDirectionalPressure))} {k.netDirectionalPressure >= 0 ? 'calls' : 'puts'}
+                    </span>
+                    <span className="text-ink-dim">({(k.shareOfTotalPremium * 100).toFixed(0)}%)</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!flowError && flow && flow.largeTrades && flow.largeTrades.length > 0 && (
+            <div className="border-t border-bg-border overflow-x-auto">
+              <table className="w-full text-[11px] font-mono tabular-nums">
+                <thead>
+                  <tr className="border-b border-bg-border text-ink-secondary">
+                    <th className="px-4 py-2 text-left font-normal">Instrumento</th>
+                    <th className="px-3 py-2 text-right font-normal">Contratos</th>
+                    <th className="px-3 py-2 text-right font-normal">Premium</th>
+                    <th className="px-3 py-2 text-left font-normal">Lado</th>
+                    <th className="px-3 py-2 text-left font-normal">Lectura</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {flow.largeTrades.map((t) => (
+                    <tr key={`${t.symbol}-${t.timestamp}`} className="border-b border-bg-border/50">
+                      <td className="px-4 py-1.5 text-left text-ink-primary">{t.symbol}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-secondary">{t.contracts}</td>
+                      <td className="px-3 py-1.5 text-right text-ink-primary">{fmtUsdCompact(t.premium)}</td>
+                      <td className={clsx('px-3 py-1.5 text-left', t.side === 'BUY' ? 'text-bull' : t.side === 'SELL' ? 'text-bear' : 'text-ink-dim')}>
+                        {t.side === 'BUY' ? 'Compra' : t.side === 'SELL' ? 'Venta' : '—'}
+                      </td>
+                      <td
+                        className={clsx(
+                          'px-3 py-1.5 text-left',
+                          t.classification.direction === 'BULLISH'
+                            ? 'text-bull'
+                            : t.classification.direction === 'BEARISH'
+                              ? 'text-bear'
+                              : 'text-ink-dim',
+                        )}
+                      >
+                        {t.classification.direction === 'BULLISH' ? 'Alcista' : t.classification.direction === 'BEARISH' ? 'Bajista' : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <p className="px-7 py-3 text-[10px] font-sans leading-relaxed text-ink-dim border-t border-bg-border">
+            Score y clasificación calculados de forma determinística sobre los últimos {flow?.tradeCount ?? 0} trades de
+            Deribit (hasta 1000, no es un histórico completo de la sesión) — no es un indicador inventado ni interpretado
+            por IA, es aritmética directa sobre operaciones reales.
+          </p>
         </div>
       )}
 

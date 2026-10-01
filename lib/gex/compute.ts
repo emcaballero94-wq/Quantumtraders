@@ -10,6 +10,8 @@ export interface GexContract {
   iv: number | null
   /** Last traded price, used to solve IV when the source didn't report gamma or IV. */
   last: number | null
+  /** Not used by the GEX math itself — carried through for callers that also need a chain-level summary (e.g. the GEX & Options brief's put/call volume ratio). */
+  volume?: number | null
 }
 
 export interface GexProfilePoint {

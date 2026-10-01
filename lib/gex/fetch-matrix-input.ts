@@ -17,6 +17,7 @@ interface RawContract {
   openInterest: number | null
   greeks: { gamma: number | null; impliedVolatility: number | null } | null
   last: number | null
+  volume: number | null
 }
 
 function toGexContracts(contracts: RawContract[]): GexContract[] {
@@ -27,6 +28,7 @@ function toGexContracts(contracts: RawContract[]): GexContract[] {
     gamma: c.greeks?.gamma ?? null,
     iv: c.greeks?.impliedVolatility ?? null,
     last: c.last,
+    volume: c.volume,
   }))
 }
 

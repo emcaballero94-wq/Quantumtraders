@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { clsx } from 'clsx'
 import { GexHeatmap } from '@/components/gex/GexHeatmap'
+import { GexManuBrief } from '@/components/gex/GexManuBrief'
 
 interface GexProfilePoint {
   strike: number
@@ -351,6 +352,10 @@ export default function GexPage() {
         </div>
       )}
 
+      {!(assetClass === 'equity' && missingKey) && (
+        <GexManuBrief assetClass={assetClass} symbolOrCurrency={assetClass === 'equity' ? symbol : cryptoCurrency} />
+      )}
+
       {view === 'heatmap' && !(assetClass === 'equity' && missingKey) && (
         <GexHeatmap
           assetClass={assetClass}
@@ -475,6 +480,12 @@ export default function GexPage() {
           Wall, Put Wall, Gamma Flip y Régimen son ese agregado parcial, y cambian si movés el slider de vencimientos.
         </p>
       )}
+      <p className="mt-2 text-xs font-sans leading-relaxed text-ink-dim">
+        El brief de M.A.N.U. arriba analiza los {' '}
+        <span className="font-mono">8</span> vencimientos más cercanos (no uno solo) y compara contra el snapshot
+        diario más reciente — si todavía no hay uno de un día anterior, lo dice en vez de inventar una comparación.
+        Es una lectura puntual bajo pedido, no un stream en vivo: tocá "Actualizar" para recalcularla.
+      </p>
     </div>
   )
 }

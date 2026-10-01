@@ -47,4 +47,14 @@ export interface OptionsFlowBriefFacts {
   largeTradeCount: number
   topLargeTrades: OptionsFlowLargeTradeFact[]
   keyStrikes: OptionsFlowKeyStrikeFact[]
+  /**
+   * Noise/lottery-filtered second opinion on call/put premium — see
+   * lib/options-flow/noise-filter.ts and docs/mando-v2-roadmap.md §1.
+   * Kept alongside callPremium/putPremium/callPutRatio above, never in
+   * place of them.
+   */
+  noiseContractsPct: number | null
+  adjustedCallPremium: number
+  adjustedPutPremium: number
+  adjustedCallPutRatio: number | null
 }

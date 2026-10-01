@@ -27,6 +27,7 @@ export async function GET(request: Request) {
       success: true,
       currency: snapshot.currency,
       source: 'deribit',
+      spotPriceUsd: snapshot.spotPriceUsd,
       tradeCount: snapshot.tradeCount,
       oldestTradeAt: snapshot.oldestTradeAt,
       newestTradeAt: snapshot.newestTradeAt,
@@ -54,6 +55,10 @@ export async function GET(request: Request) {
         shareOfTotalPremium: k.shareOfTotalPremium,
       })),
       netPremiumSeries: snapshot.netPremiumSeries,
+      // "Adjusted" excludes trades flagged as likely noise (cheap and/or deep
+      // OTM + short-dated) — a second opinion alongside `totals`, never a
+      // replacement. See docs/mando-v2-roadmap.md §1.
+      noise: snapshot.noise,
       generatedAt: snapshot.generatedAt,
     })
   } catch (error) {

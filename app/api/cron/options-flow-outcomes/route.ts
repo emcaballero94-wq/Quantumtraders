@@ -3,12 +3,11 @@ import { rejectIfNotCron } from '@/lib/server/endpoint-guards'
 import { listOptionsFlowBriefsOlderThan } from '@/lib/manu-options-flow/brief-persistence'
 import { insertBriefOutcome, OUTCOME_HORIZON_HOURS } from '@/lib/manu-options-flow/outcome-persistence'
 import { computeOutcome } from '@/lib/manu-options-flow/outcome-tracking'
-import { fetchMarketQuotes } from '@/lib/market-data'
+import { fetchCryptoSpotPriceUsd } from '@/lib/options-flow/compute-snapshot'
 import type { CryptoCurrency } from '@/lib/manu/crypto-symbol-mapping'
 
 const ENGINE = 'options_flow'
 const CURRENCIES: CryptoCurrency[] = ['BTC', 'ETH']
-const SPOT_QUOTE_SYMBOL: Record<CryptoCurrency, string> = { BTC: 'BTCUSD', ETH: 'ETHUSD' }
 const MAX_BRIEFS_PER_CURRENCY = 50
 
 // Triggered once a day by Vercel Cron (see vercel.json). Scores every
@@ -27,12 +26,11 @@ export async function GET(request: Request) {
   const results = await Promise.all(
     CURRENCIES.map(async (currency) => {
       try {
-        const [briefs, quote] = await Promise.all([
+        const [briefs, priceAtOutcome] = await Promise.all([
           listOptionsFlowBriefsOlderThan(currency, cutoffIso, MAX_BRIEFS_PER_CURRENCY),
-          fetchMarketQuotes([SPOT_QUOTE_SYMBOL[currency]]).then((qs) => qs[0] ?? null),
+          fetchCryptoSpotPriceUsd(currency),
         ])
 
-        const priceAtOutcome = quote?.price ?? null
         if (priceAtOutcome === null) {
           return { currency, candidates: briefs.length, scored: 0, skipped: briefs.length, reason: 'no current spot price' }
         }

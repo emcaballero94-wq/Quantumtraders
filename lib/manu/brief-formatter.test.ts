@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveConfidence, deriveStatus, keyChangeText, riskFactors } from './brief-formatter'
+import { deriveConfidence, deriveStatus, keyChangeText, riskFactors, buildDeterministicNarrative } from './brief-formatter'
 import type { HistoricalPatternMatch, MarketEvent, MarketState, RelationshipObservation } from './types'
 
 function event(overrides: Partial<MarketEvent>): MarketEvent {
@@ -97,6 +97,33 @@ describe('deriveConfidence', () => {
   it('defaults to MEDIUM with good data but an insufficient historical sample', () => {
     const confidence = deriveConfidence(state({ dataQuality: 'GOOD' }), historical({}), [])
     expect(confidence).toBe('MEDIUM')
+  })
+})
+
+describe('buildDeterministicNarrative', () => {
+  const baseInput = {
+    status: 'STABLE' as const,
+    keyChange: 'No significant change detected.',
+    state: state({}),
+    events: [],
+    relationships: [],
+    historical: historical({}),
+    confidence: 'MEDIUM' as const,
+  }
+
+  it('says there is no recent GEX brief when gexCrossContext is absent', () => {
+    const text = buildDeterministicNarrative(baseInput)
+    expect(text).toContain('OPCIONES (GEX)')
+    expect(text).toContain('Sin brief de GEX reciente')
+  })
+
+  it('reports the cross-asset GEX facts when present', () => {
+    const text = buildDeterministicNarrative({
+      ...baseInput,
+      gexCrossContext: { currency: 'BTC', ageSeconds: 600, regime: 'POSITIVE', netGex: 1_000_000, putCallVolumeRatio: 0.8, ivSkew: 0.05 },
+    })
+    expect(text).toContain('BTC hace 10min')
+    expect(text).toContain('régimen positivo')
   })
 })
 

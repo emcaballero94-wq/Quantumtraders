@@ -118,6 +118,25 @@ export async function listOrderFlowBriefs(symbol: string, limit = 500): Promise<
   return (data as OrderFlowBriefRow[]).map(mapRow)
 }
 
+// Used by the GEX & Options brief (app/api/manu/gex-analyze) to cross-reference
+// live Order Flow state for BTC/ETH — the one slice of the chain both M.A.N.U.
+// briefs actually cover (see lib/manu/crypto-symbol-mapping.ts).
+export async function getLatestOrderFlowBrief(symbol: string): Promise<OrderFlowBriefRecord | null> {
+  const admin = createAdminClient()
+  if (!admin) return null
+
+  const { data, error } = await admin
+    .from('orderflow_briefs')
+    .select(SELECT_COLUMNS)
+    .eq('symbol', symbol)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error || !data) return null
+  return mapRow(data as OrderFlowBriefRow)
+}
+
 export async function listOrderFlowBriefsSince(symbol: string, sinceIso: string, limit = 500): Promise<OrderFlowBriefRecord[]> {
   const admin = createAdminClient()
   if (!admin) return []

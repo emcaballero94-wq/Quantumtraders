@@ -26,6 +26,7 @@ function facts(overrides: Partial<GexBriefFacts> = {}): GexBriefFacts {
       ivSkew: 0.04,
     },
     dayOverDay: null,
+    crossAsset: null,
     ...overrides,
   }
 }
@@ -81,5 +82,20 @@ describe('buildDeterministicGexNarrative', () => {
     const text = buildDeterministicGexNarrative(facts({ dayOverDay: null }))
     expect(text).toContain('RÉGIMEN')
     expect(text).toContain('Sin snapshot previo todavía.')
+  })
+
+  it('says there is no recent Order Flow brief when crossAsset is null', () => {
+    const text = buildDeterministicGexNarrative(facts({ crossAsset: null }))
+    expect(text).toContain('Sin brief de Order Flow reciente')
+  })
+
+  it('reports the cross-asset Order Flow facts when present', () => {
+    const text = buildDeterministicGexNarrative(
+      facts({
+        crossAsset: { symbol: 'BTCUSDT', ageSeconds: 42, fundingRate: 0.0001, openInterest: 12345, cvd: 1.5, bookImbalance: -0.2 },
+      }),
+    )
+    expect(text).toContain('BTCUSDT')
+    expect(text).toContain('hace 42s')
   })
 })

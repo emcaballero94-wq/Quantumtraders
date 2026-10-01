@@ -12,6 +12,13 @@ interface OptionsChainSummary {
   ivSkew: number | null
 }
 
+interface OrderFlowCrossContext {
+  symbol: string
+  ageSeconds: number
+  fundingRate: number | null
+  cvd: number | null
+}
+
 interface GexBriefFacts {
   underlyingPrice: number
   netGex: number
@@ -21,6 +28,7 @@ interface GexBriefFacts {
   dataQuality: 'GOOD' | 'DEGRADED'
   chain: OptionsChainSummary
   dayOverDay: { priorDate: string; regimeShift: string } | null
+  crossAsset: OrderFlowCrossContext | null
 }
 
 interface GexAnalyzeResponse {
@@ -198,6 +206,11 @@ export function GexManuBrief({ assetClass, symbolOrCurrency }: GexManuBriefProps
             </span>
             <span className={clsx('text-[10px] font-mono', facts.dataQuality === 'GOOD' ? 'text-ink-dim' : 'text-oracle')}>
               Calidad: {facts.contractsWithGamma}/{facts.totalContracts} contratos
+            </span>
+            <span className={clsx('text-[10px] font-mono', facts.crossAsset ? 'text-atlas' : 'text-ink-dim')}>
+              {facts.crossAsset
+                ? `↔ Order Flow (${facts.crossAsset.symbol}, hace ${Math.round(facts.crossAsset.ageSeconds)}s)`
+                : '↔ Order Flow: sin brief reciente'}
             </span>
           </div>
         )}

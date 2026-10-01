@@ -7,8 +7,10 @@ import { classifyMarketChanges, deltaBetween } from '@/lib/manu/change-detection
 import { buildRelationships } from '@/lib/manu/relationships'
 import { buildEvents, type LiquidationDeltas, type PreviousLiveSnapshot } from '@/lib/manu/event-engine'
 import { currentFingerprintFromState, findSimilarConditions } from '@/lib/manu/historical-validation'
-import { deriveConfidence, deriveStatus, keyChangeText, riskFactors, buildDeterministicNarrative } from '@/lib/manu/brief-formatter'
+import { deriveConfidence, deriveStatus, keyChangeText, riskFactors, buildDeterministicNarrative, type GexCrossContext } from '@/lib/manu/brief-formatter'
 import { withAssetLock, shouldSkipBrief } from '@/lib/manu/asset-lock'
+import { currencyForOrderFlowSymbol } from '@/lib/manu/crypto-symbol-mapping'
+import { listGexBriefs } from '@/lib/manu-gex/brief-persistence'
 import type { MarketEvent } from '@/lib/manu/types'
 
 const HISTORY_LOOKBACK_MS = 20 * 60_000
@@ -96,20 +98,22 @@ async function runAnalysis(body: AnalyzeRequestBody) {
   const highSeverityEvents = events.filter((e) => e.severity === 'HIGH' || e.severity === 'CRITICAL')
   await insertMarketEvents(highSeverityEvents)
 
+  const gexCrossContext = await fetchGexCrossContext(symbol)
+
   const apiKey = process.env.ANTHROPIC_API_KEY
   let narrative: string
   let narrativeSource: 'ai' | 'deterministic' = 'deterministic'
 
   if (apiKey) {
-    const aiNarrative = await generateAiNarrative(apiKey, { state, events, relationships, historical, status, keyChange, confidence, risks })
+    const aiNarrative = await generateAiNarrative(apiKey, { state, events, relationships, historical, status, keyChange, confidence, risks, gexCrossContext })
     if (aiNarrative) {
       narrative = aiNarrative
       narrativeSource = 'ai'
     } else {
-      narrative = buildDeterministicNarrative({ status, keyChange, state, events, relationships, historical, confidence })
+      narrative = buildDeterministicNarrative({ status, keyChange, state, events, relationships, historical, confidence, gexCrossContext })
     }
   } else {
-    narrative = buildDeterministicNarrative({ status, keyChange, state, events, relationships, historical, confidence })
+    narrative = buildDeterministicNarrative({ status, keyChange, state, events, relationships, historical, confidence, gexCrossContext })
   }
 
   await insertOrderFlowBrief({
@@ -150,6 +154,35 @@ function fmtNum(value: number | null, decimals = 3): string {
   return value.toFixed(decimals)
 }
 
+// GEX briefs are only generated on demand (no fixed cadence like Order Flow's
+// ~60s loop), so a much longer staleness window than Order Flow's own is
+// reasonable — but still bounded, and age is always reported rather than
+// hidden, so a day-old read isn't presented as if it were current.
+const GEX_CROSS_MAX_AGE_MS = 24 * 60 * 60_000
+
+// The other half of M.A.N.U. "talking" to its GEX & Options sibling: for
+// BTC/ETH, pull the latest options positioning read instead of Order Flow
+// staying blind to it.
+async function fetchGexCrossContext(symbol: string): Promise<GexCrossContext | null> {
+  const currency = currencyForOrderFlowSymbol(symbol)
+  if (!currency) return null
+
+  const [latest] = await listGexBriefs('crypto', currency, 1)
+  if (!latest) return null
+
+  const ageMs = Date.now() - new Date(latest.createdAt).getTime()
+  if (ageMs > GEX_CROSS_MAX_AGE_MS) return null
+
+  return {
+    currency,
+    ageSeconds: ageMs / 1000,
+    regime: latest.facts.regime,
+    netGex: latest.facts.netGex,
+    putCallVolumeRatio: latest.facts.chain.putCallVolumeRatio,
+    ivSkew: latest.facts.chain.ivSkew,
+  }
+}
+
 async function generateAiNarrative(
   apiKey: string,
   input: {
@@ -161,9 +194,10 @@ async function generateAiNarrative(
     keyChange: string
     confidence: string
     risks: string[]
+    gexCrossContext: GexCrossContext | null
   },
 ): Promise<string | null> {
-  const { state, events, relationships, historical, status, keyChange, confidence, risks } = input
+  const { state, events, relationships, historical, status, keyChange, confidence, risks, gexCrossContext } = input
   const h15 = historical.horizons['15m']
 
   const facts = [
@@ -183,6 +217,9 @@ async function generateAiNarrative(
       : `Validación histórica calculada por el backend: n=${historical.sampleSize} (${historical.sampleLabel}). Horizonte 15m: tasa positiva ${fmtNum(h15.positiveRatePct, 1)}%, retorno mediana ${fmtNum(h15.medianReturnPct)}%, retorno promedio ${fmtNum(h15.meanReturnPct)}%, MFE ${fmtNum(h15.maxFavorableExcursionPct)}%, MAE ${fmtNum(h15.maxAdverseExcursionPct)}% (n graded=${h15.gradedCount}).`,
     `CONFIDENCE calculado por el backend: ${confidence}.`,
     `Factores de riesgo calculados por el backend: ${risks.join(' ')}`,
+    gexCrossContext
+      ? `Brief de GEX y opciones más reciente (M.A.N.U. — GEX & Options, ${gexCrossContext.currency}, hace ${Math.round(gexCrossContext.ageSeconds / 60)}min) calculado por el backend: régimen ${gexCrossContext.regime}, net GEX ${gexCrossContext.netGex.toFixed(0)}, put/call volumen ${gexCrossContext.putCallVolumeRatio?.toFixed(2) ?? 'sin dato'}, skew IV ${gexCrossContext.ivSkew !== null ? `${(gexCrossContext.ivSkew * 100).toFixed(2)}pp` : 'sin dato'}.`
+      : 'No hay brief de GEX y opciones reciente para este símbolo — no inventar régimen de gamma ni datos de opciones.',
   ].join('\n')
 
   const prompt = `Eres M.A.N.U. (Market Analysis & Navigation Unit) de Quantum Traders. La interfaz ya le muestra al trader, por separado y antes de tu texto, el símbolo, la hora, el STATUS y el KEY CHANGE — NO los repitas ni les pongas título propio. Con base EXCLUSIVAMENTE en los datos ya calculados abajo (no inventes ni recalcules ninguna cifra, ninguna estadística, ningún porcentaje — todos ya vienen calculados por el backend), redacta SOLO estas secciones, en este orden y con estos títulos exactos:
@@ -195,6 +232,9 @@ LEVEL 2
 
 DERIVATIVES
 [1-2 líneas sobre OI / funding / liquidaciones]
+
+OPTIONS (GEX)
+[si hay un brief de GEX reciente, cruza ese régimen de gamma y el flujo de opciones con el funding/OI/CVD de arriba — por ejemplo si el apalancamiento de perps y el posicionamiento de opciones coinciden o se contradicen, sin convertirlo en señal de compra/venta; si no lo hay, escribe literalmente "No hay brief de GEX reciente para este símbolo."]
 
 RELATIONSHIPS
 [1-2 líneas sobre las relaciones detectadas, sin convertirlas en señales de compra/venta]
@@ -211,7 +251,7 @@ RISK
 DATOS (STATUS y KEY CHANGE son solo contexto, no los repitas en tu respuesta):
 ${facts}
 
-Responde en español. Devuelve solo esas ocho secciones con su título, sin markdown adicional, sin repetir STATUS, KEY CHANGE ni CONFIDENCE (la interfaz ya los muestra aparte).`
+Responde en español. Devuelve solo esas nueve secciones con su título, sin markdown adicional, sin repetir STATUS, KEY CHANGE ni CONFIDENCE (la interfaz ya los muestra aparte).`
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {

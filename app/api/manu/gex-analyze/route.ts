@@ -7,7 +7,14 @@ import { summarizeChain } from '@/lib/manu-gex/chain-summary'
 import { compareToSnapshot } from '@/lib/manu-gex/day-over-day'
 import { deriveGexStatus, keyChangeText, buildDeterministicGexNarrative } from '@/lib/manu-gex/narrative'
 import { insertGexBrief, listGexBriefs } from '@/lib/manu-gex/brief-persistence'
-import type { GexBriefFacts, GexRegime } from '@/lib/manu-gex/types'
+import { getLatestOrderFlowBrief } from '@/lib/oracle/orderflow-persistence'
+import { orderFlowSymbolForCurrency, type CryptoCurrency } from '@/lib/manu/crypto-symbol-mapping'
+import type { GexBriefFacts, GexRegime, OrderFlowCrossContext } from '@/lib/manu-gex/types'
+
+// Order Flow briefs are only written while someone has that page open (one
+// every ~60s) — past this age, the row describes a session that's probably
+// closed, so it's left out rather than shown as if it were current.
+const ORDERFLOW_CROSS_MAX_AGE_SECONDS = 5 * 60
 
 const EXPIRATIONS_FOR_BRIEF = 8
 
@@ -44,6 +51,7 @@ async function buildFacts(assetClass: GexAssetClass, symbol: string): Promise<Ge
     : null
 
   const regime: GexRegime = matrix.aggregate.netGex >= 0 ? 'POSITIVE' : 'NEGATIVE'
+  const crossAsset = assetClass === 'crypto' ? await fetchOrderFlowCrossContext(symbol as CryptoCurrency) : null
 
   return {
     assetClass,
@@ -60,6 +68,29 @@ async function buildFacts(assetClass: GexAssetClass, symbol: string): Promise<Ge
     dataQuality: totalContracts > 0 && contractsWithGamma / totalContracts >= 0.5 ? 'GOOD' : 'DEGRADED',
     chain,
     dayOverDay,
+    crossAsset,
+  }
+}
+
+// M.A.N.U. (Order Flow) and M.A.N.U. — GEX & Options "talking" to each other:
+// for BTC/ETH, pull the live perp state the Order Flow brief already computed
+// instead of re-deriving it, so the GEX narrative can note things like
+// "funding is stretched long while dealer gamma is positive" in one read.
+async function fetchOrderFlowCrossContext(currency: CryptoCurrency): Promise<OrderFlowCrossContext | null> {
+  const orderFlowSymbol = orderFlowSymbolForCurrency(currency)
+  const brief = await getLatestOrderFlowBrief(orderFlowSymbol)
+  if (!brief) return null
+
+  const ageSeconds = (Date.now() - new Date(brief.createdAt).getTime()) / 1000
+  if (ageSeconds > ORDERFLOW_CROSS_MAX_AGE_SECONDS) return null
+
+  return {
+    symbol: orderFlowSymbol,
+    ageSeconds,
+    fundingRate: brief.fundingRate,
+    openInterest: brief.openInterest,
+    cvd: brief.cvd,
+    bookImbalance: brief.bookImbalance,
   }
 }
 
@@ -76,6 +107,9 @@ async function generateAiNarrative(apiKey: string, facts: GexBriefFacts, status:
       ? `Comparación con la sesión anterior (${d.priorDate}) calculada por el backend: net GEX pasó de ${fmtNum(d.priorNetGex, 0)} a ${fmtNum(facts.netGex, 0)} (${fmtNum(d.netGexChangePct, 1)}%), régimen: ${d.regimeShift}. Call wall ${fmtNum(d.priorCallWallStrike)} → ${fmtNum(facts.callWallStrike)}. Put wall ${fmtNum(d.priorPutWallStrike)} → ${fmtNum(facts.putWallStrike)}.`
       : 'No hay snapshot de una sesión anterior todavía — no reportar ninguna comparación día a día.',
     `Flujo de opciones calculado por el backend: put/call volumen ${fmtNum(facts.chain.putCallVolumeRatio)}, put/call open interest ${fmtNum(facts.chain.putCallOpenInterestRatio)}, IV promedio calls ${fmtNum(facts.chain.avgCallIv, 4)}, IV promedio puts ${fmtNum(facts.chain.avgPutIv, 4)}, skew (put−call) ${fmtNum(facts.chain.ivSkew, 4)}.`,
+    facts.crossAsset
+      ? `Order Flow en vivo calculado por el backend (M.A.N.U. original, ${facts.crossAsset.symbol}, hace ${Math.round(facts.crossAsset.ageSeconds)}s): funding ${facts.crossAsset.fundingRate !== null ? `${(facts.crossAsset.fundingRate * 100).toFixed(4)}%` : 'sin dato'}, open interest ${fmtNum(facts.crossAsset.openInterest, 0)}, CVD ${fmtNum(facts.crossAsset.cvd, 3)}, desequilibrio del libro ${fmtNum(facts.crossAsset.bookImbalance, 4)}.`
+      : 'No hay brief de Order Flow reciente (menos de 5 minutos) para este símbolo — no inventar datos de funding, OI o CVD.',
   ].join('\n')
 
   const prompt = `Eres M.A.N.U. (Market Analysis & Navigation Unit) de Quantum Traders, en su variante de GEX y opciones. La interfaz ya le muestra al trader, por separado y antes de tu texto, el símbolo, el STATUS y el KEY CHANGE — NO los repitas ni les pongas título propio. Con base EXCLUSIVAMENTE en los datos ya calculados abajo (no inventes ni recalcules ninguna cifra — todos ya vienen calculados por el backend), redacta SOLO estas secciones, en este orden y con estos títulos exactos:
@@ -92,8 +126,11 @@ CAMBIO VS. SESIÓN ANTERIOR
 FLUJO DE OPCIONES
 [1-2 líneas sobre el put/call ratio y el skew de volatilidad implícita, sin convertirlo en señal de compra/venta]
 
+ORDER FLOW EN VIVO
+[si hay datos de Order Flow, cruza ese flujo de perpetuos (funding, OI, CVD, libro) con el régimen de GEX y el flujo de opciones de arriba — por ejemplo si el apalancamiento de perps y el posicionamiento de opciones apuntan en la misma dirección o se contradicen, sin convertirlo en señal de compra/venta; si no hay datos, escribe literalmente "Sin brief de Order Flow reciente para este símbolo."]
+
 INTERPRETACIÓN
-[1-3 líneas interpretando la combinación de datos, sin recomendaciones explícitas de compra/venta]
+[1-3 líneas interpretando la combinación de todos los datos (incluido Order Flow si está disponible), sin recomendaciones explícitas de compra/venta]
 
 RIESGO
 [1-2 líneas: calidad de datos, qué invalidaría esta lectura]
@@ -101,7 +138,7 @@ RIESGO
 DATOS (STATUS y KEY CHANGE son solo contexto, no los repitas en tu respuesta):
 ${factLines}
 
-Responde en español. Devuelve solo esas seis secciones con su título, sin markdown adicional.`
+Responde en español. Devuelve solo esas siete secciones con su título, sin markdown adicional.`
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {

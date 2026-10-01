@@ -41,6 +41,11 @@ export function buildDeterministicGexNarrative(facts: GexBriefFacts): string {
     '',
     'FLUJO DE OPCIONES',
     `Put/Call volumen: ${fmtNum(facts.chain.putCallVolumeRatio, 2)}. Put/Call open interest: ${fmtNum(facts.chain.putCallOpenInterestRatio, 2)}. Skew de IV (put - call): ${facts.chain.ivSkew !== null ? `${(facts.chain.ivSkew * 100).toFixed(2)}pp` : 'sin dato'}.`,
+    '',
+    'ORDER FLOW EN VIVO',
+    facts.crossAsset
+      ? `${facts.crossAsset.symbol} (hace ${Math.round(facts.crossAsset.ageSeconds)}s): funding ${facts.crossAsset.fundingRate !== null ? `${(facts.crossAsset.fundingRate * 100).toFixed(4)}%` : 'sin dato'}, open interest ${fmtNum(facts.crossAsset.openInterest, 0)}, CVD ${fmtNum(facts.crossAsset.cvd, 3)}, desequilibrio del libro ${fmtNum(facts.crossAsset.bookImbalance, 4)}.`
+      : 'Sin brief de Order Flow reciente para este símbolo — abrí la pestaña de Order Flow para cruzar datos.',
   ]
 
   return lines.join('\n')

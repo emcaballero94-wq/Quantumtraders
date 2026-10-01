@@ -8,6 +8,7 @@ import { getActiveSessions } from '@/lib/oracle/timing-engine'
 import { riskRegimeFromVix, computeAggregateBias } from '@/lib/oracle/risk-regime'
 import { rankAssets } from '@/lib/oracle/score-engine'
 import { RatingBadge, BiasBadge } from '@/components/ui/StatusBadge'
+import { FeatureGrid } from '@/components/dashboard/FeatureGrid'
 import type { RadarAsset, EconomicEvent, SectorStrength, EventImpact } from '@/lib/oracle/types'
 import type { RelativeStrengthResult } from '@/lib/market-relative-strength'
 
@@ -271,6 +272,8 @@ export default function CommandPage() {
 
   return (
     <div className="space-y-9 animate-fade-in pb-20 max-w-[1280px]">
+      <FeatureGrid />
+
       {/* Hero: regime as a sentence + bias meter */}
       <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-8 xl:gap-12 items-end">
         <div className="space-y-3.5">

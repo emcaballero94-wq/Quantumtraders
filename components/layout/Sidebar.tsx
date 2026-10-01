@@ -277,63 +277,63 @@ function MandoIcon({ cls }: { cls: string }) {
     </svg>
   )
 }
-function ScannerIcon({ cls }: { cls: string }) {
+export function ScannerIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   )
 }
-function AtlasIcon({ cls }: { cls: string }) {
+export function AtlasIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
     </svg>
   )
 }
-function NexusIcon({ cls }: { cls: string }) {
+export function NexusIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
     </svg>
   )
 }
-function OrderFlowIcon({ cls }: { cls: string }) {
+export function OrderFlowIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6h9m-9 4.5h6m-6 4.5h12M3.75 19.5h4.5M15 15l3-3 3 3m-3-3v6" />
     </svg>
   )
 }
-function OptionsIcon({ cls }: { cls: string }) {
+export function OptionsIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   )
 }
-function GexIcon({ cls }: { cls: string }) {
+export function GexIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 18.75a7.5 7.5 0 0115 0M12 12v6.75m0-6.75l4.5-4.5M12 12L7.5 7.5" />
     </svg>
   )
 }
-function PulseIcon({ cls }: { cls: string }) {
+export function PulseIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h2.25l2.25-6.75L11.25 18l2.25-9 2.25 6.75h2.25m0 0h1.5" />
     </svg>
   )
 }
-function MindIcon({ cls }: { cls: string }) {
+export function MindIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
     </svg>
   )
 }
-function ToolsIcon({ cls }: { cls: string }) {
+export function ToolsIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
@@ -357,7 +357,7 @@ function BillingIcon({ cls }: { cls: string }) {
     </svg>
   )
 }
-function CoursesIcon({ cls }: { cls: string }) {
+export function CoursesIcon({ cls }: { cls: string }) {
   return (
     <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 14L3 9l9-5 9 5-9 5z" />

@@ -65,15 +65,21 @@ function mapForexFactoryImpact(value: string | undefined): EventImpact {
   return 'low'
 }
 
-function parseTradingEconomicsAuth(): string {
+function parseTradingEconomicsAuth(): string | null {
   const key = process.env.TRADING_ECONOMICS_KEY
   const secret = process.env.TRADING_ECONOMICS_SECRET
   if (key && secret) return `${key}:${secret}`
-  return 'guest:guest'
+  return null
 }
 
+// TradingEconomics discontinued the free "guest:guest" calendar access
+// (confirmed in production: HTTP 410 Gone, "the guest account has been
+// discontinued") — skip the call entirely without a real key instead of
+// making a request guaranteed to fail on every single page load.
 async function fetchTradingEconomicsCalendar(): Promise<TradingEconomicsCalendarRow[]> {
   const auth = parseTradingEconomicsAuth()
+  if (!auth) return []
+
   const endpoint = `https://api.tradingeconomics.com/calendar?c=${encodeURIComponent(auth)}&f=json`
   const response = await fetch(endpoint, {
     headers: {
@@ -84,7 +90,7 @@ async function fetchTradingEconomicsCalendar(): Promise<TradingEconomicsCalendar
   })
   if (!response.ok) {
     const body = await response.text().catch(() => '')
-    console.error(`[fetchTradingEconomicsCalendar] HTTP ${response.status} (auth=${auth === 'guest:guest' ? 'guest' : 'configured'}): ${body.slice(0, 300)}`)
+    console.error(`[fetchTradingEconomicsCalendar] HTTP ${response.status}: ${body.slice(0, 300)}`)
     return []
   }
 

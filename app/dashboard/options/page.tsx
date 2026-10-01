@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { clsx } from 'clsx'
 import { Tour, type TourStep } from '@/components/tour/Tour'
 import { useTour } from '@/lib/tour/use-tour'
+import { NetPremiumSparkline, type NetPremiumSeriesPoint } from '@/components/options-flow/NetPremiumSparkline'
 
 const OPTIONS_TOUR_STEPS: TourStep[] = [
   {
@@ -94,7 +95,7 @@ interface FlowResponse {
   error?: string
   currency?: 'BTC' | 'ETH'
   tradeCount?: number
-  totals?: { callPremium: number; putPremium: number; netPremium: number }
+  totals?: { callPremium: number; putPremium: number; netPremium: number; callPutRatioByPremium: number | null }
   directional?: { bullishPremium: number; bearishPremium: number; neutralPremium: number; unknownPremium: number }
   score?: {
     value: number
@@ -110,11 +111,14 @@ interface FlowResponse {
   }
   largeTrades?: FlowLargeTrade[]
   keyStrikes?: FlowKeyStrike[]
+  netPremiumSeries?: NetPremiumSeriesPoint[]
 }
 
 type AssetClass = 'equity' | 'crypto'
 
 const QUICK_SYMBOLS = ['SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA']
+// Mirrors WINDOW_MINUTES in app/api/market/crypto-options/flow/route.ts.
+const ACCELERATION_WINDOW_MINUTES = 15
 const CRYPTO_CURRENCIES: { label: string; value: 'BTC' | 'ETH' }[] = [
   { label: 'BTC', value: 'BTC' },
   { label: 'ETH', value: 'ETH' },
@@ -131,6 +135,54 @@ function fmtInt(value: number | null): string {
 function fmtUsdCompact(value: number | null): string {
   if (value === null) return '—'
   return `$${value.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}`
+}
+
+function fmtUsdSigned(value: number | null): string {
+  if (value === null) return '—'
+  const sign = value > 0 ? '+' : value < 0 ? '-' : ''
+  return `${sign}$${Math.abs(value).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}`
+}
+
+function fmtUtcTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })
+}
+
+function directionLabel(direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | 'UNKNOWN'): string {
+  return direction === 'BULLISH' ? 'Alcista' : direction === 'BEARISH' ? 'Bajista' : direction === 'NEUTRAL' ? 'Neutral' : '—'
+}
+
+function directionBadgeClasses(direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | 'UNKNOWN'): string {
+  if (direction === 'BULLISH') return 'bg-bull/10 text-bull border-bull/30'
+  if (direction === 'BEARISH') return 'bg-bear/10 text-bear border-bear/30'
+  return 'bg-ink-dim/10 text-ink-dim border-bg-border'
+}
+
+interface StatTileProps {
+  label: string
+  value: string
+  valueClassName?: string
+  sub?: string
+  badge?: { label: string; direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | 'UNKNOWN' }
+}
+
+function StatTile({ label, value, valueClassName, sub, badge }: StatTileProps) {
+  return (
+    <div className="rounded-lg border border-bg-border px-4 py-3.5 flex flex-col gap-1.5">
+      <span className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">{label}</span>
+      <span className={clsx('text-2xl font-mono font-bold tabular-nums', valueClassName ?? 'text-ink-primary')}>{value}</span>
+      {sub && <span className="text-[10px] font-mono text-ink-dim leading-snug">{sub}</span>}
+      {badge && (
+        <span
+          className={clsx(
+            'self-start mt-0.5 px-1.5 py-0.5 rounded border text-[9px] font-mono uppercase tracking-wider',
+            directionBadgeClasses(badge.direction),
+          )}
+        >
+          {badge.label}
+        </span>
+      )}
+    </div>
+  )
 }
 
 export default function OptionsPage() {
@@ -562,7 +614,7 @@ export default function OptionsPage() {
           {flowError && <p className="px-7 py-6 text-sm font-sans text-ink-secondary text-center">{flowError}</p>}
 
           {!flowError && loadingFlow && !flow && (
-            <div className="h-[200px] bg-bg-elevated animate-pulse" />
+            <div className="h-[320px] bg-bg-elevated animate-pulse" />
           )}
 
           {!flowError && flow && flow.tradeCount === 0 && (
@@ -572,107 +624,128 @@ export default function OptionsPage() {
           )}
 
           {!flowError && flow && flow.score && flow.tradeCount && flow.tradeCount > 0 && (
-            <div className="px-7 py-5 grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="flex flex-col items-center justify-center gap-1 rounded-lg border border-bg-border py-4">
-                <span
-                  className={clsx(
-                    'text-3xl font-mono font-bold tabular-nums',
-                    flow.score.value >= 60 ? 'text-bull' : flow.score.value <= 40 ? 'text-bear' : 'text-ink-primary',
-                  )}
-                >
-                  {flow.score.value}
-                </span>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">Pressure Score</span>
-                <span className="text-[10px] font-mono text-ink-dim">
-                  Confianza {flow.score.confidence} · {flow.score.dataQuality === 'GOOD' ? 'datos OK' : 'datos limitados'}
-                </span>
-              </div>
-
-              <div className="flex flex-col justify-center gap-2 rounded-lg border border-bg-border px-4 py-4">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">Premium clasificado</span>
-                <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
-                  <span className="text-bull">{fmtUsdCompact(flow.directional?.bullishPremium ?? null)} alcista</span>
-                  <span className="text-ink-dim">/</span>
-                  <span className="text-bear">{fmtUsdCompact(flow.directional?.bearishPremium ?? null)} bajista</span>
-                </div>
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-7 py-5">
+                <StatTile
+                  label="Options Pressure Score"
+                  value={`${flow.score.value} / 100`}
+                  valueClassName={flow.score.value >= 60 ? 'text-bull' : flow.score.value <= 40 ? 'text-bear' : 'text-ink-primary'}
+                  sub={`Confianza ${flow.score.confidence} · ${flow.score.dataQuality === 'GOOD' ? 'datos OK' : 'datos limitados'}`}
+                  badge={
+                    flow.directional
+                      ? {
+                          label: `${flow.directional.bearishPremium > flow.directional.bullishPremium ? 'Bajista' : 'Alcista'} · conf. ${flow.score.confidence}`,
+                          direction: flow.directional.bearishPremium > flow.directional.bullishPremium ? 'BEARISH' : 'BULLISH',
+                        }
+                      : undefined
+                  }
+                />
+                <StatTile
+                  label="Net Premium"
+                  value={fmtUsdSigned((flow.directional?.bullishPremium ?? 0) - (flow.directional?.bearishPremium ?? 0))}
+                  valueClassName={
+                    (flow.directional?.bullishPremium ?? 0) - (flow.directional?.bearishPremium ?? 0) >= 0 ? 'text-bull' : 'text-bear'
+                  }
+                  sub={`${fmtUsdCompact(flow.directional?.bullishPremium ?? null)} alcista · ${fmtUsdCompact(flow.directional?.bearishPremium ?? null)} bajista`}
+                />
+                <StatTile
+                  label="Call/Put Ratio"
+                  value={flow.totals?.callPutRatioByPremium != null ? flow.totals.callPutRatioByPremium.toFixed(2) : '—'}
+                  sub="por prima operada"
+                />
                 {flow.acceleration && (
-                  <span className="text-[10px] font-mono text-ink-dim">
-                    Aceleración ({flow.acceleration.trackedDirection === 'BULLISH' ? 'alcista' : 'bajista'}):{' '}
-                    {flow.acceleration.direction === 'INCREASING' ? '↑ subiendo' : flow.acceleration.direction === 'DECREASING' ? '↓ bajando' : '→ estable'}
-                    {flow.acceleration.magnitudePct != null ? ` (${flow.acceleration.magnitudePct.toFixed(0)}%)` : ''}
-                  </span>
+                  <StatTile
+                    label={`Aceleración ${ACCELERATION_WINDOW_MINUTES}M`}
+                    value={flow.acceleration.magnitudePct != null ? `${flow.acceleration.magnitudePct >= 0 ? '+' : ''}${flow.acceleration.magnitudePct.toFixed(0)}%` : '—'}
+                    valueClassName={flow.acceleration.trackedDirection === 'BEARISH' ? 'text-bear' : 'text-bull'}
+                    sub={`prima ${flow.acceleration.trackedDirection === 'BEARISH' ? 'bajista' : 'alcista'}, vs. ${ACCELERATION_WINDOW_MINUTES}m previos`}
+                  />
                 )}
               </div>
 
-              <div className="flex flex-col justify-center gap-2 rounded-lg border border-bg-border px-4 py-4">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">Calls vs Puts (bruto)</span>
-                <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
-                  <span className="text-atlas">{fmtUsdCompact(flow.totals?.callPremium ?? null)} calls</span>
-                  <span className="text-ink-dim">/</span>
-                  <span className="text-nexus">{fmtUsdCompact(flow.totals?.putPremium ?? null)} puts</span>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 px-7 pb-5">
+                <div>
+                  <div className="flex items-baseline justify-between mb-2">
+                    <h3 className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">Operaciones grandes</h3>
+                    <span className="text-[9px] font-mono text-ink-dim">umbral: percentil 90</span>
+                  </div>
+                  <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
+                    {(flow.largeTrades ?? []).length === 0 && (
+                      <p className="text-xs font-mono text-ink-dim py-4 text-center">Sin operaciones grandes detectadas.</p>
+                    )}
+                    {(flow.largeTrades ?? []).map((t) => (
+                      <div
+                        key={`${t.symbol}-${t.timestamp}`}
+                        className="rounded-lg border border-bg-border px-3 py-2 flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs font-mono font-bold text-ink-primary truncate">
+                            {t.optionType} {t.side === 'BUY' ? 'compra' : t.side === 'SELL' ? 'venta' : '—'} ·{' '}
+                            {t.strike.toLocaleString('en-US')}
+                          </div>
+                          <div className="text-[10px] font-mono text-ink-dim mt-0.5">
+                            {fmtUtcTime(t.timestamp)} UTC · {t.dte} DTE · {t.contracts} contr. · ejecutada{' '}
+                            {t.side === 'BUY' ? 'al ask' : t.side === 'SELL' ? 'al bid' : '—'}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-sm font-mono font-bold text-ink-primary tabular-nums">{fmtUsdCompact(t.premium)}</span>
+                          <span
+                            className={clsx(
+                              'px-1.5 py-0.5 rounded border text-[9px] font-mono uppercase tracking-wider',
+                              directionBadgeClasses(t.classification.direction),
+                            )}
+                          >
+                            {directionLabel(t.classification.direction)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-5">
+                  <div>
+                    <div className="flex items-baseline justify-between mb-2">
+                      <h3 className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">Prima neta acumulada</h3>
+                      <span className="text-[9px] font-mono text-ink-dim">últimas horas · 15m</span>
+                    </div>
+                    <div className="rounded-lg border border-bg-border px-3 py-2 text-ink-secondary">
+                      <NetPremiumSparkline points={flow.netPremiumSeries ?? []} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-baseline justify-between mb-2">
+                      <h3 className="text-[10px] font-mono uppercase tracking-wider text-ink-dim">Concentración por strike</h3>
+                      <span className="text-[9px] font-mono text-ink-dim">% de la prima total</span>
+                    </div>
+                    <div className="rounded-lg border border-bg-border px-3 py-3 space-y-2.5">
+                      {(flow.keyStrikes ?? []).length === 0 && (
+                        <p className="text-xs font-mono text-ink-dim text-center py-2">Sin datos suficientes.</p>
+                      )}
+                      {(flow.keyStrikes ?? []).map((k) => (
+                        <div key={k.strike}>
+                          <div className="flex items-center justify-between text-[11px] font-mono mb-1">
+                            <span className="text-ink-primary font-bold">{k.strike.toLocaleString('en-US')}</span>
+                            <span className="text-ink-dim">{(k.shareOfTotalPremium * 100).toFixed(0)}%</span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-bg-elevated overflow-hidden">
+                            <div
+                              className={clsx('h-full rounded-full', k.netDirectionalPressure >= 0 ? 'bg-bull' : 'bg-bear')}
+                              style={{ width: `${Math.max(k.shareOfTotalPremium * 100, 2)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                      <p className="text-[10px] font-sans text-ink-dim leading-relaxed pt-1">
+                        &ldquo;Key strike&rdquo; — concentración de capital, no soporte/resistencia confirmado.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-
-          {!flowError && flow && flow.keyStrikes && flow.keyStrikes.length > 0 && (
-            <div className="px-7 pb-5">
-              <h3 className="text-[10px] font-mono uppercase tracking-wider text-ink-dim mb-2">Strikes clave (por premium)</h3>
-              <div className="flex flex-wrap gap-2">
-                {flow.keyStrikes.map((k) => (
-                  <div
-                    key={k.strike}
-                    className="px-3 py-1.5 rounded-md border border-bg-border text-xs font-mono tabular-nums flex items-center gap-1.5"
-                  >
-                    <span className="text-ink-primary font-bold">{k.strike.toLocaleString('en-US')}</span>
-                    <span className={k.netDirectionalPressure >= 0 ? 'text-bull' : 'text-bear'}>
-                      {fmtUsdCompact(Math.abs(k.netDirectionalPressure))} {k.netDirectionalPressure >= 0 ? 'calls' : 'puts'}
-                    </span>
-                    <span className="text-ink-dim">({(k.shareOfTotalPremium * 100).toFixed(0)}%)</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {!flowError && flow && flow.largeTrades && flow.largeTrades.length > 0 && (
-            <div className="border-t border-bg-border overflow-x-auto">
-              <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead>
-                  <tr className="border-b border-bg-border text-ink-secondary">
-                    <th className="px-4 py-2 text-left font-normal">Instrumento</th>
-                    <th className="px-3 py-2 text-right font-normal">Contratos</th>
-                    <th className="px-3 py-2 text-right font-normal">Premium</th>
-                    <th className="px-3 py-2 text-left font-normal">Lado</th>
-                    <th className="px-3 py-2 text-left font-normal">Lectura</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {flow.largeTrades.map((t) => (
-                    <tr key={`${t.symbol}-${t.timestamp}`} className="border-b border-bg-border/50">
-                      <td className="px-4 py-1.5 text-left text-ink-primary">{t.symbol}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-secondary">{t.contracts}</td>
-                      <td className="px-3 py-1.5 text-right text-ink-primary">{fmtUsdCompact(t.premium)}</td>
-                      <td className={clsx('px-3 py-1.5 text-left', t.side === 'BUY' ? 'text-bull' : t.side === 'SELL' ? 'text-bear' : 'text-ink-dim')}>
-                        {t.side === 'BUY' ? 'Compra' : t.side === 'SELL' ? 'Venta' : '—'}
-                      </td>
-                      <td
-                        className={clsx(
-                          'px-3 py-1.5 text-left',
-                          t.classification.direction === 'BULLISH'
-                            ? 'text-bull'
-                            : t.classification.direction === 'BEARISH'
-                              ? 'text-bear'
-                              : 'text-ink-dim',
-                        )}
-                      >
-                        {t.classification.direction === 'BULLISH' ? 'Alcista' : t.classification.direction === 'BEARISH' ? 'Bajista' : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            </>
           )}
 
           <p className="px-7 py-3 text-[10px] font-sans leading-relaxed text-ink-dim border-t border-bg-border">

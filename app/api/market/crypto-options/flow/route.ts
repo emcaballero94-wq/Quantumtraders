@@ -5,6 +5,7 @@ import { detectLargeTrades } from '@/lib/options-flow/large-trades'
 import { computeStrikeConcentration, identifyKeyStrikes } from '@/lib/options-flow/strike-concentration'
 import { computeFlowAcceleration } from '@/lib/options-flow/change-engine'
 import { computeOptionsFlowScore } from '@/lib/options-flow/score'
+import { computeCumulativeNetPremiumSeries } from '@/lib/options-flow/net-premium-series'
 import { rejectIfRateLimited } from '@/lib/server/endpoint-guards'
 import type { CryptoCurrency } from '@/lib/manu/crypto-symbol-mapping'
 
@@ -12,6 +13,8 @@ const WINDOW_MINUTES = 15
 const LARGE_TRADE_PERCENTILE = 90
 const MAX_LARGE_TRADES_RETURNED = 15
 const MAX_KEY_STRIKES_RETURNED = 5
+const NET_PREMIUM_BUCKET_MINUTES = 15
+const NET_PREMIUM_MAX_BUCKETS = 40
 
 export async function GET(request: Request) {
   const blocked = rejectIfRateLimited(request, {
@@ -47,6 +50,12 @@ export async function GET(request: Request) {
     const strikeLevels = computeStrikeConcentration(trades)
     const keyStrikes = identifyKeyStrikes(strikeLevels, MAX_KEY_STRIKES_RETURNED)
 
+    const netPremiumSeries = computeCumulativeNetPremiumSeries(
+      trades,
+      NET_PREMIUM_BUCKET_MINUTES,
+      NET_PREMIUM_MAX_BUCKETS,
+    )
+
     return NextResponse.json({
       success: true,
       currency,
@@ -77,6 +86,7 @@ export async function GET(request: Request) {
         netDirectionalPressure: k.level.netDirectionalPressure,
         shareOfTotalPremium: k.shareOfTotalPremium,
       })),
+      netPremiumSeries,
       generatedAt: now,
     })
   } catch (error) {

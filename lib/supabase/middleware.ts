@@ -1,5 +1,20 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isOwnerEmail } from '@/lib/auth/access-control'
+
+// Public-demo phase: default-deny instead of default-allow. Only the
+// landing page, login, the OAuth callback, the Coinbase webhook (signature-
+// verified, never carries a Supabase session) and the cron routes
+// (bearer-token verified via CRON_SECRET, see rejectIfNotCron) are reachable
+// without being the owner. Everything else — the whole dashboard and every
+// other API route, including the ones that spend Anthropic/payment-provider
+// money — requires isOwnerEmail(user.email).
+const PUBLIC_PATH_PREFIXES = ['/login', '/auth', '/api/payments/webhook', '/api/cron', '/manifest.webmanifest', '/robots.txt', '/sitemap.xml']
+
+function isPublicPath(pathname: string): boolean {
+  if (pathname === '/') return true
+  return PUBLIC_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+}
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -48,12 +63,25 @@ export async function updateSession(request: NextRequest) {
   }
 
   const { pathname } = request.nextUrl
-  const isProtected = pathname.startsWith('/dashboard')
 
-  if (!user && isProtected) {
-    const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('redirect', pathname)
-    return NextResponse.redirect(loginUrl)
+  if (!isPublicPath(pathname)) {
+    const isApiRoute = pathname.startsWith('/api/')
+
+    if (!user) {
+      if (isApiRoute) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      const loginUrl = new URL('/login', request.url)
+      loginUrl.searchParams.set('redirect', pathname)
+      return NextResponse.redirect(loginUrl)
+    }
+
+    if (!isOwnerEmail(user.email)) {
+      if (isApiRoute) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      return NextResponse.redirect(new URL('/', request.url))
+    }
   }
 
   return supabaseResponse

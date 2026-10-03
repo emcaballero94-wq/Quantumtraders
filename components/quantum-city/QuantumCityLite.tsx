@@ -24,6 +24,15 @@ function PlaceholderIcon({ cls }: { cls: string }) {
   )
 }
 
+function ReviewIcon({ cls }: { cls: string }) {
+  return (
+    <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l1.5 1.5M21 3l-1.5 1.5" opacity="0.5" />
+    </svg>
+  )
+}
+
 const ICON: Record<StationId, (p: { cls: string }) => React.ReactElement> = {
   mando: MandoIcon,
   scanner: ScannerIcon,
@@ -35,15 +44,15 @@ const ICON: Record<StationId, (p: { cls: string }) => React.ReactElement> = {
   options: OptionsIcon,
   tools: ToolsIcon,
   mind: MindIcon,
+  review: ReviewIcon,
   strategy: PlaceholderIcon,
   risk: PlaceholderIcon,
   execution: PlaceholderIcon,
-  review: PlaceholderIcon,
 }
 
 // Mobile/tablet fallback (brief §29/§30): no 3D, no animation budget spent —
 // just the same station list as plain cards. Implemented stations link to
-// their real page and read IDLE; the Strategy/Risk/Execution/Review
+// their real page and read IDLE; the Strategy/Risk/Execution
 // placeholders (no backend — see stations.ts) are non-interactive and say so.
 export function QuantumCityLite({ liveStations }: { liveStations: Partial<Record<WiredStationId, StationLive>> }) {
   return (

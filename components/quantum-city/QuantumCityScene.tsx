@@ -9,8 +9,8 @@ import { QUANTUM_CITY_STATIONS, type StationDef } from './stations'
 import { readCssColorVar, rgbTupleToHex } from './use-theme-color'
 import type { CityEvent, StationLive, WiredStationId } from '@/lib/quantum-city/types'
 
-const DEFAULT_CAMERA_POSITION: [number, number, number] = [20, 20, 26]
-const DEFAULT_TARGET: [number, number, number] = [0, 0, -4]
+const DEFAULT_CAMERA_POSITION: [number, number, number] = [4, 34, 27]
+const DEFAULT_TARGET: [number, number, number] = [0, 0, -1.5]
 const DORMANT_COLOR = '#4a463c'
 
 type LiveStations = Partial<Record<WiredStationId, StationLive>>
@@ -61,7 +61,7 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
         gl={{ antialias: true, powerPreference: 'high-performance' }}
       >
         <color attach="background" args={[theme.bgDeep]} />
-        <fog attach="fog" args={[theme.bgDeep, 28, 56]} />
+        <fog attach="fog" args={[theme.bgDeep, 30, 66]} />
 
         {/* Low, mostly-ambient lighting on purpose: the station platforms use
             an unlit material (see Station below) so they read as flat
@@ -81,17 +81,17 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
           sectionThickness={1}
           cellColor={theme.border}
           sectionColor={theme.inkMuted}
-          fadeDistance={58}
+          fadeDistance={68}
           fadeStrength={1.5}
           infiniteGrid={false}
           position={[0, -0.01, 0]}
         />
 
-        {/* Divider between the real engines and the not-yet-built pipeline row */}
+        {/* Divider between the tree of real engines and the not-yet-built pipeline row */}
         <Line
           points={[
-            [-11, 0.02, -14],
-            [11, 0.02, -14],
+            [-9, 0.02, 11],
+            [9, 0.02, 11],
           ]}
           color={theme.border}
           lineWidth={1}
@@ -99,7 +99,7 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
           dashSize={0.3}
           gapSize={0.2}
         />
-        <Html position={[0, 0.3, -14]} center distanceFactor={12}>
+        <Html position={[0, 0.3, 11]} center distanceFactor={12}>
           <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-ink-dim whitespace-nowrap">
             Pipeline — sin backend todavía
           </span>
@@ -134,7 +134,7 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
           enableDamping
           dampingFactor={0.08}
           minDistance={8}
-          maxDistance={42}
+          maxDistance={52}
           maxPolarAngle={Math.PI / 2.1}
           target={DEFAULT_TARGET}
         />

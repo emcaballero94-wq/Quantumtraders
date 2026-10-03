@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { useEffect, useState } from 'react'
 import { AgentInspector } from './AgentInspector'
 import { QuantumCityLite } from './QuantumCityLite'
+import { useQuantumCityLiveState } from './use-live-state'
 import type { StationDef } from './stations'
 
 // The 3D scene (three.js + @react-three/fiber) is only imported when we've
@@ -19,6 +20,7 @@ const DESKTOP_QUERY = '(min-width: 1024px)'
 export function QuantumCityRoot() {
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null)
   const [selected, setSelected] = useState<StationDef | null>(null)
+  const liveStations = useQuantumCityLiveState()
 
   useEffect(() => {
     const mql = window.matchMedia(DESKTOP_QUERY)
@@ -29,15 +31,22 @@ export function QuantumCityRoot() {
   }, [])
 
   if (isDesktop === null) return <SceneLoading />
-  if (!isDesktop) return <QuantumCityLite />
+  if (!isDesktop) return <QuantumCityLite liveStations={liveStations} />
 
   return (
     <div className="relative w-full h-[calc(100vh-7.5rem)] rounded-xl border border-bg-border overflow-hidden bg-bg-deep">
       <QuantumCityScene
         selectedId={selected?.id ?? null}
         onSelect={(station) => setSelected(station)}
+        liveStations={liveStations}
       />
-      {selected && <AgentInspector station={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <AgentInspector
+          station={selected}
+          live={liveStations[selected.id as keyof typeof liveStations] ?? null}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   )
 }

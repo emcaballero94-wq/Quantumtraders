@@ -7,17 +7,21 @@ import * as THREE from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { QUANTUM_CITY_STATIONS, type StationDef } from './stations'
 import { readCssColorVar, rgbTupleToHex } from './use-theme-color'
+import type { StationLive, WiredStationId } from '@/lib/quantum-city/types'
 
 const DEFAULT_CAMERA_POSITION: [number, number, number] = [20, 20, 26]
 const DEFAULT_TARGET: [number, number, number] = [0, 0, -4]
 const DORMANT_COLOR = '#4a463c'
 
+type LiveStations = Partial<Record<WiredStationId, StationLive>>
+
 interface QuantumCitySceneProps {
   selectedId: string | null
   onSelect: (station: StationDef) => void
+  liveStations: LiveStations
 }
 
-export function QuantumCityScene({ selectedId, onSelect }: QuantumCitySceneProps) {
+export function QuantumCityScene({ selectedId, onSelect, liveStations }: QuantumCitySceneProps) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null)
 
   const theme = useMemo(
@@ -26,6 +30,7 @@ export function QuantumCityScene({ selectedId, onSelect }: QuantumCitySceneProps
       border: rgbTupleToHex(readCssColorVar('--c-bg-border', [46, 42, 34])),
       inkMuted: rgbTupleToHex(readCssColorVar('--c-ink-muted', [136, 128, 112])),
       inkPrimary: rgbTupleToHex(readCssColorVar('--c-ink-primary', [243, 239, 231])),
+      bear: rgbTupleToHex(readCssColorVar('--c-bear', [239, 68, 68])),
     }),
     [],
   )
@@ -96,6 +101,8 @@ export function QuantumCityScene({ selectedId, onSelect }: QuantumCitySceneProps
             station={station}
             isSelected={selectedId === station.id}
             onSelect={() => onSelect(station)}
+            live={liveStations[station.id as WiredStationId] ?? null}
+            alertColor={theme.bear}
           />
         ))}
 
@@ -158,16 +165,25 @@ function Station({
   station,
   isSelected,
   onSelect,
+  live,
+  alertColor,
 }: {
   station: StationDef
   isSelected: boolean
   onSelect: () => void
+  live: StationLive | null
+  alertColor: string
 }) {
   const [hovered, setHovered] = useState(false)
   const agentRef = useRef<THREE.Mesh>(null)
 
   const liveColor = useMemo(() => rgbTupleToHex(readCssColorVar(station.cssColorVar)), [station.cssColorVar])
-  const color = station.implemented ? liveColor : DORMANT_COLOR
+  // `live` is only present for Phase-2-wired stations (see docs §11) — an
+  // 'alert' there is a real recency/severity signal (e.g. HIGH-severity Order
+  // Flow events, a GEX regime flip, Risk-Off VIX), never invented. Stations
+  // without a `live` entry keep the original static look untouched.
+  const color = live?.state === 'alert' ? alertColor : station.implemented ? liveColor : DORMANT_COLOR
+  const isActive = live?.state === 'active' || live?.state === 'alert'
   const [x, z] = station.position
 
   const markerSize = station.radius * 0.32
@@ -177,13 +193,14 @@ function Station({
   // Idle-only motion, and only for implemented stations — a dormant
   // Strategy/Risk/Execution/Review station must look inert, not "working",
   // since there is no backend behind it (docs/quantum-city-architecture.md
-  // §11/§37). Even for implemented ones this is a uniform breathing/spin,
-  // never data-driven — Phase 2 is what wires real recency into this.
+  // §11/§37). The bob/spin itself is always uniform (never data-driven) —
+  // only its amplitude reflects real `live.state` recency, nothing fabricated.
   useFrame(({ clock }) => {
     if (!agentRef.current || !station.implemented) return
     const t = clock.getElapsedTime()
-    agentRef.current.position.y = agentRestY + Math.sin(t * 1.2 + x + z) * 0.08
-    agentRef.current.rotation.y = t * 0.4
+    const amplitude = isActive ? 0.13 : 0.08
+    agentRef.current.position.y = agentRestY + Math.sin(t * 1.2 + x + z) * amplitude
+    agentRef.current.rotation.y = t * (isActive ? 0.7 : 0.4)
   })
 
   return (
@@ -208,10 +225,10 @@ function Station({
         <meshBasicMaterial
           color={color}
           transparent
-          opacity={isSelected ? 0.22 : hovered ? 0.16 : station.implemented ? 0.1 : 0.05}
+          opacity={isSelected ? 0.26 : hovered ? 0.2 : isActive ? 0.16 : station.implemented ? 0.1 : 0.05}
         />
       </mesh>
-      <Line points={ring} color={color} lineWidth={isSelected || hovered ? 2.5 : 1.5} transparent opacity={station.implemented ? 1 : 0.5} />
+      <Line points={ring} color={color} lineWidth={isSelected || hovered ? 2.5 : isActive ? 2 : 1.5} transparent opacity={station.implemented ? 1 : 0.5} />
 
       {station.implemented && (
         <mesh ref={agentRef} position={[0, agentRestY, 0]}>
@@ -219,7 +236,7 @@ function Station({
           <meshStandardMaterial
             color={color}
             emissive={color}
-            emissiveIntensity={hovered || isSelected ? 0.8 : 0.45}
+            emissiveIntensity={hovered || isSelected ? 0.8 : isActive ? 0.65 : 0.45}
             roughness={0.25}
             metalness={0.6}
             flatShading
@@ -245,9 +262,12 @@ function Station({
           >
             {station.name}
           </span>
-          <span className="text-[9px] font-mono uppercase tracking-wider text-ink-dim">
-            {station.implemented ? 'IDLE' : 'NOT IMPLEMENTED'}
+          <span className="text-[9px] font-mono uppercase tracking-wider text-ink-dim" style={live?.state === 'alert' ? { color: alertColor } : undefined}>
+            {!station.implemented ? 'NOT IMPLEMENTED' : live ? live.state.toUpperCase() : 'IDLE'}
           </span>
+          {live && (isSelected || hovered) && (
+            <span className="text-[8.5px] font-mono text-ink-dim max-w-[160px] text-center leading-snug mt-0.5">{live.detail}</span>
+          )}
         </div>
       </Html>
     </group>

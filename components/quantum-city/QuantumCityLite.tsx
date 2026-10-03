@@ -14,6 +14,7 @@ import {
   ToolsIcon,
 } from '@/components/layout/Sidebar'
 import { QUANTUM_CITY_STATIONS, type StationId } from './stations'
+import type { StationLive, WiredStationId } from '@/lib/quantum-city/types'
 
 function PlaceholderIcon({ cls }: { cls: string }) {
   return (
@@ -44,7 +45,7 @@ const ICON: Record<StationId, (p: { cls: string }) => React.ReactElement> = {
 // just the same station list as plain cards. Implemented stations link to
 // their real page and read IDLE; the Strategy/Risk/Execution/Review
 // placeholders (no backend — see stations.ts) are non-interactive and say so.
-export function QuantumCityLite() {
+export function QuantumCityLite({ liveStations }: { liveStations: Partial<Record<WiredStationId, StationLive>> }) {
   return (
     <div className="space-y-4">
       <p className="text-[11px] font-mono uppercase tracking-[0.16em] text-ink-secondary">
@@ -53,15 +54,18 @@ export function QuantumCityLite() {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {QUANTUM_CITY_STATIONS.map((station) => {
           const Icon = ICON[station.id]
+          const live = liveStations[station.id as WiredStationId] ?? null
           const content = (
             <>
               <Icon cls={`w-4 h-4 ${station.implemented ? 'text-ink-secondary' : 'text-ink-dim'}`} />
               <div>
                 <p className={`text-xs font-mono font-bold ${station.implemented ? 'text-ink-primary' : 'text-ink-dim'}`}>{station.name}</p>
-                <p className="text-[10px] font-mono text-ink-dim">{station.subtitle}</p>
+                <p className="text-[10px] font-mono text-ink-dim">{live ? live.detail : station.subtitle}</p>
               </div>
-              <span className="text-[9px] font-mono uppercase tracking-wider text-ink-muted mt-auto">
-                {station.implemented ? 'IDLE' : 'NOT IMPLEMENTED'}
+              <span
+                className={`text-[9px] font-mono uppercase tracking-wider mt-auto ${live?.state === 'alert' ? 'text-bear' : 'text-ink-muted'}`}
+              >
+                {!station.implemented ? 'NOT IMPLEMENTED' : live ? live.state.toUpperCase() : 'IDLE'}
               </span>
             </>
           )

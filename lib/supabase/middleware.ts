@@ -4,12 +4,24 @@ import { isOwnerEmail } from '@/lib/auth/access-control'
 
 // Public-demo phase: default-deny instead of default-allow. Only the
 // landing page, login, the OAuth callback, the Coinbase webhook (signature-
-// verified, never carries a Supabase session) and the cron routes
-// (bearer-token verified via CRON_SECRET, see rejectIfNotCron) are reachable
-// without being the owner. Everything else — the whole dashboard and every
-// other API route, including the ones that spend Anthropic/payment-provider
-// money — requires isOwnerEmail(user.email).
-const PUBLIC_PATH_PREFIXES = ['/login', '/auth', '/api/payments/webhook', '/api/cron', '/manifest.webmanifest', '/robots.txt', '/sitemap.xml']
+// verified, never carries a Supabase session), the cron routes
+// (bearer-token verified via CRON_SECRET, see rejectIfNotCron), and the two
+// read-only quote/history endpoints the landing page's own ticker and mini
+// charts call (no Anthropic cost, just a Yahoo/Binance passthrough) are
+// reachable without being the owner. Everything else — the whole dashboard
+// and every other API route, including the ones that spend Anthropic/
+// payment-provider money — requires isOwnerEmail(user.email).
+const PUBLIC_PATH_PREFIXES = [
+  '/login',
+  '/auth',
+  '/api/payments/webhook',
+  '/api/cron',
+  '/api/market/quote',
+  '/api/market/history',
+  '/manifest.webmanifest',
+  '/robots.txt',
+  '/sitemap.xml',
+]
 
 function isPublicPath(pathname: string): boolean {
   if (pathname === '/') return true

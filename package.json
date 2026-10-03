@@ -11,6 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.1",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.45.0",
     "clsx": "^2.1.1",
@@ -18,7 +20,8 @@
     "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^2.5.2"
+    "tailwind-merge": "^2.5.2",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

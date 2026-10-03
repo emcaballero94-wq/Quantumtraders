@@ -9,9 +9,11 @@ import { listMarketEventsSince } from '@/lib/oracle/market-events-persistence'
 import { listGexBriefs } from '@/lib/manu-gex/brief-persistence'
 import { listOptionsFlowBriefs } from '@/lib/manu-options-flow/brief-persistence'
 import { listTradeJournalEntries } from '@/lib/oracle/persistence'
+import { listBriefOutcomes } from '@/lib/manu-options-flow/outcome-persistence'
 import type { StationLive } from '@/lib/quantum-city/types'
 
-// Quantum City's read-only state aggregator (Phase 2).
+// Quantum City's read-only state aggregator (Phase 2, extended in Phase 4
+// with Review's prediction-vs-actual accuracy).
 //
 // This route NEVER triggers new engine computation that costs money — no
 // Anthropic calls, no fresh brief generation. It only reads what each real
@@ -86,6 +88,32 @@ async function journalState(): Promise<StationLive> {
   }
 }
 
+const REVIEW_ENGINE = 'options_flow'
+const REVIEW_SYMBOL = 'BTC'
+const REVIEW_LOW_ACCURACY_THRESHOLD = 0.4
+const REVIEW_MIN_SAMPLE_FOR_ALERT = 5
+
+// Review's only honest claim: brief_outcomes scores whether Options Flow's
+// lean was right 24h later (lib/manu-options-flow/outcome-persistence.ts,
+// built before Quantum City existed). Computed here directly from
+// listBriefOutcomes instead of calling computeAccuracySummary so the same
+// rows also give us `lastUpdated` without a second DB round trip.
+async function reviewState(): Promise<StationLive> {
+  const outcomes = await listBriefOutcomes(REVIEW_ENGINE, REVIEW_SYMBOL, 500)
+  const totalEvaluated = outcomes.length
+  if (totalEvaluated === 0) return { state: 'idle', detail: 'Sin evaluaciones todavía', lastUpdated: null }
+
+  const correctCount = outcomes.filter((o) => o.correct).length
+  const accuracyRate = correctCount / totalEvaluated
+  const pct = Math.round(accuracyRate * 100)
+  const lastUpdated = outcomes[0].recordedAt
+
+  if (totalEvaluated >= REVIEW_MIN_SAMPLE_FOR_ALERT && accuracyRate < REVIEW_LOW_ACCURACY_THRESHOLD) {
+    return { state: 'alert', detail: `${correctCount}/${totalEvaluated} correcto (${pct}%) — por debajo del azar`, lastUpdated }
+  }
+  return { state: 'active', detail: `${correctCount}/${totalEvaluated} correcto (${pct}%, 24h)`, lastUpdated }
+}
+
 async function macroState(): Promise<StationLive> {
   try {
     const quotes = await fetchMarketQuotes(['VIX'])
@@ -123,16 +151,17 @@ export async function GET(request: Request) {
   const blocked = rejectIfRateLimited(request, { routeKey: 'quantum-city-state', limit: 30, windowMs: 60_000 })
   if (blocked) return blocked
 
-  const [orderflow, gex, options, tools, pulse, scanner] = await Promise.all([
+  const [orderflow, gex, options, tools, pulse, scanner, review] = await Promise.all([
     orderFlowState(),
     gexState(),
     optionsFlowState(),
     journalState(),
     macroState(),
     scannerState(),
+    reviewState(),
   ])
 
-  const wired = { orderflow, gex, options, tools, pulse, scanner }
+  const wired = { orderflow, gex, options, tools, pulse, scanner, review }
   const values = Object.values(wired)
   const mando: StationLive = {
     state: values.some((s) => s.state === 'alert') ? 'alert' : values.some((s) => s.state === 'active') ? 'active' : 'idle',

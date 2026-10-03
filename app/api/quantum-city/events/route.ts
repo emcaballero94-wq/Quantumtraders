@@ -4,6 +4,7 @@ import { listMarketEventsSince } from '@/lib/oracle/market-events-persistence'
 import { listGexBriefs } from '@/lib/manu-gex/brief-persistence'
 import { listOptionsFlowBriefs } from '@/lib/manu-options-flow/brief-persistence'
 import { listTradeJournalEntries } from '@/lib/oracle/persistence'
+import { listBriefOutcomes } from '@/lib/manu-options-flow/outcome-persistence'
 import type { CityEvent, CityEventSeverity } from '@/lib/quantum-city/types'
 
 // Quantum City's event bus (Phase 3) — a read-only MERGE of events that
@@ -31,11 +32,12 @@ export async function GET(request: Request) {
 
   const since = new Date(Date.now() - LOOKBACK_MS).toISOString()
 
-  const [marketEvents, gexBriefs, optionsBriefs, trades] = await Promise.all([
+  const [marketEvents, gexBriefs, optionsBriefs, trades, outcomes] = await Promise.all([
     listMarketEventsSince(ORDERFLOW_SYMBOL, since, 50),
     listGexBriefs('crypto', 'BTC', 8),
     listOptionsFlowBriefs('BTC', 8),
     listTradeJournalEntries(10),
+    listBriefOutcomes('options_flow', 'BTC', 8),
   ])
 
   const events: CityEvent[] = [
@@ -66,6 +68,13 @@ export async function GET(request: Request) {
       timestamp: t.createdAt,
       label: `${t.symbol} ${t.side} · ${t.result}`,
       severity: 'low' as CityEventSeverity,
+    })),
+    ...outcomes.map((o) => ({
+      id: `review-${o.id}`,
+      station: 'review' as const,
+      timestamp: o.recordedAt,
+      label: `Outcome evaluado · lean ${o.lean} → ${o.correct ? 'correcto' : 'incorrecto'} (${o.priceChangePct.toFixed(2)}%)`,
+      severity: (o.correct ? 'low' : 'medium') as CityEventSeverity,
     })),
   ]
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())

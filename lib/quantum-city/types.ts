@@ -14,7 +14,7 @@ export interface StationLive {
 // Only the stations Phase 2 actually wired to real data (see the route for
 // why Atlas/Nexus/Mind are excluded — they have no honest server-side signal
 // yet).
-export type WiredStationId = 'mando' | 'scanner' | 'pulse' | 'orderflow' | 'gex' | 'options' | 'tools'
+export type WiredStationId = 'mando' | 'scanner' | 'pulse' | 'orderflow' | 'gex' | 'options' | 'tools' | 'review'
 
 export type QuantumCityStateResponse = {
   success: true

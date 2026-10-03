@@ -7,6 +7,7 @@ import { listGexBriefs } from '@/lib/manu-gex/brief-persistence'
 import { orderFlowSymbolForCurrency, type CryptoCurrency } from '@/lib/manu/crypto-symbol-mapping'
 import type { RadarAsset } from '@/lib/oracle/types'
 import { logAiUsage } from '@/lib/ai-usage/usage-log'
+import type { ManuSource } from '@/lib/quantum-city/manu-bus'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -154,11 +155,12 @@ const CHAT_SYMBOL_TO_CRYPTO_CURRENCY: Record<string, CryptoCurrency> = { BTCUSD:
 // already reads (lib/manu/crypto-symbol-mapping.ts) — a cheap DB read, not a
 // live Deribit/Binance call, so the general chat can cite GEX levels and
 // order flow without the cost or latency of recomputing them.
-async function buildCryptoCrossContext(symbol: string): Promise<string | null> {
+async function buildCryptoCrossContext(symbol: string): Promise<{ text: string; sources: ManuSource[] } | null> {
   const currency = CHAT_SYMBOL_TO_CRYPTO_CURRENCY[symbol]
   if (!currency) return null
 
   const parts: string[] = []
+  const sources: ManuSource[] = []
 
   const gexBriefs = await withTimeout(listGexBriefs('crypto', currency, 1), 6000)
   const latestGex = gexBriefs?.[0]
@@ -169,6 +171,7 @@ async function buildCryptoCrossContext(symbol: string): Promise<string | null> {
       parts.push(
         `Opciones (GEX) de ${currency}, brief de hace ${(ageMs / 60_000).toFixed(0)} min: régimen ${f.regime === 'POSITIVE' ? 'positivo' : 'negativo'}, Net GEX ${f.netGex.toLocaleString('en-US')}, Call Wall ${f.callWallStrike !== null ? fmtPrice(f.callWallStrike) : 'sin dato'}, Put Wall ${f.putWallStrike !== null ? fmtPrice(f.putWallStrike) : 'sin dato'}, Gamma Flip ${f.gammaFlip !== null ? fmtPrice(f.gammaFlip) : 'sin dato'}, Max Pain ${f.maxPainStrike !== null ? fmtPrice(f.maxPainStrike) : 'sin dato'}, Put/Call ratio ${f.chain.putCallVolumeRatio ?? 'sin dato'}.`,
       )
+      sources.push('gex')
     }
   }
 
@@ -180,39 +183,52 @@ async function buildCryptoCrossContext(symbol: string): Promise<string | null> {
       parts.push(
         `Order Flow de ${orderFlowSymbol}, hace ${ageSeconds.toFixed(0)}s: CVD ${brief.cvd ?? 'sin dato'}, funding ${brief.fundingRate ?? 'sin dato'}, open interest ${brief.openInterest ?? 'sin dato'}, desequilibrio de libro ${brief.bookImbalance ?? 'sin dato'}.`,
       )
+      sources.push('orderflow')
     }
   }
 
-  return parts.length > 0 ? parts.join('\n') : null
+  return parts.length > 0 ? { text: parts.join('\n'), sources } : null
 }
 
 // Never throws — any failure (timeout, provider outage, no symbol detected)
 // yields null so the caller falls back to the base system prompt, and M.A.N.U.
 // honestly says it has no real-time data for that query (per its own
 // instructions) instead of the request failing outright.
-async function buildRealTimeContext(userText: string): Promise<string | null> {
+interface RealTimeContext {
+  text: string | null
+  /** Engines whose data actually made it into `text` — reported to Quantum City, never guessed. */
+  sources: ManuSource[]
+  symbol: string | null
+}
+
+async function buildRealTimeContext(userText: string): Promise<RealTimeContext> {
+  const none: RealTimeContext = { text: null, sources: [], symbol: null }
   try {
     if (isScanIntent(userText)) {
       const state = await withTimeout(buildOracleState(), 8000)
-      if (!state) return null
+      if (!state) return none
 
       const bullish = state.radar.filter((asset) => asset.bias === 'long').slice(0, 5)
       const bearish = state.radar.filter((asset) => asset.bias === 'short').slice(0, 3)
       const lines = [...bullish, ...bearish].map(formatRadarAsset)
-      if (lines.length === 0) return null
+      if (lines.length === 0) return none
 
-      return `Radar de activos (${utcTimestamp()}):\n${lines.join('\n')}`
+      return { text: `Radar de activos (${utcTimestamp()}):\n${lines.join('\n')}`, sources: ['scanner'], symbol: null }
     }
 
     const symbol = detectSymbolFromText(userText)
-    if (!symbol) return null
+    if (!symbol) return none
 
     const parts: string[] = []
+    const sources = new Set<ManuSource>()
 
     if (RADAR_SYMBOLS.has(symbol)) {
       const state = await withTimeout(buildOracleState(), 8000)
       const asset = state?.radar.find((item) => item.symbol === symbol)
-      if (asset) parts.push(`Datos de ${symbol} (${utcTimestamp()}):\n${formatRadarAsset(asset)}`)
+      if (asset) {
+        parts.push(`Datos de ${symbol} (${utcTimestamp()}):\n${formatRadarAsset(asset)}`)
+        sources.add('scanner')
+      }
     } else {
       const quotes = await withTimeout(fetchMarketQuotes([symbol]), 6000)
       const quote = quotes?.[0]
@@ -221,27 +237,34 @@ async function buildRealTimeContext(userText: string): Promise<string | null> {
         parts.push(
           `Cotización de ${symbol} (${utcTimestamp()}): precio ${quote.price}, cambio ${changeSign}${(quote.changePct ?? 0).toFixed(2)}%, apertura ${quote.open ?? 'sin dato'}, máximo ${quote.high ?? 'sin dato'}, mínimo ${quote.low ?? 'sin dato'}. No hay score de bias del radar Oracle para este instrumento, solo cotización en vivo.`,
         )
+        sources.add('atlas')
       }
     }
 
     try {
       const candleContext = await buildCandleContext(symbol, userText)
-      if (candleContext) parts.push(candleContext)
+      if (candleContext) {
+        parts.push(candleContext)
+        sources.add('atlas')
+      }
     } catch (error) {
       console.error('[/api/oracle/chat] buildCandleContext error:', error)
     }
 
     try {
       const cryptoCrossContext = await buildCryptoCrossContext(symbol)
-      if (cryptoCrossContext) parts.push(cryptoCrossContext)
+      if (cryptoCrossContext) {
+        parts.push(cryptoCrossContext.text)
+        cryptoCrossContext.sources.forEach((src) => sources.add(src))
+      }
     } catch (error) {
       console.error('[/api/oracle/chat] buildCryptoCrossContext error:', error)
     }
 
-    return parts.length > 0 ? parts.join('\n\n') : null
+    return parts.length > 0 ? { text: parts.join('\n\n'), sources: [...sources], symbol } : none
   } catch (error) {
     console.error('[/api/oracle/chat] buildRealTimeContext error:', error)
-    return null
+    return none
   }
 }
 
@@ -1077,7 +1100,7 @@ export async function POST(request: Request) {
   }
 
   const lastUserText = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
-  const realTimeContext = await buildRealTimeContext(lastUserText)
+  const { text: realTimeContext, sources, symbol } = await buildRealTimeContext(lastUserText)
   const level = resolveLevel(body.level)
   const systemPromptWithLevel = `${SYSTEM_PROMPT}\n\n=== NIVEL DEL TRADER ===\n${LEVEL_INSTRUCTIONS[level]}`
   const systemPrompt = realTimeContext
@@ -1111,7 +1134,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Empty response from Claude API' }, { status: 502 })
     }
 
-    return NextResponse.json({ success: true, data: { reply: text.trim() } })
+    return NextResponse.json({ success: true, data: { reply: text.trim(), sources, symbol } })
   } catch (error) {
     console.error('[/api/oracle/chat] Error:', error)
     return NextResponse.json({ success: false, error: 'Failed to generate AI response' }, { status: 502 })

@@ -5,7 +5,8 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Grid, Html, Line } from '@react-three/drei'
 import * as THREE from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
-import { QUANTUM_CITY_STATIONS, type StationDef } from './stations'
+import { QUANTUM_CITY_STATIONS, type StationDef, type StationId } from './stations'
+import type { ManuFloorState } from './QuantumCityRoot'
 import { readCssColorVar, rgbTupleToHex } from './use-theme-color'
 import { Glow, HexPlatform, glowTexture, Plumbob, SeatedAvatar, WalkingAvatar, Workstation, useScreenTexture, type Activity } from './floor-props'
 import type { CityEvent, StationLive, WiredStationId } from '@/lib/quantum-city/types'
@@ -36,13 +37,17 @@ interface Theme {
  * `active`/`alert` from /api/quantum-city/state → 'busy'; anything else →
  * 'idle'. Nothing here is timer- or random-driven (docs §37).
  */
-function activityFor(station: StationDef, live: StationLive | null): Activity {
+function activityFor(station: StationDef, live: StationLive | null, engaged = false): Activity {
   if (!station.implemented) return 'off'
+  // `engaged` = M.A.N.U. is answering (center) or just read this station's
+  // data (/api/oracle/chat reports which) — a real use, not a timer.
+  if (engaged) return 'busy'
   return live && live.state !== 'idle' ? 'busy' : 'idle'
 }
 
-function stateWord(station: StationDef, live: StationLive | null): string {
+function stateWord(station: StationDef, live: StationLive | null, override?: string): string {
   if (!station.implemented) return 'SIN BACKEND'
+  if (override) return override
   if (live?.state === 'alert') return 'ALERTA'
   if (live?.state === 'active') return 'ACTIVO'
   return 'EN REPOSO'
@@ -56,9 +61,12 @@ interface QuantumCitySceneProps {
   freshEventIds: string[]
   /** Slow orbit while nothing is selected; the root turns it off for reduced motion. */
   autoRotate?: boolean
+  /** What the M.A.N.U. chat is doing right now (see QuantumCityRoot). */
+  manu?: ManuFloorState
 }
 
-export function QuantumCityScene({ selectedId, onSelect, liveStations, events, freshEventIds, autoRotate = false }: QuantumCitySceneProps) {
+export function QuantumCityScene({ selectedId, onSelect, liveStations, events, freshEventIds, autoRotate = false, manu }: QuantumCitySceneProps) {
+  const consulted = useMemo(() => new Set<string>(manu?.consultation?.sources ?? []), [manu?.consultation])
   const controlsRef = useRef<OrbitControlsImpl | null>(null)
   // Bumped by a courier when it delivers a real event; Mando's globe flashes.
   const flashRef = useRef(0)
@@ -137,7 +145,7 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
           dashSize={0.3}
           gapSize={0.2}
         />
-        <Html position={[0, 0.3, -14]} center distanceFactor={12}>
+        <Html position={[0, 0.3, -14]} center distanceFactor={12} zIndexRange={[20, 0]}>
           <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-ink-dim whitespace-nowrap">
             Pipeline — sin backend todavía
           </span>
@@ -152,6 +160,7 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
           stationColors={stationColors}
           alertColor={theme.bear}
           crossColor={theme.nexus}
+          consultation={manu?.consultation ?? null}
           onArrive={() => {
             flashRef.current = 1
           }}
@@ -163,8 +172,8 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
           isSelected={selectedId === 'mando'}
           onSelect={() => onSelect(mando)}
           theme={theme}
-          color={stationColors.mando}
           flashRef={flashRef}
+          thinking={manu?.thinking ?? null}
         />
 
         {QUANTUM_CITY_STATIONS.filter((s) => s.id !== 'mando').map((station) => (
@@ -176,6 +185,7 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
             live={liveStations[station.id as WiredStationId] ?? null}
             color={stationColors[station.id]}
             theme={theme}
+            consulted={consulted.has(station.id)}
           />
         ))}
 
@@ -227,7 +237,7 @@ function CameraRig({
   return null
 }
 
-function stationPos(id: WiredStationId | 'mando'): [number, number] {
+function stationPos(id: StationId): [number, number] {
   return QUANTUM_CITY_STATIONS.find((s) => s.id === id)?.position ?? [0, 0]
 }
 
@@ -306,6 +316,7 @@ function Couriers({
   stationColors,
   alertColor,
   crossColor,
+  consultation,
   onArrive,
 }: {
   events: CityEvent[]
@@ -314,10 +325,27 @@ function Couriers({
   stationColors: Record<string, string>
   alertColor: string
   crossColor: string
+  consultation: ManuFloorState['consultation']
   onArrive: () => void
 }) {
   const [couriers, setCouriers] = useState<CourierSpec[]>([])
   const seq = useRef(0)
+
+  // A M.A.N.U. answer: one courier per engine whose data went into it.
+  useEffect(() => {
+    if (!consultation || consultation.sources.length === 0) return
+    const spawned = consultation.sources.map((src) => ({
+      id: `manu-${consultation.id}-${src}`,
+      from: stationPos(src),
+      fromRadius: radiusOf(src),
+      to: stationPos('mando'),
+      toRadius: radiusOf('mando'),
+      color: stationColors[src] ?? crossColor,
+      seed: seq.current++,
+    }))
+    setCouriers((prev) => [...prev, ...spawned])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consultation?.id])
 
   useEffect(() => {
     if (freshEventIds.length === 0) return
@@ -412,7 +440,7 @@ function Courier({ spec, onArrive, onDone }: { spec: CourierSpec; onArrive: () =
 // ---------------------------------------------------------------- stations
 
 function StationTag({ name, subtitle, state, color, detail, dim }: { name: string; subtitle: string; state: string; color: string; detail?: string; dim: boolean }) {
-  const busy = state === 'ACTIVO' || state === 'ALERTA'
+  const busy = state === 'ACTIVO' || state === 'ALERTA' || state === 'PENSANDO' || state === 'CONSULTADO'
   return (
     <div
       className="pointer-events-none select-none flex items-start gap-2 rounded-md border bg-bg-deep/85 px-2.5 py-1.5 backdrop-blur-sm whitespace-nowrap"
@@ -443,6 +471,7 @@ function Station({
   live,
   color: liveColor,
   theme,
+  consulted,
 }: {
   station: StationDef
   isSelected: boolean
@@ -450,6 +479,7 @@ function Station({
   live: StationLive | null
   color: string
   theme: Theme
+  consulted: boolean
 }) {
   const [hovered, setHovered] = useState(false)
   const r = station.radius * VISUAL_SCALE
@@ -457,7 +487,7 @@ function Station({
   // 'alert' there is a real recency/severity signal (e.g. HIGH-severity Order
   // Flow events, a GEX regime flip, Risk-Off VIX), never invented.
   const color = live?.state === 'alert' ? theme.bear : station.implemented ? liveColor : DORMANT_COLOR
-  const activity = activityFor(station, live)
+  const activity = activityFor(station, live, consulted)
   const [x, z] = station.position
   // Workstation props are modeled in a radius-5 footprint.
   const k = r / 5
@@ -493,14 +523,14 @@ function Station({
       {/* Plain DOM label via drei's Html (billboards automatically) instead of
           drei's Text — troika-three-text needs a worker to lay out glyphs,
           which some sandboxed/CSP-restricted browsers block. */}
-      <Html position={[0, r * 0.95 + 0.55, -0.2]} center distanceFactor={13} occlude={false}>
+      <Html position={[0, r * 0.95 + 0.55, -0.2]} center distanceFactor={13} occlude={false} zIndexRange={[20, 0]}>
         <StationTag
           name={station.name}
           subtitle={station.subtitle}
-          state={stateWord(station, live)}
+          state={stateWord(station, live, consulted ? 'CONSULTADO' : undefined)}
           color={color}
           dim={!station.implemented}
-          detail={live && (isSelected || hovered) ? live.detail : undefined}
+          detail={consulted ? 'M.A.N.U. leyó estos datos' : live && (isSelected || hovered) ? live.detail : undefined}
         />
       </Html>
     </group>
@@ -515,20 +545,20 @@ function MandoCenter({
   isSelected,
   onSelect,
   theme,
-  color,
   flashRef,
+  thinking,
 }: {
   station: StationDef
   live: StationLive | null
   isSelected: boolean
   onSelect: () => void
   theme: Theme
-  color: string
   flashRef: React.MutableRefObject<number>
+  thinking: string | null
 }) {
   const [hovered, setHovered] = useState(false)
   const r = station.radius * VISUAL_SCALE
-  const activity = activityFor(station, live)
+  const activity = activityFor(station, live, thinking !== null)
   const rim = live?.state === 'alert' ? theme.bear : theme.pulse
   // Console props are modeled for a radius-7.2 platform.
   const k = r / 7.2
@@ -633,14 +663,14 @@ function MandoCenter({
         {activity === 'busy' && <Plumbob color={live?.state === 'alert' ? theme.bear : theme.atlas} position={[0, 4.4, 0]} scale={1.3} />}
       </group>
 
-      <Html position={[0, 12.6 * k, 0]} center distanceFactor={13} occlude={false}>
+      <Html position={[0, 12.6 * k, 0]} center distanceFactor={13} occlude={false} zIndexRange={[20, 0]}>
         <StationTag
           name={station.name}
           subtitle={station.subtitle}
-          state={stateWord(station, live)}
+          state={stateWord(station, live, thinking !== null ? 'PENSANDO' : undefined)}
           color={rim}
           dim={false}
-          detail={live && (isSelected || hovered) ? live.detail : undefined}
+          detail={thinking !== null ? `“${thinking.slice(0, 80)}”` : live && (isSelected || hovered) ? live.detail : undefined}
         />
       </Html>
     </group>

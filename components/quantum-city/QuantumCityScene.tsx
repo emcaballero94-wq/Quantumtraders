@@ -5,14 +5,16 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Grid, Html, Line } from '@react-three/drei'
 import * as THREE from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
-import { QUANTUM_CITY_STATIONS, type StationDef, type StationId } from './stations'
+import { PIPELINE_DIVIDER_Z, QUANTUM_CITY_STATIONS, TREE_PATHS, TREE_SLOTS, type StationDef } from './stations'
+import { walkRoute } from '@/lib/quantum-city/tree-route'
 import type { ManuFloorState } from './QuantumCityRoot'
 import { readCssColorVar, rgbTupleToHex } from './use-theme-color'
 import { Glow, HexPlatform, glowTexture, Plumbob, SeatedAvatar, WalkingAvatar, Workstation, useScreenTexture, type Activity } from './floor-props'
 import type { CityEvent, StationLive, WiredStationId } from '@/lib/quantum-city/types'
 
-const DEFAULT_CAMERA_POSITION: [number, number, number] = [20, 20, 26]
-const DEFAULT_TARGET: [number, number, number] = [0, 0, -4]
+// Straight in front and high, so the tree reads top-to-bottom like the sketch.
+const DEFAULT_CAMERA_POSITION: [number, number, number] = [0, 60, 46]
+const DEFAULT_TARGET: [number, number, number] = [0, 0, 0.5]
 const DORMANT_COLOR = '#4a463c'
 /** Stations are drawn larger than their layout radius so desks and avatars read at the default zoom. */
 const VISUAL_SCALE = 1.6
@@ -110,7 +112,7 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
         gl={{ antialias: true, powerPreference: 'high-performance' }}
       >
         <color attach="background" args={[theme.bgDeep]} />
-        <fog attach="fog" args={[theme.bgDeep, 34, 78]} />
+        <fog attach="fog" args={[theme.bgDeep, 72, 150]} />
 
         {/* Platforms, rims, screens and glows are unlit/emissive, so the
             lights only need to model the avatars and desks. */}
@@ -118,14 +120,14 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
         <directionalLight position={[10, 16, 8]} intensity={1.1} color={theme.inkPrimary} />
 
         <Grid
-          args={[70, 70]}
+          args={[96, 96]}
           cellSize={1}
           cellThickness={0.5}
           sectionSize={5}
           sectionThickness={1}
           cellColor={theme.border}
           sectionColor={theme.inkMuted}
-          fadeDistance={58}
+          fadeDistance={80}
           fadeStrength={1.5}
           infiniteGrid={false}
           position={[0, -0.01, 0]}
@@ -136,8 +138,8 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
         {/* Divider between the real engines and the not-yet-built pipeline row */}
         <Line
           points={[
-            [-11, 0.02, -14],
-            [11, 0.02, -14],
+            [-11, 0.02, PIPELINE_DIVIDER_Z],
+            [11, 0.02, PIPELINE_DIVIDER_Z],
           ]}
           color={theme.border}
           lineWidth={1}
@@ -145,13 +147,13 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
           dashSize={0.3}
           gapSize={0.2}
         />
-        <Html position={[0, 0.3, -14]} center distanceFactor={12} zIndexRange={[20, 0]}>
+        <Html position={[0, 0.3, PIPELINE_DIVIDER_Z]} center distanceFactor={12} zIndexRange={[20, 0]}>
           <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-ink-dim whitespace-nowrap">
             Pipeline — sin backend todavía
           </span>
         </Html>
 
-        <Connectors liveStations={liveStations} lineColor={theme.border} crossColor={theme.nexus} />
+        <Connectors liveStations={liveStations} lineColor={theme.inkMuted} crossColor={theme.nexus} />
 
         <Couriers
           events={events}
@@ -196,7 +198,7 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
           enableDamping
           dampingFactor={0.08}
           minDistance={8}
-          maxDistance={42}
+          maxDistance={84}
           maxPolarAngle={Math.PI / 2.1}
           target={DEFAULT_TARGET}
           autoRotate={autoRotate && !selectedId}
@@ -237,51 +239,33 @@ function CameraRig({
   return null
 }
 
-function stationPos(id: StationId): [number, number] {
-  return QUANTUM_CITY_STATIONS.find((s) => s.id === id)?.position ?? [0, 0]
-}
-
-// Phase 3 — event bus, part 1: static "reports to Mando" lines. Every wired,
-// implemented station feeds Mando's rollup (see app/api/quantum-city/state's
-// `mando` aggregate) — this just draws that real relationship. The
-// GEX→Flow line is the one actual cross-engine read in the whole codebase
-// (Order Flow's /api/manu/analyze pulls GEX's latest brief for context —
-// see docs/quantum-city-architecture.md §4) and is the only reason two
-// non-Mando stations get a line between them.
+// The tree's lines, drawn as corridors on the floor (stations.ts has the
+// sketch they come from). Couriers walk along them to reach M.A.N.U.
+// GEX → Flow (the chokmah–chesed line) is the one actual cross-engine read
+// in the codebase — Order Flow's /api/manu/analyze pulls GEX's latest brief
+// (docs/quantum-city-architecture.md §4) — so it is tinted when both have data.
 function Connectors({ liveStations, lineColor, crossColor }: { liveStations: LiveStations; lineColor: string; crossColor: string }) {
-  const mandoPos = stationPos('mando')
-  const wiredIds = Object.keys(liveStations).filter((id) => id !== 'mando') as WiredStationId[]
-
+  const crossLive = Boolean(liveStations.gex && liveStations.orderflow)
   return (
     <>
-      {wiredIds.map((id) => {
-        const [x, z] = stationPos(id)
+      {TREE_PATHS.map(([a, b]) => {
+        const isCross = (a === 'chokmah' && b === 'chesed') || (a === 'chesed' && b === 'chokmah')
+        const [ax, az] = TREE_SLOTS[a]
+        const [bx, bz] = TREE_SLOTS[b]
         return (
           <Line
-            key={id}
+            key={`${a}-${b}`}
             points={[
-              [x, 0.015, z],
-              [mandoPos[0], 0.015, mandoPos[1]],
+              [ax, 0.02, az],
+              [bx, 0.02, bz],
             ]}
-            color={lineColor}
-            lineWidth={1}
+            color={isCross && crossLive ? crossColor : lineColor}
+            lineWidth={isCross && crossLive ? 3.5 : 3}
             transparent
-            opacity={0.25}
+            opacity={isCross && crossLive ? 0.85 : 0.7}
           />
         )
       })}
-      {liveStations.gex && liveStations.orderflow && (
-        <Line
-          points={[
-            [stationPos('gex')[0], 0.02, stationPos('gex')[1]],
-            [stationPos('orderflow')[0], 0.02, stationPos('orderflow')[1]],
-          ]}
-          color={crossColor}
-          lineWidth={1.5}
-          transparent
-          opacity={0.35}
-        />
-      )}
     </>
   )
 }
@@ -290,16 +274,14 @@ function Connectors({ liveStations, lineColor, crossColor }: { liveStations: Liv
 
 interface CourierSpec {
   id: string
-  from: [number, number]
-  fromRadius: number
-  to: [number, number]
-  toRadius: number
+  /** Floor points along the tree's lines, already trimmed to the platform edges. */
+  route: [number, number][]
   color: string
   seed: number
 }
 
-/** World units per second; ~8 s for an outer station to reach Mando. */
-const COURIER_SPEED = 1.3
+/** World units per second along the corridors. */
+const COURIER_SPEED = 1.6
 const COURIER_SCALE = 0.3
 
 function radiusOf(id: string): number {
@@ -307,7 +289,7 @@ function radiusOf(id: string): number {
 }
 
 // Phase 3's event bus, drawn as a person: each FRESH event (new since the
-// last poll, see use-events.ts) sends one avatar from its station to Mando
+// last poll, see use-events.ts) sends one avatar from its station to M.A.N.U.
 // carrying the result, then back. No fresh event → nobody walks.
 function Couriers({
   events,
@@ -336,10 +318,7 @@ function Couriers({
     if (!consultation || consultation.sources.length === 0) return
     const spawned = consultation.sources.map((src) => ({
       id: `manu-${consultation.id}-${src}`,
-      from: stationPos(src),
-      fromRadius: radiusOf(src),
-      to: stationPos('mando'),
-      toRadius: radiusOf('mando'),
+      route: walkRoute(src, 'mando', radiusOf),
       color: stationColors[src] ?? crossColor,
       seed: seq.current++,
     }))
@@ -353,15 +332,14 @@ function Couriers({
     const spawned: CourierSpec[] = []
     for (const e of fresh) {
       const isUrgent = e.severity === 'high' || e.severity === 'critical' || liveStations[e.station]?.state === 'alert'
-      spawned.push({
-        id: `${e.id}-mando-${Date.now()}`,
-        from: stationPos(e.station),
-        fromRadius: radiusOf(e.station),
-        to: stationPos('mando'),
-        toRadius: radiusOf('mando'),
-        color: isUrgent ? alertColor : stationColors[e.station] ?? crossColor,
-        seed: seq.current++,
-      })
+      if (e.station !== 'mando') {
+        spawned.push({
+          id: `${e.id}-mando-${Date.now()}`,
+          route: walkRoute(e.station, 'mando', radiusOf),
+          color: isUrgent ? alertColor : stationColors[e.station] ?? crossColor,
+          seed: seq.current++,
+        })
+      }
 
       // The one real cross-engine read: a fresh Order Flow event, while GEX
       // has fresh-enough data, means Flow's narrative is cross-referencing
@@ -369,10 +347,7 @@ function Couriers({
       if (e.station === 'orderflow' && liveStations.gex && liveStations.gex.state !== 'idle') {
         spawned.push({
           id: `${e.id}-gexflow-${Date.now()}`,
-          from: stationPos('gex'),
-          fromRadius: radiusOf('gex'),
-          to: stationPos('orderflow'),
-          toRadius: radiusOf('orderflow'),
+          route: walkRoute('gex', 'orderflow', radiusOf),
           color: crossColor,
           seed: seq.current++,
         })
@@ -386,9 +361,11 @@ function Couriers({
 
   return (
     <>
-      {couriers.map((c) => (
-        <Courier key={c.id} spec={c} onArrive={onArrive} onDone={() => handleDone(c.id)} />
-      ))}
+      {couriers
+        .filter((c) => c.route.length >= 2)
+        .map((c) => (
+          <Courier key={c.id} spec={c} onArrive={onArrive} onDone={() => handleDone(c.id)} />
+        ))}
     </>
   )
 }
@@ -396,32 +373,41 @@ function Couriers({
 function Courier({ spec, onArrive, onDone }: { spec: CourierSpec; onArrive: () => void; onDone: () => void }) {
   const group = useRef<THREE.Group>(null)
   const walk = useRef(0)
-  const progress = useRef({ t: 0, back: false, finished: false })
+  const progress = useRef({ d: 0, back: false, finished: false })
   const [carrying, setCarrying] = useState(true)
 
+  // Polyline with cumulative lengths, so a distance maps to a floor point.
   const path = useMemo(() => {
-    const from = new THREE.Vector3(spec.from[0], 0, spec.from[1])
-    const to = new THREE.Vector3(spec.to[0], 0, spec.to[1])
-    const dir = to.clone().sub(from).normalize()
-    const start = from.clone().addScaledVector(dir, spec.fromRadius * 0.95)
-    const end = to.clone().addScaledVector(dir, -spec.toRadius * 1.02)
-    return { start, end, len: Math.max(0.5, start.distanceTo(end)) }
+    const pts = spec.route.map(([x, z]) => new THREE.Vector3(x, 0.08, z))
+    const cum = [0]
+    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + pts[i].distanceTo(pts[i - 1]))
+    return { pts, cum, len: Math.max(0.5, cum[cum.length - 1]) }
   }, [spec])
+
+  const pointAt = (d: number, out: THREE.Vector3) => {
+    const { pts, cum } = path
+    let i = 1
+    while (i < pts.length - 1 && cum[i] < d) i++
+    const seg = cum[i] - cum[i - 1] || 1
+    out.lerpVectors(pts[i - 1], pts[i], Math.min(1, Math.max(0, (d - cum[i - 1]) / seg)))
+    return out
+  }
+  const ahead = useMemo(() => new THREE.Vector3(), [])
 
   useFrame((_, dt) => {
     const p = progress.current
     const g = group.current
     if (p.finished || !g) return
-    p.t += (dt * COURIER_SPEED) / path.len
-    const f = Math.min(1, p.t)
-    const [a, b] = p.back ? [path.end, path.start] : [path.start, path.end]
-    g.position.lerpVectors(a, b, f)
-    g.lookAt(b.x, 0, b.z)
+    p.d = Math.min(path.len, p.d + dt * COURIER_SPEED)
+    const along = p.back ? path.len - p.d : p.d
+    pointAt(along, g.position)
+    pointAt(p.back ? Math.max(0, along - 0.3) : Math.min(path.len, along + 0.3), ahead)
+    if (ahead.distanceToSquared(g.position) > 1e-6) g.lookAt(ahead.x, g.position.y, ahead.z)
     walk.current += dt * 9
-    if (f < 1) return
+    if (p.d < path.len) return
     if (!p.back) {
       p.back = true
-      p.t = 0
+      p.d = 0
       setCarrying(false)
       onArrive()
     } else {
@@ -431,7 +417,7 @@ function Courier({ spec, onArrive, onDone }: { spec: CourierSpec; onArrive: () =
   })
 
   return (
-    <group ref={group} position={path.start} scale={COURIER_SCALE}>
+    <group ref={group} position={path.pts[0]} scale={COURIER_SCALE}>
       <WalkingAvatar seed={spec.seed} walkRef={walk} carry={carrying ? spec.color : undefined} />
     </group>
   )
@@ -523,7 +509,7 @@ function Station({
       {/* Plain DOM label via drei's Html (billboards automatically) instead of
           drei's Text — troika-three-text needs a worker to lay out glyphs,
           which some sandboxed/CSP-restricted browsers block. */}
-      <Html position={[0, r * 0.95 + 0.55, -0.2]} center distanceFactor={13} occlude={false} zIndexRange={[20, 0]}>
+      <Html position={[0, r * 0.95 + 0.55, -0.2]} center distanceFactor={16} occlude={false} zIndexRange={[20, 0]}>
         <StationTag
           name={station.name}
           subtitle={station.subtitle}
@@ -663,7 +649,7 @@ function MandoCenter({
         {activity === 'busy' && <Plumbob color={live?.state === 'alert' ? theme.bear : theme.atlas} position={[0, 4.4, 0]} scale={1.3} />}
       </group>
 
-      <Html position={[0, 12.6 * k, 0]} center distanceFactor={13} occlude={false} zIndexRange={[20, 0]}>
+      <Html position={[0, 12.6 * k, 0]} center distanceFactor={16} occlude={false} zIndexRange={[20, 0]}>
         <StationTag
           name={station.name}
           subtitle={station.subtitle}
@@ -688,12 +674,12 @@ function FloorDecor({ theme }: { theme: Theme }) {
   const colors = [theme.oracle, theme.atlas, theme.pulse, theme.nexus, theme.oracle, theme.atlas, theme.pulse]
   const racks = useMemo(() => {
     const out: { x: number; z: number; ry: number; strip: boolean }[] = []
-    // Leave the arc facing the default camera ([20, _, 26]) open.
-    const camAngle = Math.atan2(26, 20)
+    // Leave the arc facing the default camera open.
+    const camAngle = Math.atan2(DEFAULT_CAMERA_POSITION[2], DEFAULT_CAMERA_POSITION[0])
     for (let i = 0; i < 40; i++) {
       const a = (i / 40) * Math.PI * 2
       if (Math.cos(a - camAngle) > 0.45) continue
-      const r = 27 + (i % 3) * 0.8
+      const r = 34 + (i % 3) * 0.8
       out.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, ry: -a + Math.PI / 2, strip: i % 4 !== 0 })
     }
     return out
@@ -723,7 +709,7 @@ function FloorDecor({ theme }: { theme: Theme }) {
 function WallScreen({ color, kind, x, bg }: { color: string; kind: 'line' | 'candles'; x: number; bg: string }) {
   const tex = useScreenTexture(color, kind, bg)
   return (
-    <group position={[x, 2.6, -23]}>
+    <group position={[x, 2.6, -31]}>
       <mesh position={[0, 0, -0.1]}>
         <boxGeometry args={[4.7, 2.8, 0.15]} />
         <meshStandardMaterial color="#0b0f18" roughness={0.6} metalness={0.4} />

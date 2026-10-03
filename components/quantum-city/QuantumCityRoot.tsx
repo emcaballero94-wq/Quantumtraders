@@ -42,11 +42,11 @@ const HEIGHT = {
 
 /**
  * `page` fills /dashboard/city; `hero` is the shorter version at the top of
- * /dashboard, which also orbits slowly and starts with the event log closed.
+ * /dashboard, with the event log closed. Neither auto-orbits: the floor is the
+ * Tree of Life and should read top to bottom.
  */
 export function QuantumCityRoot({ variant = 'page' }: { variant?: keyof typeof HEIGHT }) {
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null)
-  const [reduceMotion, setReduceMotion] = useState(false)
   const [selected, setSelected] = useState<StationDef | null>(null)
   const liveStations = useQuantumCityLiveState()
   const { events, freshIds } = useQuantumCityEvents()
@@ -104,7 +104,6 @@ export function QuantumCityRoot({ variant = 'page' }: { variant?: keyof typeof H
     setIsDesktop(mql.matches)
     const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
     mql.addEventListener('change', handler)
-    setReduceMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
     return () => mql.removeEventListener('change', handler)
   }, [])
 
@@ -120,7 +119,6 @@ export function QuantumCityRoot({ variant = 'page' }: { variant?: keyof typeof H
         liveStations={liveStations}
         events={events}
         freshEventIds={freshIds}
-        autoRotate={variant === 'hero' && !reduceMotion}
         manu={manu}
       />
       {selected && (

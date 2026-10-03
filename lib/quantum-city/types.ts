@@ -26,3 +26,26 @@ export type QuantumCityStateResponse = {
   success: false
   error: string
 }
+
+// Phase 3 — event bus. Every entry here is a REAL, already-persisted fact
+// (a market event, a brief being generated, a trade being logged) — this is
+// a read-only merge of existing tables, never a synthetic/invented event.
+// `station` says which station the event visually belongs to, so the client
+// can animate it traveling from that station toward Mando.
+export type CityEventSeverity = 'low' | 'medium' | 'high' | 'critical'
+
+export interface CityEvent {
+  id: string
+  station: WiredStationId
+  timestamp: string
+  label: string
+  severity: CityEventSeverity
+}
+
+export type QuantumCityEventsResponse = {
+  success: true
+  data: { events: CityEvent[] }
+} | {
+  success: false
+  error: string
+}

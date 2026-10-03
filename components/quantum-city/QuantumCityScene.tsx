@@ -1,13 +1,13 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Grid, Html, Line } from '@react-three/drei'
 import * as THREE from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { QUANTUM_CITY_STATIONS, type StationDef } from './stations'
 import { readCssColorVar, rgbTupleToHex } from './use-theme-color'
-import type { StationLive, WiredStationId } from '@/lib/quantum-city/types'
+import type { CityEvent, StationLive, WiredStationId } from '@/lib/quantum-city/types'
 
 const DEFAULT_CAMERA_POSITION: [number, number, number] = [20, 20, 26]
 const DEFAULT_TARGET: [number, number, number] = [0, 0, -4]
@@ -19,9 +19,11 @@ interface QuantumCitySceneProps {
   selectedId: string | null
   onSelect: (station: StationDef) => void
   liveStations: LiveStations
+  events: CityEvent[]
+  freshEventIds: string[]
 }
 
-export function QuantumCityScene({ selectedId, onSelect, liveStations }: QuantumCitySceneProps) {
+export function QuantumCityScene({ selectedId, onSelect, liveStations, events, freshEventIds }: QuantumCitySceneProps) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null)
 
   const theme = useMemo(
@@ -31,6 +33,7 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations }: Quantum
       inkMuted: rgbTupleToHex(readCssColorVar('--c-ink-muted', [136, 128, 112])),
       inkPrimary: rgbTupleToHex(readCssColorVar('--c-ink-primary', [243, 239, 231])),
       bear: rgbTupleToHex(readCssColorVar('--c-bear', [239, 68, 68])),
+      nexus: rgbTupleToHex(readCssColorVar('--c-nexus', [124, 58, 237])),
     }),
     [],
   )
@@ -94,6 +97,16 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations }: Quantum
             Pipeline — sin backend todavía
           </span>
         </Html>
+
+        <Connectors liveStations={liveStations} lineColor={theme.border} crossColor={theme.nexus} />
+
+        <EventPulses
+          events={events}
+          freshEventIds={freshEventIds}
+          liveStations={liveStations}
+          alertColor={theme.bear}
+          crossColor={theme.nexus}
+        />
 
         {QUANTUM_CITY_STATIONS.map((station) => (
           <Station
@@ -159,6 +172,157 @@ function ringPoints(radius: number, segments = 48): [number, number, number][] {
     pts.push([Math.cos(a) * radius, 0, Math.sin(a) * radius])
   }
   return pts
+}
+
+function stationPos(id: WiredStationId | 'mando'): [number, number] {
+  return QUANTUM_CITY_STATIONS.find((s) => s.id === id)?.position ?? [0, 0]
+}
+
+// Phase 3 — event bus, part 1: static "reports to Mando" lines. Every wired,
+// implemented station feeds Mando's rollup (see app/api/quantum-city/state's
+// `mando` aggregate) — this just draws that real relationship. The
+// GEX→Flow line is the one actual cross-engine read in the whole codebase
+// (Order Flow's /api/manu/analyze pulls GEX's latest brief for context —
+// see docs/quantum-city-architecture.md §4) and is the only reason two
+// non-Mando stations get a line between them.
+function Connectors({ liveStations, lineColor, crossColor }: { liveStations: LiveStations; lineColor: string; crossColor: string }) {
+  const mandoPos = stationPos('mando')
+  const wiredIds = Object.keys(liveStations).filter((id) => id !== 'mando') as WiredStationId[]
+
+  return (
+    <>
+      {wiredIds.map((id) => {
+        const [x, z] = stationPos(id)
+        return (
+          <Line
+            key={id}
+            points={[
+              [x, 0.015, z],
+              [mandoPos[0], 0.015, mandoPos[1]],
+            ]}
+            color={lineColor}
+            lineWidth={1}
+            transparent
+            opacity={0.25}
+          />
+        )
+      })}
+      {liveStations.gex && liveStations.orderflow && (
+        <Line
+          points={[
+            [stationPos('gex')[0], 0.02, stationPos('gex')[1]],
+            [stationPos('orderflow')[0], 0.02, stationPos('orderflow')[1]],
+          ]}
+          color={crossColor}
+          lineWidth={1.5}
+          transparent
+          opacity={0.35}
+        />
+      )}
+    </>
+  )
+}
+
+interface PulseSpec {
+  id: string
+  from: [number, number]
+  to: [number, number]
+  color: string
+}
+
+const PULSE_DURATION_MS = 1600
+
+function EventPulses({
+  events,
+  freshEventIds,
+  liveStations,
+  alertColor,
+  crossColor,
+}: {
+  events: CityEvent[]
+  freshEventIds: string[]
+  liveStations: LiveStations
+  alertColor: string
+  crossColor: string
+}) {
+  const [pulses, setPulses] = useState<PulseSpec[]>([])
+
+  useEffect(() => {
+    if (freshEventIds.length === 0) return
+    const fresh = events.filter((e) => freshEventIds.includes(e.id))
+    const mandoPos = stationPos('mando')
+
+    const spawned: PulseSpec[] = []
+    for (const e of fresh) {
+      const from = stationPos(e.station)
+      const stationLive = liveStations[e.station]
+      const isUrgent = e.severity === 'high' || e.severity === 'critical'
+      spawned.push({
+        id: `${e.id}-mando-${Date.now()}`,
+        from,
+        to: mandoPos,
+        color: isUrgent ? alertColor : (stationLive?.state === 'alert' ? alertColor : '#8c8c8c'),
+      })
+
+      // The one real cross-engine read: a fresh Order Flow event, while GEX
+      // has fresh-enough data, means Flow's narrative is cross-referencing
+      // GEX's gamma regime right now (see Connectors' comment above).
+      if (e.station === 'orderflow' && liveStations.gex && liveStations.gex.state !== 'idle') {
+        spawned.push({
+          id: `${e.id}-gexflow-${Date.now()}`,
+          from: stationPos('gex'),
+          to: stationPos('orderflow'),
+          color: crossColor,
+        })
+      }
+    }
+    if (spawned.length > 0) setPulses((prev) => [...prev, ...spawned])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [freshEventIds])
+
+  const handleDone = (id: string) => setPulses((prev) => prev.filter((p) => p.id !== id))
+
+  return (
+    <>
+      {pulses.map((p) => (
+        <Pulse key={p.id} spec={p} onDone={() => handleDone(p.id)} />
+      ))}
+    </>
+  )
+}
+
+function Pulse({ spec, onDone }: { spec: PulseSpec; onDone: () => void }) {
+  const ref = useRef<THREE.Mesh>(null)
+  const startedAt = useRef<number | null>(null)
+  const doneRef = useRef(false)
+
+  useFrame(({ clock }) => {
+    if (doneRef.current) return
+    if (startedAt.current === null) startedAt.current = clock.getElapsedTime() * 1000
+    const elapsed = clock.getElapsedTime() * 1000 - startedAt.current
+    const t = Math.min(1, elapsed / PULSE_DURATION_MS)
+
+    if (ref.current) {
+      const x = THREE.MathUtils.lerp(spec.from[0], spec.to[0], t)
+      const z = THREE.MathUtils.lerp(spec.from[1], spec.to[1], t)
+      const y = 0.5 + Math.sin(t * Math.PI) * 0.7
+      ref.current.position.set(x, y, z)
+      const mat = ref.current.material as THREE.MeshBasicMaterial
+      mat.opacity = Math.sin(t * Math.PI)
+    }
+
+    if (t >= 1 && !doneRef.current) {
+      doneRef.current = true
+      onDone()
+    }
+  })
+
+  return (
+    <mesh ref={ref}>
+      <sphereGeometry args={[0.14, 10, 10]} />
+      <meshBasicMaterial color={spec.color} transparent opacity={0} />
+    </mesh>
+  )
 }
 
 function Station({

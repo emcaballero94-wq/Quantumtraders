@@ -4,7 +4,9 @@ import dynamic from 'next/dynamic'
 import { useEffect, useState } from 'react'
 import { AgentInspector } from './AgentInspector'
 import { QuantumCityLite } from './QuantumCityLite'
+import { EventLog } from './EventLog'
 import { useQuantumCityLiveState } from './use-live-state'
+import { useQuantumCityEvents } from './use-events'
 import type { StationDef } from './stations'
 
 // The 3D scene (three.js + @react-three/fiber) is only imported when we've
@@ -21,6 +23,7 @@ export function QuantumCityRoot() {
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null)
   const [selected, setSelected] = useState<StationDef | null>(null)
   const liveStations = useQuantumCityLiveState()
+  const { events, freshIds } = useQuantumCityEvents()
 
   useEffect(() => {
     const mql = window.matchMedia(DESKTOP_QUERY)
@@ -39,6 +42,8 @@ export function QuantumCityRoot() {
         selectedId={selected?.id ?? null}
         onSelect={(station) => setSelected(station)}
         liveStations={liveStations}
+        events={events}
+        freshEventIds={freshIds}
       />
       {selected && (
         <AgentInspector
@@ -47,6 +52,7 @@ export function QuantumCityRoot() {
           onClose={() => setSelected(null)}
         />
       )}
+      <EventLog events={events} />
     </div>
   )
 }

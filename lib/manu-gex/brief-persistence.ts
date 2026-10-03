@@ -87,3 +87,31 @@ export async function listGexBriefs(assetClass: 'equity' | 'crypto', symbol: str
   if (error || !data) return []
   return (data as GexBriefRow[]).map(mapRow)
 }
+
+// For Quantum City's historical replay (Phase 5) — briefs generate on every
+// page view with no fixed cadence, so a past calendar day's rows can easily
+// fall outside `listGexBriefs`' "most recent N" window once enough time has
+// passed. This queries the actual date range instead of assuming recency.
+export async function listGexBriefsBetween(
+  assetClass: 'equity' | 'crypto',
+  symbol: string,
+  fromIso: string,
+  toIso: string,
+  limit = 200,
+): Promise<GexBriefRecord[]> {
+  const admin = createAdminClient()
+  if (!admin) return []
+
+  const { data, error } = await admin
+    .from('gex_briefs')
+    .select(SELECT_COLUMNS)
+    .eq('asset_class', assetClass)
+    .eq('symbol', symbol)
+    .gte('created_at', fromIso)
+    .lt('created_at', toIso)
+    .order('created_at', { ascending: true })
+    .limit(limit)
+
+  if (error || !data) return []
+  return (data as GexBriefRow[]).map(mapRow)
+}

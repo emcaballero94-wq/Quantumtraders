@@ -49,3 +49,15 @@ export type QuantumCityEventsResponse = {
   success: false
   error: string
 }
+
+// Phase 5 — historical replay. Same CityEvent shape as the live bus, scoped
+// to one calendar day (UTC) — see app/api/quantum-city/replay's comment for
+// why that needs its own date-ranged queries instead of reusing the live
+// feed's "most recent N".
+export type QuantumCityReplayResponse = {
+  success: true
+  data: { date: string; events: CityEvent[]; tradesCount: number; outcomesCount: number }
+} | {
+  success: false
+  error: string
+}

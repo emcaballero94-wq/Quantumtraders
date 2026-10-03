@@ -1,13 +1,17 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { clsx } from 'clsx'
 import { AgentInspector } from './AgentInspector'
 import { QuantumCityLite } from './QuantumCityLite'
 import { EventLog } from './EventLog'
+import { ReplayPanel } from './ReplayPanel'
 import { useQuantumCityLiveState } from './use-live-state'
 import { useQuantumCityEvents } from './use-events'
 import type { StationDef } from './stations'
+import type { CityEvent } from '@/lib/quantum-city/types'
+import type { ReplayTrigger } from './QuantumCityScene'
 
 // The 3D scene (three.js + @react-three/fiber) is only imported when we've
 // confirmed we're on a desktop-sized viewport — this keeps the whole 3D
@@ -22,6 +26,9 @@ const DESKTOP_QUERY = '(min-width: 1024px)'
 export function QuantumCityRoot() {
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null)
   const [selected, setSelected] = useState<StationDef | null>(null)
+  const [mode, setMode] = useState<'live' | 'replay'>('live')
+  const [replayTrigger, setReplayTrigger] = useState<ReplayTrigger | null>(null)
+  const replayNonce = useRef(0)
   const liveStations = useQuantumCityLiveState()
   const { events, freshIds } = useQuantumCityEvents()
 
@@ -32,6 +39,11 @@ export function QuantumCityRoot() {
     mql.addEventListener('change', handler)
     return () => mql.removeEventListener('change', handler)
   }, [])
+
+  const handleReplayStep = (event: CityEvent) => {
+    replayNonce.current += 1
+    setReplayTrigger({ event, nonce: replayNonce.current })
+  }
 
   if (isDesktop === null) return <SceneLoading />
   if (!isDesktop) return <QuantumCityLite liveStations={liveStations} />
@@ -44,6 +56,7 @@ export function QuantumCityRoot() {
         liveStations={liveStations}
         events={events}
         freshEventIds={freshIds}
+        replayTrigger={replayTrigger}
       />
       {selected && (
         <AgentInspector
@@ -52,7 +65,25 @@ export function QuantumCityRoot() {
           onClose={() => setSelected(null)}
         />
       )}
-      <EventLog events={events} />
+
+      <div className="absolute top-4 left-4 flex rounded-md border border-bg-border bg-bg-card/80 backdrop-blur overflow-hidden text-[10px] font-mono uppercase tracking-wider">
+        <button
+          type="button"
+          onClick={() => setMode('live')}
+          className={clsx('px-3 py-1.5 transition-colors', mode === 'live' ? 'bg-pulse/15 text-pulse' : 'text-ink-secondary hover:text-ink-primary')}
+        >
+          Live
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('replay')}
+          className={clsx('px-3 py-1.5 transition-colors', mode === 'replay' ? 'bg-pulse/15 text-pulse' : 'text-ink-secondary hover:text-ink-primary')}
+        >
+          Replay
+        </button>
+      </div>
+
+      {mode === 'live' ? <EventLog events={events} /> : <ReplayPanel onStep={handleReplayStep} />}
     </div>
   )
 }

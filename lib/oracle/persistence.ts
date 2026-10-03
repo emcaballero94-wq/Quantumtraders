@@ -214,6 +214,25 @@ export async function listTradeJournalEntries(limit = 200): Promise<TradeJournal
   return (data as TradeJournalRow[]).map(mapTradeRow)
 }
 
+// For Quantum City's historical replay (Phase 5) — a date range rather than
+// "most recent N" so an old calendar day isn't silently dropped once enough
+// trades have been logged since.
+export async function listTradeJournalEntriesBetween(fromIso: string, toIso: string, limit = 500): Promise<TradeJournalEntry[]> {
+  const admin = createAdminClient()
+  if (!admin) return []
+
+  const { data, error } = await admin
+    .from('trade_journal_entries')
+    .select('*')
+    .gte('created_at', fromIso)
+    .lt('created_at', toIso)
+    .order('created_at', { ascending: true })
+    .limit(limit)
+
+  if (error || !data) return []
+  return (data as TradeJournalRow[]).map(mapTradeRow)
+}
+
 export async function insertTradeJournalEntry(input: {
   symbol: string
   side: 'BUY' | 'SELL'

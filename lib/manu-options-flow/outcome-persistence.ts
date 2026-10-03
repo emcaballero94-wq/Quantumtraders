@@ -117,6 +117,27 @@ export async function listBriefOutcomes(engine: string, symbol: string, limit = 
   return (data as BriefOutcomeRow[]).map(mapRow)
 }
 
+// For Quantum City's historical replay (Phase 5) — a date range on
+// `recorded_at` rather than "most recent N" so an old calendar day isn't
+// silently dropped once enough outcomes have accumulated since.
+export async function listBriefOutcomesBetween(engine: string, symbol: string, fromIso: string, toIso: string, limit = 500): Promise<BriefOutcomeRecord[]> {
+  const admin = createAdminClient()
+  if (!admin) return []
+
+  const { data, error } = await admin
+    .from('brief_outcomes')
+    .select(SELECT_COLUMNS)
+    .eq('engine', engine)
+    .eq('symbol', symbol)
+    .gte('recorded_at', fromIso)
+    .lt('recorded_at', toIso)
+    .order('recorded_at', { ascending: true })
+    .limit(limit)
+
+  if (error || !data) return []
+  return (data as BriefOutcomeRow[]).map(mapRow)
+}
+
 export interface AccuracySummary {
   totalEvaluated: number
   correctCount: number

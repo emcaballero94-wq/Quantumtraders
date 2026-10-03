@@ -15,15 +15,22 @@ const DORMANT_COLOR = '#4a463c'
 
 type LiveStations = Partial<Record<WiredStationId, StationLive>>
 
+export interface ReplayTrigger {
+  event: CityEvent
+  /** Bumped on every step so the effect re-fires even for the same event id replayed twice. */
+  nonce: number
+}
+
 interface QuantumCitySceneProps {
   selectedId: string | null
   onSelect: (station: StationDef) => void
   liveStations: LiveStations
   events: CityEvent[]
   freshEventIds: string[]
+  replayTrigger?: ReplayTrigger | null
 }
 
-export function QuantumCityScene({ selectedId, onSelect, liveStations, events, freshEventIds }: QuantumCitySceneProps) {
+export function QuantumCityScene({ selectedId, onSelect, liveStations, events, freshEventIds, replayTrigger }: QuantumCitySceneProps) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null)
 
   const theme = useMemo(
@@ -103,6 +110,7 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
         <EventPulses
           events={events}
           freshEventIds={freshEventIds}
+          replayTrigger={replayTrigger ?? null}
           liveStations={liveStations}
           alertColor={theme.bear}
           crossColor={theme.nexus}
@@ -232,15 +240,57 @@ interface PulseSpec {
 
 const PULSE_DURATION_MS = 1600
 
+// Shared by both trigger sources (a live event that just appeared, or a
+// historical event being stepped through in replay) so the two visual
+// languages — "this just happened" and "this happened, watch it again" —
+// stay identical rather than drifting into two different pulse systems.
+function buildPulsesForEvent(
+  e: CityEvent,
+  liveStations: LiveStations,
+  alertColor: string,
+  crossColor: string,
+  keySuffix: string,
+): PulseSpec[] {
+  const mandoPos = stationPos('mando')
+  const from = stationPos(e.station)
+  const stationLive = liveStations[e.station]
+  const isUrgent = e.severity === 'high' || e.severity === 'critical'
+
+  const spawned: PulseSpec[] = [
+    {
+      id: `${e.id}-mando-${keySuffix}`,
+      from,
+      to: mandoPos,
+      color: isUrgent ? alertColor : stationLive?.state === 'alert' ? alertColor : '#8c8c8c',
+    },
+  ]
+
+  // The one real cross-engine read: an Order Flow event alongside fresh GEX
+  // data means Flow's narrative is cross-referencing GEX's gamma regime
+  // (see Connectors' comment above) — true in replay just as it is live.
+  if (e.station === 'orderflow' && liveStations.gex && liveStations.gex.state !== 'idle') {
+    spawned.push({
+      id: `${e.id}-gexflow-${keySuffix}`,
+      from: stationPos('gex'),
+      to: stationPos('orderflow'),
+      color: crossColor,
+    })
+  }
+
+  return spawned
+}
+
 function EventPulses({
   events,
   freshEventIds,
+  replayTrigger,
   liveStations,
   alertColor,
   crossColor,
 }: {
   events: CityEvent[]
   freshEventIds: string[]
+  replayTrigger: ReplayTrigger | null
   liveStations: LiveStations
   alertColor: string
   crossColor: string
@@ -250,35 +300,17 @@ function EventPulses({
   useEffect(() => {
     if (freshEventIds.length === 0) return
     const fresh = events.filter((e) => freshEventIds.includes(e.id))
-    const mandoPos = stationPos('mando')
-
-    const spawned: PulseSpec[] = []
-    for (const e of fresh) {
-      const from = stationPos(e.station)
-      const stationLive = liveStations[e.station]
-      const isUrgent = e.severity === 'high' || e.severity === 'critical'
-      spawned.push({
-        id: `${e.id}-mando-${Date.now()}`,
-        from,
-        to: mandoPos,
-        color: isUrgent ? alertColor : (stationLive?.state === 'alert' ? alertColor : '#8c8c8c'),
-      })
-
-      // The one real cross-engine read: a fresh Order Flow event, while GEX
-      // has fresh-enough data, means Flow's narrative is cross-referencing
-      // GEX's gamma regime right now (see Connectors' comment above).
-      if (e.station === 'orderflow' && liveStations.gex && liveStations.gex.state !== 'idle') {
-        spawned.push({
-          id: `${e.id}-gexflow-${Date.now()}`,
-          from: stationPos('gex'),
-          to: stationPos('orderflow'),
-          color: crossColor,
-        })
-      }
-    }
+    const spawned = fresh.flatMap((e) => buildPulsesForEvent(e, liveStations, alertColor, crossColor, `live-${Date.now()}`))
     if (spawned.length > 0) setPulses((prev) => [...prev, ...spawned])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [freshEventIds])
+
+  useEffect(() => {
+    if (!replayTrigger) return
+    const spawned = buildPulsesForEvent(replayTrigger.event, liveStations, alertColor, crossColor, `replay-${replayTrigger.nonce}`)
+    setPulses((prev) => [...prev, ...spawned])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replayTrigger?.nonce])
 
   const handleDone = (id: string) => setPulses((prev) => prev.filter((p) => p.id !== id))
 

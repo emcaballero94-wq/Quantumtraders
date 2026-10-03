@@ -76,3 +76,23 @@ export async function listMarketEventsSince(symbol: string, sinceIso: string, li
   if (error || !data) return []
   return (data as MarketEventRow[]).map(mapRow)
 }
+
+// For Quantum City's historical replay (Phase 5) — a bounded window instead
+// of an open-ended "since", so a past calendar day's query doesn't also pull
+// in everything between that day and now.
+export async function listMarketEventsBetween(symbol: string, fromIso: string, toIso: string, limit = 500): Promise<MarketEventRecord[]> {
+  const admin = createAdminClient()
+  if (!admin) return []
+
+  const { data, error } = await admin
+    .from('market_events')
+    .select('id, symbol, type, severity, evidence, values, previous_values, created_at')
+    .eq('symbol', symbol)
+    .gte('created_at', fromIso)
+    .lt('created_at', toIso)
+    .order('created_at', { ascending: true })
+    .limit(limit)
+
+  if (error || !data) return []
+  return (data as MarketEventRow[]).map(mapRow)
+}

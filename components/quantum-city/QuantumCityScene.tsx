@@ -239,8 +239,9 @@ function CameraRig({
   return null
 }
 
-// The tree's lines, drawn as corridors on the floor (stations.ts has the
-// sketch they come from). Couriers walk along them to reach M.A.N.U.
+// The tree's lines, drawn as faint corridors on the floor (stations.ts has
+// the sketch they come from). They stay dim so the platforms lead; a courier
+// lights up its own route while it walks (see Courier).
 // GEX → Flow (the chokmah–chesed line) is the one actual cross-engine read
 // in the codebase — Order Flow's /api/manu/analyze pulls GEX's latest brief
 // (docs/quantum-city-architecture.md §4) — so it is tinted when both have data.
@@ -260,9 +261,9 @@ function Connectors({ liveStations, lineColor, crossColor }: { liveStations: Liv
               [bx, 0.02, bz],
             ]}
             color={isCross && crossLive ? crossColor : lineColor}
-            lineWidth={isCross && crossLive ? 3.5 : 3}
+            lineWidth={isCross && crossLive ? 2 : 1.5}
             transparent
-            opacity={isCross && crossLive ? 0.85 : 0.7}
+            opacity={isCross && crossLive ? 0.4 : 0.16}
           />
         )
       })}
@@ -416,10 +417,16 @@ function Courier({ spec, onArrive, onDone }: { spec: CourierSpec; onArrive: () =
     }
   })
 
+  // The corridor this courier walks, lit in its color until it gets back.
+  const lit = useMemo(() => spec.route.map(([x, z]) => [x, 0.03, z] as [number, number, number]), [spec.route])
+
   return (
-    <group ref={group} position={path.pts[0]} scale={COURIER_SCALE}>
-      <WalkingAvatar seed={spec.seed} walkRef={walk} carry={carrying ? spec.color : undefined} />
-    </group>
+    <>
+      <Line points={lit} color={spec.color} lineWidth={3} transparent opacity={0.85} />
+      <group ref={group} position={path.pts[0]} scale={COURIER_SCALE}>
+        <WalkingAvatar seed={spec.seed} walkRef={walk} carry={carrying ? spec.color : undefined} />
+      </group>
+    </>
   )
 }
 

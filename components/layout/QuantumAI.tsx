@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { clsx } from 'clsx'
 import type { AcademyLevel } from '@/lib/academy/content'
 import { ManuMessageContent } from './ManuMessageContent'
+import { emitManuSignal, type ManuSource } from '@/lib/quantum-city/manu-bus'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -110,6 +111,7 @@ export function QuantumAI() {
     setMessages(newMessages)
     setInput('')
     setIsLoading(true)
+    emitManuSignal({ phase: 'thinking', question: text })
 
     try {
       const response = await fetch('/api/oracle/chat', {
@@ -124,8 +126,15 @@ export function QuantumAI() {
         : result?.error ?? 'No se pudo obtener respuesta del sistema M.A.N.U.'
 
       setMessages([...newMessages, { role: 'assistant', content: reply }])
+      if (result?.success) {
+        const sources: ManuSource[] = Array.isArray(result.data.sources) ? result.data.sources : []
+        emitManuSignal({ phase: 'answered', question: text, sources, symbol: result.data.symbol ?? null })
+      } else {
+        emitManuSignal({ phase: 'failed' })
+      }
     } catch {
       setMessages([...newMessages, { role: 'assistant', content: 'Error de conexión con el sistema M.A.N.U..' }])
+      emitManuSignal({ phase: 'failed' })
     } finally {
       setIsLoading(false)
     }

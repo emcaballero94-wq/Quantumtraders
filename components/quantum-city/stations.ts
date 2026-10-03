@@ -52,7 +52,7 @@ export interface StationDef {
 }
 
 export const QUANTUM_CITY_STATIONS: StationDef[] = [
-  { id: 'mando', name: 'MANDO', subtitle: 'Command · Cockpit', href: '/dashboard', cssColorVar: '--c-ink-muted', position: [0, 0], radius: 1.8, implemented: true },
+  { id: 'mando', name: 'M.A.N.U.', subtitle: 'Mando · IA', href: '/dashboard', cssColorVar: '--c-ink-muted', position: [0, 0], radius: 1.8, implemented: true },
   { id: 'scanner', name: 'SCANNER', subtitle: 'Condition screener', href: '/dashboard/scanner', cssColorVar: '--c-oracle', position: [-7, -6], radius: 1, implemented: true },
   { id: 'atlas', name: 'ATLAS', subtitle: 'Charts · Technical', href: '/dashboard/atlas', cssColorVar: '--c-atlas', position: [-9.5, 2.5], radius: 1, implemented: true },
   { id: 'nexus', name: 'NEXUS', subtitle: 'Correlations', href: '/dashboard/nexus', cssColorVar: '--c-nexus', position: [-5.5, 9.5], radius: 1, implemented: true },

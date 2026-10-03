@@ -14,13 +14,23 @@ import type { StationDef } from './stations'
 // bundle out of every other page, and out of mobile entirely (brief §29/§30).
 const QuantumCityScene = dynamic(() => import('./QuantumCityScene').then((m) => m.QuantumCityScene), {
   ssr: false,
-  loading: () => <SceneLoading />,
+  loading: () => <SceneLoading height="h-[540px]" />,
 })
 
 const DESKTOP_QUERY = '(min-width: 1024px)'
 
-export function QuantumCityRoot() {
+const HEIGHT = {
+  page: 'h-[calc(100vh-7.5rem)]',
+  hero: 'h-[540px] 2xl:h-[620px]',
+} as const
+
+/**
+ * `page` fills /dashboard/city; `hero` is the shorter version at the top of
+ * /dashboard, which also orbits slowly and starts with the event log closed.
+ */
+export function QuantumCityRoot({ variant = 'page' }: { variant?: keyof typeof HEIGHT }) {
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null)
+  const [reduceMotion, setReduceMotion] = useState(false)
   const [selected, setSelected] = useState<StationDef | null>(null)
   const liveStations = useQuantumCityLiveState()
   const { events, freshIds } = useQuantumCityEvents()
@@ -30,20 +40,23 @@ export function QuantumCityRoot() {
     setIsDesktop(mql.matches)
     const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
     mql.addEventListener('change', handler)
+    setReduceMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
     return () => mql.removeEventListener('change', handler)
   }, [])
 
-  if (isDesktop === null) return <SceneLoading />
+  const height = HEIGHT[variant]
+  if (isDesktop === null) return <SceneLoading height={height} />
   if (!isDesktop) return <QuantumCityLite liveStations={liveStations} />
 
   return (
-    <div className="relative w-full h-[calc(100vh-7.5rem)] rounded-xl border border-bg-border overflow-hidden bg-bg-deep">
+    <div className={`relative w-full ${height} rounded-xl border border-bg-border overflow-hidden bg-bg-deep`}>
       <QuantumCityScene
         selectedId={selected?.id ?? null}
         onSelect={(station) => setSelected(station)}
         liveStations={liveStations}
         events={events}
         freshEventIds={freshIds}
+        autoRotate={variant === 'hero' && !reduceMotion}
       />
       {selected && (
         <AgentInspector
@@ -52,14 +65,14 @@ export function QuantumCityRoot() {
           onClose={() => setSelected(null)}
         />
       )}
-      <EventLog events={events} />
+      <EventLog events={events} defaultOpen={variant === 'page'} />
     </div>
   )
 }
 
-function SceneLoading() {
+function SceneLoading({ height = HEIGHT.page }: { height?: string }) {
   return (
-    <div className="w-full h-[calc(100vh-7.5rem)] rounded-xl border border-bg-border flex items-center justify-center bg-bg-deep">
+    <div className={`w-full ${height} rounded-xl border border-bg-border flex items-center justify-center bg-bg-deep`}>
       <div className="flex flex-col items-center gap-3">
         <div className="w-7 h-7 border-2 border-ink-muted border-t-transparent rounded-full animate-spin" />
         <span className="text-[10px] font-mono text-ink-secondary uppercase tracking-[0.2em]">Cargando Quantum City…</span>

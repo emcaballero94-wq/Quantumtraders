@@ -9,6 +9,7 @@ import { riskRegimeFromVix, computeAggregateBias } from '@/lib/oracle/risk-regim
 import { rankAssets } from '@/lib/oracle/score-engine'
 import { RatingBadge, BiasBadge } from '@/components/ui/StatusBadge'
 import { FeatureGrid } from '@/components/dashboard/FeatureGrid'
+import { QuantumCityRoot } from '@/components/quantum-city/QuantumCityRoot'
 import type { RadarAsset, EconomicEvent, SectorStrength, EventImpact } from '@/lib/oracle/types'
 import type { RelativeStrengthResult } from '@/lib/market-relative-strength'
 
@@ -272,6 +273,11 @@ export default function CommandPage() {
 
   return (
     <div className="space-y-9 animate-fade-in pb-20 max-w-[1280px]">
+      <section>
+        <ColumnHeader title="Quantum City · en vivo" href="/dashboard/city" cta="Abrir a pantalla completa" />
+        <QuantumCityRoot variant="hero" />
+      </section>
+
       <FeatureGrid />
 
       {/* Hero: regime as a sentence + bias meter */}

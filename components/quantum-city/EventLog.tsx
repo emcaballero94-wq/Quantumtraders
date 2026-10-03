@@ -15,8 +15,8 @@ const SEVERITY_DOT: Record<CityEvent['severity'], string> = {
   critical: 'bg-bear',
 }
 
-export function EventLog({ events }: { events: CityEvent[] }) {
-  const [open, setOpen] = useState(true)
+export function EventLog({ events, defaultOpen = true }: { events: CityEvent[]; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
 
   return (
     <div className="absolute bottom-4 right-4 w-[300px] max-h-[48vh] rounded-xl border border-bg-border bg-bg-card/95 backdrop-blur shadow-xl glass-card overflow-hidden flex flex-col">

@@ -7,13 +7,46 @@ import * as THREE from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { QUANTUM_CITY_STATIONS, type StationDef } from './stations'
 import { readCssColorVar, rgbTupleToHex } from './use-theme-color'
+import { Glow, HexPlatform, glowTexture, Plumbob, SeatedAvatar, WalkingAvatar, Workstation, useScreenTexture, type Activity } from './floor-props'
 import type { CityEvent, StationLive, WiredStationId } from '@/lib/quantum-city/types'
 
 const DEFAULT_CAMERA_POSITION: [number, number, number] = [20, 20, 26]
 const DEFAULT_TARGET: [number, number, number] = [0, 0, -4]
 const DORMANT_COLOR = '#4a463c'
+/** Stations are drawn larger than their layout radius so desks and avatars read at the default zoom. */
+const VISUAL_SCALE = 1.6
 
 type LiveStations = Partial<Record<WiredStationId, StationLive>>
+
+interface Theme {
+  bgDeep: string
+  border: string
+  inkMuted: string
+  inkPrimary: string
+  bear: string
+  nexus: string
+  atlas: string
+  oracle: string
+  pulse: string
+}
+
+/**
+ * The one place a station's visual activity is decided, and it only reads
+ * real state: no backend → 'off' (empty desks, dark screens); a live
+ * `active`/`alert` from /api/quantum-city/state → 'busy'; anything else →
+ * 'idle'. Nothing here is timer- or random-driven (docs §37).
+ */
+function activityFor(station: StationDef, live: StationLive | null): Activity {
+  if (!station.implemented) return 'off'
+  return live && live.state !== 'idle' ? 'busy' : 'idle'
+}
+
+function stateWord(station: StationDef, live: StationLive | null): string {
+  if (!station.implemented) return 'SIN BACKEND'
+  if (live?.state === 'alert') return 'ALERTA'
+  if (live?.state === 'active') return 'ACTIVO'
+  return 'EN REPOSO'
+}
 
 interface QuantumCitySceneProps {
   selectedId: string | null
@@ -21,12 +54,16 @@ interface QuantumCitySceneProps {
   liveStations: LiveStations
   events: CityEvent[]
   freshEventIds: string[]
+  /** Slow orbit while nothing is selected; the root turns it off for reduced motion. */
+  autoRotate?: boolean
 }
 
-export function QuantumCityScene({ selectedId, onSelect, liveStations, events, freshEventIds }: QuantumCitySceneProps) {
+export function QuantumCityScene({ selectedId, onSelect, liveStations, events, freshEventIds, autoRotate = false }: QuantumCitySceneProps) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null)
+  // Bumped by a courier when it delivers a real event; Mando's globe flashes.
+  const flashRef = useRef(0)
 
-  const theme = useMemo(
+  const theme = useMemo<Theme>(
     () => ({
       bgDeep: rgbTupleToHex(readCssColorVar('--c-bg-deep', [10, 9, 8])),
       border: rgbTupleToHex(readCssColorVar('--c-bg-border', [46, 42, 34])),
@@ -34,9 +71,18 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
       inkPrimary: rgbTupleToHex(readCssColorVar('--c-ink-primary', [243, 239, 231])),
       bear: rgbTupleToHex(readCssColorVar('--c-bear', [239, 68, 68])),
       nexus: rgbTupleToHex(readCssColorVar('--c-nexus', [124, 58, 237])),
+      atlas: rgbTupleToHex(readCssColorVar('--c-atlas', [16, 185, 129])),
+      oracle: rgbTupleToHex(readCssColorVar('--c-oracle', [232, 180, 76])),
+      pulse: rgbTupleToHex(readCssColorVar('--c-pulse', [249, 115, 22])),
     }),
     [],
   )
+
+  const stationColors = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const s of QUANTUM_CITY_STATIONS) map[s.id] = rgbTupleToHex(readCssColorVar(s.cssColorVar))
+    return map
+  }, [])
 
   const resetCamera = () => {
     const controls = controlsRef.current
@@ -46,6 +92,8 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
     controls.update()
   }
 
+  const mando = QUANTUM_CITY_STATIONS.find((s) => s.id === 'mando')!
+
   return (
     <div className="relative w-full h-full">
       <Canvas
@@ -54,17 +102,12 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
         gl={{ antialias: true, powerPreference: 'high-performance' }}
       >
         <color attach="background" args={[theme.bgDeep]} />
-        <fog attach="fog" args={[theme.bgDeep, 28, 56]} />
+        <fog attach="fog" args={[theme.bgDeep, 34, 78]} />
 
-        {/* Low, mostly-ambient lighting on purpose: the station platforms use
-            an unlit material (see Station below) so they read as flat
-            holographic zone markers rather than lit 3D mounds — a single
-            strong directional light across a wide flat disc reads as a dome
-            due to the shading gradient, which looked like a cartoonish
-            "mushroom" in review and doesn't fit the brief's premium/
-            institutional direction. */}
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[10, 16, 8]} intensity={0.35} color={theme.inkPrimary} />
+        {/* Platforms, rims, screens and glows are unlit/emissive, so the
+            lights only need to model the avatars and desks. */}
+        <hemisphereLight args={[theme.inkPrimary, theme.bgDeep, 1.1]} />
+        <directionalLight position={[10, 16, 8]} intensity={1.1} color={theme.inkPrimary} />
 
         <Grid
           args={[70, 70]}
@@ -79,6 +122,8 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
           infiniteGrid={false}
           position={[0, -0.01, 0]}
         />
+
+        <FloorDecor theme={theme} />
 
         {/* Divider between the real engines and the not-yet-built pipeline row */}
         <Line
@@ -100,22 +145,37 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
 
         <Connectors liveStations={liveStations} lineColor={theme.border} crossColor={theme.nexus} />
 
-        <EventPulses
+        <Couriers
           events={events}
           freshEventIds={freshEventIds}
           liveStations={liveStations}
+          stationColors={stationColors}
           alertColor={theme.bear}
           crossColor={theme.nexus}
+          onArrive={() => {
+            flashRef.current = 1
+          }}
         />
 
-        {QUANTUM_CITY_STATIONS.map((station) => (
+        <MandoCenter
+          station={mando}
+          live={liveStations.mando ?? null}
+          isSelected={selectedId === 'mando'}
+          onSelect={() => onSelect(mando)}
+          theme={theme}
+          color={stationColors.mando}
+          flashRef={flashRef}
+        />
+
+        {QUANTUM_CITY_STATIONS.filter((s) => s.id !== 'mando').map((station) => (
           <Station
             key={station.id}
             station={station}
             isSelected={selectedId === station.id}
             onSelect={() => onSelect(station)}
             live={liveStations[station.id as WiredStationId] ?? null}
-            alertColor={theme.bear}
+            color={stationColors[station.id]}
+            theme={theme}
           />
         ))}
 
@@ -129,6 +189,8 @@ export function QuantumCityScene({ selectedId, onSelect, liveStations, events, f
           maxDistance={42}
           maxPolarAngle={Math.PI / 2.1}
           target={DEFAULT_TARGET}
+          autoRotate={autoRotate && !selectedId}
+          autoRotateSpeed={0.35}
         />
       </Canvas>
 
@@ -163,15 +225,6 @@ function CameraRig({
   })
 
   return null
-}
-
-function ringPoints(radius: number, segments = 48): [number, number, number][] {
-  const pts: [number, number, number][] = []
-  for (let i = 0; i <= segments; i++) {
-    const a = (i / segments) * Math.PI * 2
-    pts.push([Math.cos(a) * radius, 0, Math.sin(a) * radius])
-  }
-  return pts
 }
 
 function stationPos(id: WiredStationId | 'mando'): [number, number] {
@@ -223,45 +276,63 @@ function Connectors({ liveStations, lineColor, crossColor }: { liveStations: Liv
   )
 }
 
-interface PulseSpec {
+// ---------------------------------------------------------------- couriers
+
+interface CourierSpec {
   id: string
   from: [number, number]
+  fromRadius: number
   to: [number, number]
+  toRadius: number
   color: string
+  seed: number
 }
 
-const PULSE_DURATION_MS = 1600
+/** World units per second; ~8 s for an outer station to reach Mando. */
+const COURIER_SPEED = 1.3
+const COURIER_SCALE = 0.3
 
-function EventPulses({
+function radiusOf(id: string): number {
+  return (QUANTUM_CITY_STATIONS.find((s) => s.id === id)?.radius ?? 1) * VISUAL_SCALE
+}
+
+// Phase 3's event bus, drawn as a person: each FRESH event (new since the
+// last poll, see use-events.ts) sends one avatar from its station to Mando
+// carrying the result, then back. No fresh event → nobody walks.
+function Couriers({
   events,
   freshEventIds,
   liveStations,
+  stationColors,
   alertColor,
   crossColor,
+  onArrive,
 }: {
   events: CityEvent[]
   freshEventIds: string[]
   liveStations: LiveStations
+  stationColors: Record<string, string>
   alertColor: string
   crossColor: string
+  onArrive: () => void
 }) {
-  const [pulses, setPulses] = useState<PulseSpec[]>([])
+  const [couriers, setCouriers] = useState<CourierSpec[]>([])
+  const seq = useRef(0)
 
   useEffect(() => {
     if (freshEventIds.length === 0) return
     const fresh = events.filter((e) => freshEventIds.includes(e.id))
-    const mandoPos = stationPos('mando')
-
-    const spawned: PulseSpec[] = []
+    const spawned: CourierSpec[] = []
     for (const e of fresh) {
-      const from = stationPos(e.station)
-      const stationLive = liveStations[e.station]
-      const isUrgent = e.severity === 'high' || e.severity === 'critical'
+      const isUrgent = e.severity === 'high' || e.severity === 'critical' || liveStations[e.station]?.state === 'alert'
       spawned.push({
         id: `${e.id}-mando-${Date.now()}`,
-        from,
-        to: mandoPos,
-        color: isUrgent ? alertColor : (stationLive?.state === 'alert' ? alertColor : '#8c8c8c'),
+        from: stationPos(e.station),
+        fromRadius: radiusOf(e.station),
+        to: stationPos('mando'),
+        toRadius: radiusOf('mando'),
+        color: isUrgent ? alertColor : stationColors[e.station] ?? crossColor,
+        seed: seq.current++,
       })
 
       // The one real cross-engine read: a fresh Order Flow event, while GEX
@@ -271,57 +342,97 @@ function EventPulses({
         spawned.push({
           id: `${e.id}-gexflow-${Date.now()}`,
           from: stationPos('gex'),
+          fromRadius: radiusOf('gex'),
           to: stationPos('orderflow'),
+          toRadius: radiusOf('orderflow'),
           color: crossColor,
+          seed: seq.current++,
         })
       }
     }
-    if (spawned.length > 0) setPulses((prev) => [...prev, ...spawned])
+    if (spawned.length > 0) setCouriers((prev) => [...prev, ...spawned])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [freshEventIds])
 
-  const handleDone = (id: string) => setPulses((prev) => prev.filter((p) => p.id !== id))
+  const handleDone = (id: string) => setCouriers((prev) => prev.filter((c) => c.id !== id))
 
   return (
     <>
-      {pulses.map((p) => (
-        <Pulse key={p.id} spec={p} onDone={() => handleDone(p.id)} />
+      {couriers.map((c) => (
+        <Courier key={c.id} spec={c} onArrive={onArrive} onDone={() => handleDone(c.id)} />
       ))}
     </>
   )
 }
 
-function Pulse({ spec, onDone }: { spec: PulseSpec; onDone: () => void }) {
-  const ref = useRef<THREE.Mesh>(null)
-  const startedAt = useRef<number | null>(null)
-  const doneRef = useRef(false)
+function Courier({ spec, onArrive, onDone }: { spec: CourierSpec; onArrive: () => void; onDone: () => void }) {
+  const group = useRef<THREE.Group>(null)
+  const walk = useRef(0)
+  const progress = useRef({ t: 0, back: false, finished: false })
+  const [carrying, setCarrying] = useState(true)
 
-  useFrame(({ clock }) => {
-    if (doneRef.current) return
-    if (startedAt.current === null) startedAt.current = clock.getElapsedTime() * 1000
-    const elapsed = clock.getElapsedTime() * 1000 - startedAt.current
-    const t = Math.min(1, elapsed / PULSE_DURATION_MS)
+  const path = useMemo(() => {
+    const from = new THREE.Vector3(spec.from[0], 0, spec.from[1])
+    const to = new THREE.Vector3(spec.to[0], 0, spec.to[1])
+    const dir = to.clone().sub(from).normalize()
+    const start = from.clone().addScaledVector(dir, spec.fromRadius * 0.95)
+    const end = to.clone().addScaledVector(dir, -spec.toRadius * 1.02)
+    return { start, end, len: Math.max(0.5, start.distanceTo(end)) }
+  }, [spec])
 
-    if (ref.current) {
-      const x = THREE.MathUtils.lerp(spec.from[0], spec.to[0], t)
-      const z = THREE.MathUtils.lerp(spec.from[1], spec.to[1], t)
-      const y = 0.5 + Math.sin(t * Math.PI) * 0.7
-      ref.current.position.set(x, y, z)
-      const mat = ref.current.material as THREE.MeshBasicMaterial
-      mat.opacity = Math.sin(t * Math.PI)
-    }
-
-    if (t >= 1 && !doneRef.current) {
-      doneRef.current = true
+  useFrame((_, dt) => {
+    const p = progress.current
+    const g = group.current
+    if (p.finished || !g) return
+    p.t += (dt * COURIER_SPEED) / path.len
+    const f = Math.min(1, p.t)
+    const [a, b] = p.back ? [path.end, path.start] : [path.start, path.end]
+    g.position.lerpVectors(a, b, f)
+    g.lookAt(b.x, 0, b.z)
+    walk.current += dt * 9
+    if (f < 1) return
+    if (!p.back) {
+      p.back = true
+      p.t = 0
+      setCarrying(false)
+      onArrive()
+    } else {
+      p.finished = true
       onDone()
     }
   })
 
   return (
-    <mesh ref={ref}>
-      <sphereGeometry args={[0.14, 10, 10]} />
-      <meshBasicMaterial color={spec.color} transparent opacity={0} />
-    </mesh>
+    <group ref={group} position={path.start} scale={COURIER_SCALE}>
+      <WalkingAvatar seed={spec.seed} walkRef={walk} carry={carrying ? spec.color : undefined} />
+    </group>
+  )
+}
+
+// ---------------------------------------------------------------- stations
+
+function StationTag({ name, subtitle, state, color, detail, dim }: { name: string; subtitle: string; state: string; color: string; detail?: string; dim: boolean }) {
+  const busy = state === 'ACTIVO' || state === 'ALERTA'
+  return (
+    <div
+      className="pointer-events-none select-none flex items-start gap-2 rounded-md border bg-bg-deep/85 px-2.5 py-1.5 backdrop-blur-sm whitespace-nowrap"
+      style={{ borderColor: color, opacity: dim ? 0.65 : 1, boxShadow: busy ? `0 0 18px -4px ${color}` : undefined }}
+    >
+      <span className="mt-0.5 w-5 h-5 rounded grid place-items-center text-[10px] font-mono font-bold" style={{ background: `${color}33`, color }}>
+        {name[0]}
+      </span>
+      <div className="flex flex-col">
+        <span className="text-[12px] font-mono font-bold tracking-[0.08em]" style={{ color }}>
+          {name}
+        </span>
+        <span className="text-[9.5px] font-mono text-ink-secondary">{subtitle}</span>
+        <span className="mt-0.5 flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-dim" style={state === 'ALERTA' ? { color } : undefined}>
+          <span className={busy ? 'w-1.5 h-1.5 rounded-full animate-pulse' : 'w-1.5 h-1.5 rounded-full'} style={{ background: busy ? color : 'currentColor' }} />
+          {state}
+        </span>
+        {detail && <span className="text-[8.5px] font-mono text-ink-dim max-w-[180px] whitespace-normal leading-snug mt-0.5">{detail}</span>}
+      </div>
+    </div>
   )
 }
 
@@ -330,51 +441,37 @@ function Station({
   isSelected,
   onSelect,
   live,
-  alertColor,
+  color: liveColor,
+  theme,
 }: {
   station: StationDef
   isSelected: boolean
   onSelect: () => void
   live: StationLive | null
-  alertColor: string
+  color: string
+  theme: Theme
 }) {
   const [hovered, setHovered] = useState(false)
-  const agentRef = useRef<THREE.Mesh>(null)
-
-  const liveColor = useMemo(() => rgbTupleToHex(readCssColorVar(station.cssColorVar)), [station.cssColorVar])
+  const r = station.radius * VISUAL_SCALE
   // `live` is only present for Phase-2-wired stations (see docs §11) — an
   // 'alert' there is a real recency/severity signal (e.g. HIGH-severity Order
-  // Flow events, a GEX regime flip, Risk-Off VIX), never invented. Stations
-  // without a `live` entry keep the original static look untouched.
-  const color = live?.state === 'alert' ? alertColor : station.implemented ? liveColor : DORMANT_COLOR
-  const isActive = live?.state === 'active' || live?.state === 'alert'
+  // Flow events, a GEX regime flip, Risk-Off VIX), never invented.
+  const color = live?.state === 'alert' ? theme.bear : station.implemented ? liveColor : DORMANT_COLOR
+  const activity = activityFor(station, live)
   const [x, z] = station.position
-
-  const markerSize = station.radius * 0.32
-  const agentRestY = markerSize + 0.35
-  const ring = useMemo(() => ringPoints(station.radius), [station.radius])
-
-  // Idle-only motion, and only for implemented stations — a dormant
-  // Strategy/Risk/Execution/Review station must look inert, not "working",
-  // since there is no backend behind it (docs/quantum-city-architecture.md
-  // §11/§37). The bob/spin itself is always uniform (never data-driven) —
-  // only its amplitude reflects real `live.state` recency, nothing fabricated.
-  useFrame(({ clock }) => {
-    if (!agentRef.current || !station.implemented) return
-    const t = clock.getElapsedTime()
-    const amplitude = isActive ? 0.13 : 0.08
-    agentRef.current.position.y = agentRestY + Math.sin(t * 1.2 + x + z) * amplitude
-    agentRef.current.rotation.y = t * (isActive ? 0.7 : 0.4)
-  })
+  // Workstation props are modeled in a radius-5 footprint.
+  const k = r / 5
+  const seed = useMemo(() => station.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0), [station.id])
+  const glow = activity === 'busy' ? 0.42 : activity === 'idle' ? 0.14 : 0.04
 
   return (
     <group position={[x, 0, z]}>
-      {/* Flat, unlit "zone card" — a filled disc + glowing ring outline,
-          deliberately immune to scene lighting (meshBasicMaterial) so it
-          reads as a holographic floor marker, not a solid lit shape. */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0.01, 0]}
+      <HexPlatform
+        radius={r}
+        color={color}
+        height={0.07}
+        rimOpacity={station.implemented ? (isSelected || hovered ? 1 : 0.8) : 0.35}
+        floorTint={activity === 'busy' ? 0.14 : isSelected || hovered ? 0.08 : 0.03}
         onClick={(e) => {
           e.stopPropagation()
           onSelect()
@@ -384,56 +481,227 @@ function Station({
           setHovered(true)
         }}
         onPointerOut={() => setHovered(false)}
-      >
-        <circleGeometry args={[station.radius, 32]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={isSelected ? 0.26 : hovered ? 0.2 : isActive ? 0.16 : station.implemented ? 0.1 : 0.05}
-        />
-      </mesh>
-      <Line points={ring} color={color} lineWidth={isSelected || hovered ? 2.5 : isActive ? 2 : 1.5} transparent opacity={station.implemented ? 1 : 0.5} />
-
-      {station.implemented && (
-        <mesh ref={agentRef} position={[0, agentRestY, 0]}>
-          <octahedronGeometry args={[markerSize, 0]} />
-          <meshStandardMaterial
-            color={color}
-            emissive={color}
-            emissiveIntensity={hovered || isSelected ? 0.8 : isActive ? 0.65 : 0.45}
-            roughness={0.25}
-            metalness={0.6}
-            flatShading
-          />
-        </mesh>
-      )}
-      {!station.implemented && (
-        <mesh position={[0, agentRestY * 0.6, 0]}>
-          <octahedronGeometry args={[markerSize * 0.7, 0]} />
-          <meshBasicMaterial color={color} wireframe transparent opacity={0.4} />
-        </mesh>
+      />
+      <Glow color={color} size={r * 2.8} opacity={glow + (isSelected ? 0.1 : 0)} position={[0, 0.12, 0]} />
+      <group position={[0, 0.07, 0]} scale={k}>
+        <Workstation color={color} activity={activity} seed={seed} screenBg={theme.bgDeep} />
+      </group>
+      {activity === 'busy' && (
+        <Plumbob color={live?.state === 'alert' ? theme.bear : theme.atlas} position={[0.9 * k, 0.07 + 3.3 * k, 2.3 * k]} scale={k * 1.2} />
       )}
 
       {/* Plain DOM label via drei's Html (billboards automatically) instead of
           drei's Text — troika-three-text needs a worker to lay out glyphs,
-          which some sandboxed/CSP-restricted browsers block; Html has no
-          such dependency and reuses the app's own font/text styling. */}
-      <Html position={[0, station.radius + 1.1, 0]} center distanceFactor={9} occlude={false}>
-        <div className="flex flex-col items-center pointer-events-none select-none">
-          <span
-            className="text-[13px] font-mono font-bold tracking-[0.08em] whitespace-nowrap"
-            style={{ color, opacity: station.implemented ? 1 : 0.6 }}
-          >
-            {station.name}
-          </span>
-          <span className="text-[9px] font-mono uppercase tracking-wider text-ink-dim" style={live?.state === 'alert' ? { color: alertColor } : undefined}>
-            {!station.implemented ? 'NOT IMPLEMENTED' : live ? live.state.toUpperCase() : 'IDLE'}
-          </span>
-          {live && (isSelected || hovered) && (
-            <span className="text-[8.5px] font-mono text-ink-dim max-w-[160px] text-center leading-snug mt-0.5">{live.detail}</span>
-          )}
-        </div>
+          which some sandboxed/CSP-restricted browsers block. */}
+      <Html position={[0, r * 0.95 + 0.55, -0.2]} center distanceFactor={13} occlude={false}>
+        <StationTag
+          name={station.name}
+          subtitle={station.subtitle}
+          state={stateWord(station, live)}
+          color={color}
+          dim={!station.implemented}
+          detail={live && (isSelected || hovered) ? live.detail : undefined}
+        />
       </Html>
+    </group>
+  )
+}
+
+// ---------------------------------------------------------------- mando
+
+function MandoCenter({
+  station,
+  live,
+  isSelected,
+  onSelect,
+  theme,
+  color,
+  flashRef,
+}: {
+  station: StationDef
+  live: StationLive | null
+  isSelected: boolean
+  onSelect: () => void
+  theme: Theme
+  color: string
+  flashRef: React.MutableRefObject<number>
+}) {
+  const [hovered, setHovered] = useState(false)
+  const r = station.radius * VISUAL_SCALE
+  const activity = activityFor(station, live)
+  const rim = live?.state === 'alert' ? theme.bear : theme.pulse
+  // Console props are modeled for a radius-7.2 platform.
+  const k = r / 7.2
+  const globe = useRef<THREE.Group>(null)
+  const ringA = useRef<THREE.Mesh>(null)
+  const ringB = useRef<THREE.Mesh>(null)
+  const glow = useRef<THREE.Sprite>(null)
+  const beam = useRef<THREE.Mesh>(null)
+  const screenA = useScreenTexture(theme.pulse, 'line', theme.bgDeep)
+  const screenB = useScreenTexture(theme.oracle, 'candles', theme.bgDeep)
+
+  useFrame(({ clock }, dt) => {
+    const t = clock.getElapsedTime()
+    const busy = activity === 'busy'
+    flashRef.current = Math.max(0, flashRef.current - dt * 1.6)
+    const flash = flashRef.current
+    if (globe.current) {
+      globe.current.rotation.y += dt * (busy ? 0.6 : 0.2)
+      globe.current.position.y = 8.2 + Math.sin(t * 1.2) * 0.2
+    }
+    if (ringA.current) ringA.current.rotation.z += dt * 0.6
+    if (ringB.current) ringB.current.rotation.z -= dt * 0.4
+    if (glow.current) {
+      const m = glow.current.material as THREE.SpriteMaterial
+      m.opacity = 0.35 + flash * 0.55 + (busy ? 0.15 : 0)
+      const s = 15 + flash * 8
+      glow.current.scale.set(s, s, 1)
+    }
+    if (beam.current) (beam.current.material as THREE.MeshBasicMaterial).opacity = 0.06 + flash * 0.14 + (busy ? 0.05 : 0)
+    if (busy) {
+      screenA.offset.x += dt * 0.05
+      screenB.offset.x += dt * 0.04
+    }
+  })
+
+  return (
+    <group position={[station.position[0], 0, station.position[1]]}>
+      <HexPlatform
+        radius={r}
+        color={rim}
+        height={0.1}
+        rimOpacity={isSelected || hovered ? 1 : 0.85}
+        floorTint={activity === 'busy' ? 0.1 : 0.04}
+        onClick={(e) => {
+          e.stopPropagation()
+          onSelect()
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation()
+          setHovered(true)
+        }}
+        onPointerOut={() => setHovered(false)}
+      />
+      <Glow color={rim} size={r * 2.6} opacity={0.18} position={[0, 0.15, 0]} />
+      <group position={[0, 0.1, 0]} scale={k}>
+        <mesh position={[0, 1, 0]}>
+          <cylinderGeometry args={[3.4, 3.4, 1, 24, 1, true]} />
+          <meshStandardMaterial color="#111827" metalness={0.6} roughness={0.4} side={THREE.DoubleSide} />
+        </mesh>
+        {Array.from({ length: 8 }, (_, i) => {
+          const ang = (i / 8) * Math.PI * 2
+          return (
+            <mesh key={i} position={[Math.sin(ang) * 3.5, 2.1, Math.cos(ang) * 3.5]} rotation={[0, ang, 0]}>
+              <planeGeometry args={[1.4, 0.8]} />
+              <meshBasicMaterial map={i % 2 ? screenB : screenA} color={activity === 'busy' ? '#d0dbf0' : '#6a7690'} side={THREE.DoubleSide} />
+            </mesh>
+          )
+        })}
+        {Array.from({ length: 4 }, (_, i) => {
+          const ang = (i / 4) * Math.PI * 2 + Math.PI / 4
+          return (
+            <group key={i} position={[Math.sin(ang) * 2.5, 0.25, Math.cos(ang) * 2.5]} rotation={[0, ang + Math.PI, 0]}>
+              <SeatedAvatar seed={40 + i} activity={activity} />
+            </group>
+          )
+        })}
+        <group ref={globe} position={[0, 8.2, 0]}>
+          <mesh>
+            <sphereGeometry args={[2.55, 32, 24]} />
+            <meshBasicMaterial color={theme.oracle} transparent opacity={0.22} />
+          </mesh>
+          <mesh>
+            <icosahedronGeometry args={[2.7, 3]} />
+            <meshBasicMaterial color={theme.oracle} wireframe transparent opacity={0.5} />
+          </mesh>
+          <mesh ref={ringA} rotation={[Math.PI / 2.3, 0, 0]}>
+            <torusGeometry args={[3.6, 0.05, 6, 64]} />
+            <meshBasicMaterial color={theme.pulse} />
+          </mesh>
+          <mesh ref={ringB} rotation={[Math.PI / 1.8, 0.5, 0]}>
+            <torusGeometry args={[4.2, 0.03, 6, 64]} />
+            <meshBasicMaterial color={theme.oracle} transparent opacity={0.6} />
+          </mesh>
+          <sprite ref={glow} scale={[15, 15, 1]}>
+            <spriteMaterial map={glowTexture()} color={theme.oracle} transparent opacity={0.35} blending={THREE.AdditiveBlending} depthWrite={false} />
+          </sprite>
+        </group>
+        <mesh ref={beam} position={[0, 4.2, 0]}>
+          <cylinderGeometry args={[1.2, 3.2, 7, 32, 1, true]} />
+          <meshBasicMaterial color={theme.oracle} transparent opacity={0.06} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} depthWrite={false} />
+        </mesh>
+        {activity === 'busy' && <Plumbob color={live?.state === 'alert' ? theme.bear : theme.atlas} position={[0, 4.4, 0]} scale={1.3} />}
+      </group>
+
+      <Html position={[0, 12.6 * k, 0]} center distanceFactor={13} occlude={false}>
+        <StationTag
+          name={station.name}
+          subtitle={station.subtitle}
+          state={stateWord(station, live)}
+          color={rim}
+          dim={false}
+          detail={live && (isSelected || hovered) ? live.detail : undefined}
+        />
+      </Html>
+    </group>
+  )
+}
+
+// ---------------------------------------------------------------- decor
+
+/**
+ * Static room dressing so the floor reads as a place: a wall of chart
+ * screens behind the pipeline row and server racks around the edge. None of
+ * it moves or claims to show live data.
+ */
+function FloorDecor({ theme }: { theme: Theme }) {
+  const colors = [theme.oracle, theme.atlas, theme.pulse, theme.nexus, theme.oracle, theme.atlas, theme.pulse]
+  const racks = useMemo(() => {
+    const out: { x: number; z: number; ry: number; strip: boolean }[] = []
+    // Leave the arc facing the default camera ([20, _, 26]) open.
+    const camAngle = Math.atan2(26, 20)
+    for (let i = 0; i < 40; i++) {
+      const a = (i / 40) * Math.PI * 2
+      if (Math.cos(a - camAngle) > 0.45) continue
+      const r = 27 + (i % 3) * 0.8
+      out.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, ry: -a + Math.PI / 2, strip: i % 4 !== 0 })
+    }
+    return out
+  }, [])
+
+  return (
+    <group>
+      {colors.map((c, i) => (
+        <WallScreen key={i} color={c} kind={i % 3 === 1 ? 'candles' : 'line'} x={-15 + i * 5} bg={theme.bgDeep} />
+      ))}
+      {racks.map((r, i) => (
+        <group key={i} position={[r.x, 0, r.z]} rotation={[0, r.ry, 0]}>
+          <mesh position={[0, 1.8, 0]}>
+            <boxGeometry args={[1.2, 3.6, 1.2]} />
+            <meshStandardMaterial color="#0b0f18" roughness={0.6} metalness={0.4} />
+          </mesh>
+          <mesh position={[0, 1.8, 0.62]}>
+            <boxGeometry args={[0.06, 2.9, 0.02]} />
+            <meshBasicMaterial color={r.strip ? theme.oracle : theme.atlas} transparent opacity={0.7} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  )
+}
+
+function WallScreen({ color, kind, x, bg }: { color: string; kind: 'line' | 'candles'; x: number; bg: string }) {
+  const tex = useScreenTexture(color, kind, bg)
+  return (
+    <group position={[x, 2.6, -23]}>
+      <mesh position={[0, 0, -0.1]}>
+        <boxGeometry args={[4.7, 2.8, 0.15]} />
+        <meshStandardMaterial color="#0b0f18" roughness={0.6} metalness={0.4} />
+      </mesh>
+      <mesh>
+        <planeGeometry args={[4.5, 2.6]} />
+        <meshBasicMaterial map={tex} color="#7f8da8" />
+      </mesh>
     </group>
   )
 }
